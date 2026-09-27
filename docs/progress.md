@@ -3,7 +3,7 @@
 - [x] 1. Foundation: project setup, migrations copied, generated types, design tokens (light/dark), admin shell, auth (§6), permission helpers (§4), activity log (§7), date helpers (§11)
 - [x] 2. Security: RLS hardening + public functions (§12.1), atomic RPCs (§12.6)
 - [x] 3. Shared table pattern (§9.2)
-- [ ] 4. Master data: Tempat, Wilayah, Label Jemaat (§9.8)
+- [x] 4. Master data: Tempat, Wilayah, Label Jemaat (§9.8)
 - [ ] 5. Data Jemaat + Keluarga (§9.9–9.10)
 - [ ] 6. Peribadahan (§9.5)
 - [ ] 7. Sarana & Dana (§9.7)
@@ -109,7 +109,7 @@
   - Errors for route handlers to map:
     - `42501` → 403
     - `P0002` → 404
-    - `23505` → 409
+    - `23505` → 400 (changed in stage 4 to match brief §10, which lists only 400/401/403/404)
     - `23503` / `22023` → 400
   - Messages are Indonesian.
   - Arguments that default to null are optional in the generated types. Omit them to pass null (for example, no role = "Tidak ada").
@@ -121,7 +121,7 @@
     - `update_peribadahan_item` with the SMKA grid (stage 6).
 
     Whether labels and SMKA keep the §10 207 behavior is decided in those stages.
-  - Appends that use `sort_order = count` stay in the app. A race only produces duplicate `sort_order` values.
+  - Appends stay in the app. Stage 4 replaced `sort_order = count` with `max + 1` (see there).
 
 **Local development**
 - `pnpm test:db` runs pgTAP (`supabase test db --local`) on `supabase/tests/database/*.test.sql`.
@@ -212,4 +212,88 @@
 - **Not verified yet**: the visual check of the demo page in light and dark mode, at 360px, and with the keyboard in a real browser.
   - While checking, `.env.development.local` was found to set `NEXT_PUBLIC_SUPABASE_URL` to a `*.supabase.co` project, not the local stack described in stage 1.
   - Because of that, the page was only confirmed to exist under `next dev` (without a session it redirects to `/login?next=/admin/dev/tabel`), and no request was made to that project.
+
+### Stage 4 (Master data: Tempat, Wilayah, Label Jemaat), 2026-09-28
+
+**Decisions**
+- **Shared mutation pattern** (`lib/api-mutation.ts`), for every module from now on:
+  - `mutation({ permission, params?, schema?, status?, notFound?, run })` returns a route handler. The order is fixed:
+    1. `requirePermissionApi` (401 / 403)
+    2. route params through Zod (a mismatch, such as a malformed uuid, is a 404)
+    3. the JSON body through Zod (400 with the first issue's message)
+    4. `run`
+    5. `logActivity` (never throws)
+    6. `revalidatePath` for each target
+    7. `{ data }`
+  - `run` returns `{ data, log: { module, activity }, revalidate? }`. To fail, it throws `ApiError(status, message)` or `dbError(error, { unique, notFound, inUse })`. Any other error is logged to the console and answered with a generic 500. Raw database text never reaches the client.
+  - `dbError` mapping:
+    - `23505` → 400 `unique`
+    - `23503` → 400 `inUse`
+    - `42501` → 403
+    - `P0002`, `PGRST116`, `22P02` → 404 `notFound`
+    - `22023`, `23502`, `23514` → 400
+    - anything else → 500
+  - Zod helpers in `lib/validation.ts`: `requiredText(message, max)` (trimmed, not empty), `optionalText(max)` (trimmed; empty becomes null), and `idParams`.
+  - On the client, `apiFetch` / `errorMessage` in `lib/api-client.ts` return `data` or throw with the server's message. The caller shows a toast and calls `router.refresh()`. `apiFetch` doesn't surface a 207's `error` yet; add that in the first stage that answers 207.
+  - Update and delete use `.select().maybeSingle()`, so a missing row (or one RLS hides) is a 404. Delete takes the name for the log from the deleted row.
+- **Master data** shares one config per module (`lib/master-data.ts`):
+  - the route factories in `lib/master-data-routes.ts`;
+  - `MasterDataPage` (server) and `MasterDataManager` (client) in `components/master-data/`.
+  - Route files under `app/api/admin/{tempat,wilayah,label-jemaat}` only wire the config.
+- **`sort_order`**: new rows get `max(sort_order) + 1` (0 when empty), not the row count. This departs from the wording of brief §11 but follows its intent, "new rows go last", and was approved on 2026-09-28.
+  - After a delete, the count can fall below an existing value. For example, with 0,1,2,3, deleting 0 and 1 makes the count 2, and the new row would land before 3.
+  - The default order is `sort_order, created_at, id`. Two concurrent adds that get the same value both stay last, in insertion order. No migration is needed.
+- **Labels are unique case-insensitively** in the app (approved): an `ilike` check with LIKE wildcards escaped, excluding the row itself, so "Pendeta" and "pendeta" can't both exist.
+  - The DB constraint stays case-sensitive; a concurrent exact duplicate still raises `23505`, which gets the same message, "Nama label sudah digunakan."
+  - Tempat and wilayah names are not unique (the brief doesn't ask for it).
+- **Foreign keys** already match §9.8, so there is no migration:
+  - `peribadahan_items.tempat_id`, `peribadahan_items.wilayah_id`, and `jemaat.wilayah_id` are set null;
+  - `jemaat_labels.label_id` cascades.
+  - FK actions ignore RLS, so an editor's delete clears them too (pgTAP-tested).
+- **Activity sentences**:
+  - `Menambah tempat "…"`, `Mengubah tempat "…"`, `Mengubah tempat "Lama" menjadi "Baru"` (on rename), and `Menghapus tempat "…"`.
+  - Wilayah uses `wilayah`, and labels use `label jemaat`.
+  - Modules are `tempat`, `wilayah`, and `label_jemaat`.
+- **UI**:
+  - All columns are sortable and have column search; for Wilayah and Label the brief doesn't say.
+  - The edit dialog is titled with the record name. Read-only users get "Lihat" with disabled fields and "Tutup".
+  - Delete dialogs are `Hapus tempat/wilayah/label "{nama}"?` and state what gets cleared.
+  - Revalidation covers the list page plus the layouts that show the data: peribadahan and warta, plus jemaat and keluarga for wilayah, and jemaat for labels.
+- **shadcn `dialog`** was added, with its close label translated to "Tutup".
+- **Sidebar**: unchanged; the entries were already there in §9.1 order with `warta:read`.
+
+**Local development**
+- `pnpm test:integration` (`vitest.integration.config.ts`, `tests/integration/`) runs route handlers in-process against the local stack as real seeded users.
+  - `next/headers` is backed by a cookie jar filled by a real sign-in; `next/cache` is mocked.
+  - It reads the URL and key from `supabase status` and refuses anything that isn't `127.0.0.1` / `localhost`.
+  - Activity rows it writes stay, because the table is append-only; the other rows it creates are deleted afterwards.
+  - It is kept out of `pnpm test` because it needs the stack.
+
+**Verification (stage 4)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass.
+- `pnpm test`: 93 tests, 12 files.
+  - `mutation` / `dbError` / `logActivity` unit tests.
+  - Permission checks per route.
+  - `MasterDataManager` in jsdom: add, inline error, edit title, delete confirmation, and read-only mode.
+- `pnpm test:db`: 6 files, 193 tests, including the new `master_data.test.sql`:
+  - viewer reads but can't write;
+  - editor writes;
+  - FK clearing and cascade;
+  - `23505`.
+- `pnpm test:integration`: 20 tests. For each of the three modules:
+  - no session → 401;
+  - viewer → 403 on add, edit, and delete, with nothing written;
+  - blank name → 400;
+  - missing or malformed id → 404;
+  - add goes last;
+  - exactly one `activity_logs` row per mutation, with the right module, sentence, email `editor@gkp.test`, and the forwarded IP.
+
+  Also:
+  - label duplicates (exact, other case, padded, on rename, and two concurrent adds) → "Nama label sudah digunakan.";
+  - deleting a tempat or wilayah used by `peribadahan_items` leaves the row with `tempat_id` / `wilayah_id` null.
+- Mutation checks:
+  - Making POST need only `warta:read` fails 3 unit tests. The integration tests alone still pass, because RLS also refuses the viewer (`42501` → 403).
+  - Removing the case-insensitive label check fails 1 integration test.
+- **Not verified yet**: the pages in a real browser (light and dark, 360px, keyboard).
+  - Another `next dev` was already running for this folder on :3000, pointed at the `*.supabase.co` project, and Next 16 allows only one dev server per folder. It was left alone, and no request was made to that project.
 

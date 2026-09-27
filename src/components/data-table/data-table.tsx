@@ -72,6 +72,8 @@ export function DataTable<TData extends RowData>({
   const rows = table.getRowModel().rows;
   const leafColumns = table.getAllLeafColumns();
   const facetColumns = leafColumns.filter((column) => column.columnDef.meta?.facet);
+  // facetOnly columns feed a toolbar facet but never get their own header/body cell.
+  const displayColumns = leafColumns.filter((column) => !column.columnDef.meta?.facetOnly);
 
   const resolved = rowActions
     ? rows.map((row) =>
@@ -82,7 +84,7 @@ export function DataTable<TData extends RowData>({
       )
     : [];
   const hasActions = resolved.some(({ items, deleteItem }) => items.length > 0 || deleteItem);
-  const columnCount = leafColumns.length + (hasActions ? 1 : 0);
+  const columnCount = displayColumns.length + (hasActions ? 1 : 0);
   const loading = isLoading || isPending;
 
   const hasToolbar = Boolean(searchPlaceholder || facetColumns.length > 0 || toolbar || isFiltered);
@@ -125,15 +127,17 @@ export function DataTable<TData extends RowData>({
           <TableHeader>
             {table.getHeaderGroups().map((group) => (
               <TableRow key={group.id} className="hover:bg-transparent">
-                {group.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    aria-sort={getAriaSort(header.column)}
-                    className={cn(cellClasses(header.column.columnDef.meta), "font-sans font-medium text-muted-foreground")}
-                  >
-                    <DataTableColumnHeader header={header} debounceMs={debounceMs} />
-                  </TableHead>
-                ))}
+                {group.headers
+                  .filter((header) => !header.column.columnDef.meta?.facetOnly)
+                  .map((header) => (
+                    <TableHead
+                      key={header.id}
+                      aria-sort={getAriaSort(header.column)}
+                      className={cn(cellClasses(header.column.columnDef.meta), "font-sans font-medium text-muted-foreground")}
+                    >
+                      <DataTableColumnHeader header={header} debounceMs={debounceMs} />
+                    </TableHead>
+                  ))}
                 {hasActions && (
                   <TableHead className="w-12 px-3">
                     <span className="sr-only">Aksi</span>
@@ -168,11 +172,14 @@ export function DataTable<TData extends RowData>({
             ) : (
               rows.map((row, index) => (
                 <TableRow key={row.id} className="group/row h-12">
-                  {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id} className={cellClasses(cell.column.columnDef.meta)}>
-                      <FlexRender cell={cell} />
-                    </TableCell>
-                  ))}
+                  {row
+                    .getAllCells()
+                    .filter((cell) => !cell.column.columnDef.meta?.facetOnly)
+                    .map((cell) => (
+                      <TableCell key={cell.id} className={cellClasses(cell.column.columnDef.meta)}>
+                        <FlexRender cell={cell} />
+                      </TableCell>
+                    ))}
                   {hasActions && (
                     <TableCell className="px-3 text-right">
                       {rowActions && resolved[index] && (

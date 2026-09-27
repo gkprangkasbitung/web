@@ -483,6 +483,11 @@ isOneToOne: false
 "save_jemaat":
 { Args: { "p_alamat"?: string,"p_hubungan_keluarga"?: string,"p_id"?: string,"p_jenis_kelamin"?: string,"p_keluarga_nama"?: string,"p_label_ids"?: (string)[],"p_nama": string,"p_no_hp"?: string,"p_nomor_anggota"?: string,"p_pekerjaan"?: string,"p_status_keanggotaan"?: string,"p_tanggal_lahir"?: string,"p_tanggal_masuk"?: string,"p_wilayah_id"?: string }; Returns: string
                            },
+"search_peribadahan_item_ids":
+{ Args: { "p_search": string }; Returns: {
+              "id": string
+            }[]
+                           },
 "set_jemaat_keluarga":
 { Args: { "p_hubungan_keluarga"?: string,"p_jemaat_id": string,"p_keluarga_id"?: string }; Returns: undefined
                            },
@@ -494,6 +499,9 @@ isOneToOne: false
                            },
 "set_user_role":
 { Args: { "p_role_id"?: string,"p_user_id": string }; Returns: undefined
+                           },
+"update_peribadahan_item":
+{ Args: { "p_bahan_alkitab"?: string,"p_catatan"?: string,"p_dpa"?: string,"p_id": string,"p_jam"?: string,"p_kehadiran_anak"?: number,"p_kehadiran_laki_laki"?: number,"p_kehadiran_perempuan"?: number,"p_liturgos_id"?: string,"p_pelayan_firman_id"?: string,"p_pemusik_id"?: string,"p_smka_kelompok"?: Json,"p_tema"?: string,"p_tempat_id"?: string,"p_wilayah_id"?: string }; Returns: undefined
                            }
           }
           Enums: {

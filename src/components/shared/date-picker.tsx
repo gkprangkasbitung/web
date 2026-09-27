@@ -17,6 +17,9 @@ export type DatePickerProps = {
   placeholder?: string;
   disabled?: boolean;
   clearable?: boolean;
+  /** Inclusive bounds (e.g. a warta's service week, brief §12.5). Dates outside can't be picked. */
+  minDate?: IsoDate;
+  maxDate?: IsoDate;
   id?: string;
   "aria-invalid"?: boolean;
 };
@@ -28,11 +31,17 @@ export function DatePicker({
   placeholder = "Pilih tanggal",
   disabled,
   clearable = true,
+  minDate,
+  maxDate,
   id,
   "aria-invalid": ariaInvalid,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const selected = value ? isoDateToLocalDate(value) : undefined;
+  const bounds = [
+    ...(minDate ? [{ before: isoDateToLocalDate(minDate) }] : []),
+    ...(maxDate ? [{ after: isoDateToLocalDate(maxDate) }] : []),
+  ];
 
   return (
     <div className="flex items-center">
@@ -62,6 +71,7 @@ export function DatePicker({
             today={isoDateToLocalDate(today())}
             defaultMonth={selected}
             selected={selected}
+            disabled={bounds.length > 0 ? bounds : undefined}
             onSelect={(date) => {
               onValueChange(date ? localDateToIsoDate(date) : null);
               setOpen(false);

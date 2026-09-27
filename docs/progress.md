@@ -2,7 +2,7 @@
 
 - [x] 1. Foundation: project setup, migrations copied, generated types, design tokens (light/dark), admin shell, auth (§6), permission helpers (§4), activity log (§7), date helpers (§11)
 - [x] 2. Security: RLS hardening + public functions (§12.1), atomic RPCs (§12.6)
-- [ ] 3. Shared table pattern (§9.2)
+- [x] 3. Shared table pattern (§9.2)
 - [ ] 4. Master data: Tempat, Wilayah, Label Jemaat (§9.8)
 - [ ] 5. Data Jemaat + Keluarga (§9.9–9.10)
 - [ ] 6. Peribadahan (§9.5)
@@ -155,3 +155,61 @@
   - updating your own `jemaat_id` → 42501, while `full_name` → 204.
 - `pnpm typecheck`, `pnpm lint`, `pnpm build`, and `pnpm test` (21 tests) all pass.
 - Acceptance 17: the anon half is verified. "`/warta/[slug]` still renders fully" is checked in stage 9.
+
+### Stage 3 (Shared table pattern), 2026-09-28
+
+**Decisions**
+- **Libraries**: `@tanstack/react-table` 9.2.4 (v9 API: `useTable` with an explicit `tableFeatures` set, not v8's `useReactTable`) and `react-day-picker` 10.0.1 for the date range calendar. Tests use Testing Library with jsdom 26.1.0, because jsdom 27+ needs Node ≥ 22.12.
+  - Vitest runs two projects: `*.test.ts` in node and `*.test.tsx` in jsdom (`vitest.setup.ts` polyfills `ResizeObserver`, `matchMedia`, and `PointerEvent` for Base UI).
+- **API**: `useDataTable({ data, columns, getRowId, searchColumns?, initialState?, server? })` returns a controller, and `<DataTable table={controller} label noun canWrite addAction? searchPlaceholder? toolbar? rowActions? isLoading? />` renders it. The same component serves both modes.
+  - Columns use `createDataTableColumnHelper<T>()`. Behavior is set through `meta`: `label`, `numeric`, `mono`, `search`, `facet: { title, options, formatValue, emptyLabel, multiple }`, and `className`.
+  - Sorting is opt-in per column (`enableSorting: true`). "Unsorted" means the order the data arrived in, for example `sort_order` or newest first.
+  - Example column definitions are in `src/components/data-table/testing/columns.tsx`.
+- **Sorting**: one column at a time, cycling ascending → descending → unsorted. Text uses `Intl.Collator('id', { sensitivity: 'base', numeric: true })`. Blank values always sort last. `aria-sort` sits on the `<th>`, and the arrow shows only on the active column.
+- **Facet counts**: options are the distinct values of **all** loaded rows, so options never disappear while filtering. Each count applies the other active filters but not the column's own (TanStack faceting).
+  - Options with 0 matching rows are dimmed but stay selectable.
+  - Blank values become the last option, "Tanpa {title}" (for example "Tanpa Wilayah").
+  - The accessible name of the trigger is "Filter {title}" ("Filter Wilayah, 2 dipilih"), so it doesn't clash with the "{title}" sort button in the header.
+  - `facet.multiple: false` renders a single-select dropdown ("Semua …"). Log Aktivitas's Modul filter will use it, per §9.13.
+- **Page resets**: any sort, filter, or search change, and any page size change, returns to page 1. Refreshed data keeps the current page (`autoResetPageIndex: false`). If a delete empties the last page, the table moves back one page.
+- **CSV export**: `controller.filteredRows` holds every row matching the filters and search, in the current sort order, across all pages. Stage 5 builds the CSV from it.
+- **Server mode**:
+  - `useUrlTableState(config)` keeps `page`, `size`, `sort` (`kolom.asc|desc`), `q`, and the filters in the URL. Set filters repeat the param (`module=a&module=b`); date ranges are written `kolom=YYYY-MM-DD~YYYY-MM-DD`. Other params such as `?error=` are kept.
+  - The server page parses the same URL with `parseTableSearchParams(searchParams, config)`. Sort columns are whitelisted, `size` must be 10, 20, 50, or 100, and invalid values fall back to the defaults.
+  - Search input is debounced by 300 ms, and skeleton rows show while a page loads.
+  - The whole-day WIB bounds for timestamps come from `jakartaTimestampBounds(range)` in `lib/dates.ts`.
+- **Row actions**:
+  - `rowActions: { getRowLabel, edit?: { href | onSelect }, extra?: RowAction[], delete?: { title, description?, onConfirm, hidden? } }`.
+  - In read-only mode (`canWrite = false`), "Edit" becomes "Lihat", and "Hapus" and `extra` actions marked `write: true` disappear. The add action appears in the empty state only when `canWrite` is true.
+  - When `onConfirm` rejects, the dialog stays open; the module shows the toast.
+  - The "⋯" button is hidden only under `@media (hover:hover) and (pointer:fine)`, until the row is hovered or focused.
+- **Numeric columns** (numbers, money, dates) are right-aligned in Geist Mono with `tabular-nums`, as decided on 2026-09-28.
+- **Shared inputs**:
+  - `ConfirmDialog`: focus starts on "Batal"; a spinner shows on "Hapus" while working, and the dialog can't be dismissed until the action finishes.
+  - `DateRangeFilter`: a popover calendar, `id` locale, weeks starting Minggu, "today" in WIB. Its value is `{ start?, end? }` as `YYYY-MM-DD`, with the end date inclusive.
+  - `MoneyInput`: `number | null`, and a hidden input when `name` is set.
+  - `PhoneInput`: digits only, stored as a string.
+  - New helpers: `lib/digits.ts`, plus `formatDateCompact`, `jakartaDayStart`, `jakartaTimestampBounds`, `isoDateToLocalDate`, and `localDateToIsoDate` in `lib/dates.ts`.
+- **shadcn**: added `table`, `popover`, `alert-dialog`, `select`, and `calendar`.
+  - The `select` trigger was changed from h-8 to h-9, to keep 36px controls.
+  - `DropdownMenuLinkItem` (Base UI `Menu.LinkItem`) was added to `dropdown-menu.tsx`.
+- **Dev-only demo** at `/admin/dev/tabel` (`page.dev.tsx`):
+  - `next.config.ts` adds the `dev.tsx` page extension only outside production, so `pnpm build` doesn't include the route at all (confirmed in the build's route list). The page also calls `notFound()` in production.
+  - It is not in the sidebar and needs a login.
+  - It shows a client table with 57 fictional "Contoh" rows, with toggles for read-only mode, loading, a failing delete, empty data, and export. It also shows a server-mode table backed by a fictional log (URL params, a 400 ms simulated latency) and the three inputs.
+
+**Verification (stage 3)**
+- `pnpm typecheck`, `pnpm lint`, `pnpm build`, and `pnpm test` (51 tests, 8 files) all pass.
+- The table tests cover:
+  - the sort cycle, and blanks last in both directions;
+  - facets AND column search, counts per option, sort keeping the filters, and Reset;
+  - page size returning to page 1, and the "{from}–{to} dari {total}" text;
+  - export rows being the whole filtered set;
+  - the empty and read-only states;
+  - keyboard-only sort, row menu, and confirmation dialog.
+- Other tests cover `ConfirmDialog`, `MoneyInput`, `PhoneInput`, the URL codec, and the date bounds.
+- Mutation check: making sorting start descending fails 3 tests, and removing the reset to page 1 on a page size change fails 1.
+- **Not verified yet**: the visual check of the demo page in light and dark mode, at 360px, and with the keyboard in a real browser.
+  - While checking, `.env.development.local` was found to set `NEXT_PUBLIC_SUPABASE_URL` to a `*.supabase.co` project, not the local stack described in stage 1.
+  - Because of that, the page was only confirmed to exist under `next dev` (without a session it redirects to `/login?next=/admin/dev/tabel`), and no request was made to that project.
+

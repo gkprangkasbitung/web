@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   addDays,
   financeWeek,
+  formatDateCompact,
   formatDateLong,
   formatDateShort,
   formatTimestamp,
   isoDateSchema,
+  isoDateToLocalDate,
   isValidIsoDate,
+  jakartaDayStart,
+  jakartaTimestampBounds,
+  localDateToIsoDate,
   nextSunday,
   serviceWeek,
   today,
@@ -105,11 +110,35 @@ describe("formatting", () => {
     expect(formatDateLong("2025-09-14")).toBe("Minggu, 14 September 2025");
     expect(formatDateLong("2025-12-01")).toBe("Senin, 1 Desember 2025");
     expect(formatDateShort("2025-09-14")).toBe("14 September 2025");
+    expect(formatDateCompact("2025-08-03")).toBe("3 Agu 2025");
   });
 
   it("formats timestamps in WIB", () => {
     expect(formatTimestamp("2025-09-14T02:30:00Z")).toBe("14 Sep 2025, 09.30 WIB");
     expect(formatTimestamp("2025-08-16T18:05:00+00:00")).toBe("17 Agu 2025, 01.05 WIB");
     expect(formatTimestamp(new Date("2025-12-31T17:00:00Z"))).toBe("1 Jan 2026, 00.00 WIB");
+  });
+});
+
+describe("date range bounds", () => {
+  it("starts a day at 00:00 WIB", () => {
+    expect(jakartaDayStart("2025-09-14")).toBe("2025-09-14T00:00:00+07:00");
+    expect(new Date(jakartaDayStart("2025-09-14")).toISOString()).toBe("2025-09-13T17:00:00.000Z");
+  });
+
+  it("includes the whole end day, across month ends", () => {
+    expect(jakartaTimestampBounds({ start: "2025-09-01", end: "2025-09-30" })).toEqual({
+      gte: "2025-09-01T00:00:00+07:00",
+      lt: "2025-10-01T00:00:00+07:00",
+    });
+    expect(jakartaTimestampBounds({ end: "2025-12-31" })).toEqual({ lt: "2026-01-01T00:00:00+07:00" });
+    expect(jakartaTimestampBounds({})).toEqual({});
+  });
+
+  it("converts picker dates without shifting the calendar day", () => {
+    const local = isoDateToLocalDate("2025-11-30");
+    expect([local.getFullYear(), local.getMonth(), local.getDate()]).toEqual([2025, 10, 30]);
+    expect(localDateToIsoDate(local)).toBe("2025-11-30");
+    expect(localDateToIsoDate(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   });
 });

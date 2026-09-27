@@ -142,3 +142,41 @@ export function formatTimestamp(value: string | Date): string {
   const { year, month, day, hour, minute } = jakartaComponents(instant);
   return `${day} ${MONTH_SHORT[month - 1]} ${year}, ${pad(hour)}.${pad(minute)} WIB`;
 }
+
+/** The instant 00:00 WIB starts `date`, as an ISO timestamp: "2025-09-14T00:00:00+07:00". */
+export function jakartaDayStart(date: IsoDate): string {
+  parse(date);
+  return `${date}T00:00:00+07:00`;
+}
+
+/**
+ * Timestamp bounds for an inclusive date range in WIB: `gte` is 00:00 on
+ * `start`, and `lt` is 00:00 the day after `end`, so the whole end day
+ * (through 23:59:59) counts. Either side may be open.
+ */
+export function jakartaTimestampBounds(range: Partial<DateRange>): { gte?: string; lt?: string } {
+  return {
+    ...(range.start ? { gte: jakartaDayStart(range.start) } : {}),
+    ...(range.end ? { lt: jakartaDayStart(addDays(range.end, 1)) } : {}),
+  };
+}
+
+/**
+ * Date-picker glue: calendar widgets work with `Date` objects at local
+ * midnight. These convert without touching UTC, so the picked calendar day
+ * is the stored one in any browser time zone.
+ */
+export function isoDateToLocalDate(date: IsoDate): Date {
+  const { year, month, day } = parse(date);
+  return new Date(year, month - 1, day);
+}
+
+export function localDateToIsoDate(value: Date): IsoDate {
+  return `${String(value.getFullYear()).padStart(4, "0")}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
+}
+
+/** Compact date for tight spaces such as filter buttons: "14 Sep 2025". */
+export function formatDateCompact(date: IsoDate): string {
+  const { year, month, day } = parse(date);
+  return `${day} ${MONTH_SHORT[month - 1]} ${year}`;
+}

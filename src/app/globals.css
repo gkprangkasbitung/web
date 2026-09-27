@@ -50,6 +50,20 @@
   --badge-neutral-foreground: #44403c;
   --badge-destructive: #fdecea;
   --badge-destructive-foreground: #912018;
+
+  /* Initials avatars (brief §9.9): a small, calm palette, picked deterministically from the name. */
+  --avatar-1: #e6f0ec;
+  --avatar-1-foreground: #1f4d3f;
+  --avatar-2: #dbeafe;
+  --avatar-2-foreground: #1e40af;
+  --avatar-3: #fef3c7;
+  --avatar-3-foreground: #92400e;
+  --avatar-4: #ffe4e6;
+  --avatar-4-foreground: #9f1239;
+  --avatar-5: #ccfbf1;
+  --avatar-5-foreground: #115e59;
+  --avatar-6: #ede9fe;
+  --avatar-6-foreground: #5b21b6;
 }
 
 .dark {
@@ -88,6 +102,19 @@
   --badge-neutral-foreground: #d6d3d1;
   --badge-destructive: #442925;
   --badge-destructive-foreground: #fda29b;
+
+  --avatar-1: #2e3530;
+  --avatar-1-foreground: #a9d3c5;
+  --avatar-2: #172554;
+  --avatar-2-foreground: #93c5fd;
+  --avatar-3: #451a03;
+  --avatar-3-foreground: #fcd34d;
+  --avatar-4: #4c0519;
+  --avatar-4-foreground: #fda4af;
+  --avatar-5: #042f2e;
+  --avatar-5-foreground: #5eead4;
+  --avatar-6: #2e1065;
+  --avatar-6-foreground: #c4b5fd;
 }
 
 @theme inline {
@@ -130,6 +157,19 @@
   --color-badge-neutral-foreground: var(--badge-neutral-foreground);
   --color-badge-destructive: var(--badge-destructive);
   --color-badge-destructive-foreground: var(--badge-destructive-foreground);
+
+  --color-avatar-1: var(--avatar-1);
+  --color-avatar-1-foreground: var(--avatar-1-foreground);
+  --color-avatar-2: var(--avatar-2);
+  --color-avatar-2-foreground: var(--avatar-2-foreground);
+  --color-avatar-3: var(--avatar-3);
+  --color-avatar-3-foreground: var(--avatar-3-foreground);
+  --color-avatar-4: var(--avatar-4);
+  --color-avatar-4-foreground: var(--avatar-4-foreground);
+  --color-avatar-5: var(--avatar-5);
+  --color-avatar-5-foreground: var(--avatar-5-foreground);
+  --color-avatar-6: var(--avatar-6);
+  --color-avatar-6-foreground: var(--avatar-6-foreground);
 
   /* 8px for inputs and buttons (rounded-md / rounded-lg), 12px for cards and dialogs (rounded-xl). */
   --radius-sm: 6px;

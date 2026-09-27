@@ -60,6 +60,30 @@ export function dbError(error: Pick<PostgrestError, "code" | "message">, message
   }
 }
 
+/**
+ * Translates an error from one of our own atomic RPCs (`supabase.rpc(...)`).
+ * Unlike `dbError`, the message is forwarded as-is: every RPC in this
+ * codebase raises hand-written Indonesian text for these codes (never a raw
+ * constraint name), so it's already fit to show. Anything else is an
+ * unexpected error and gets the same generic-500 treatment as `dbError`.
+ */
+export function rpcError(error: Pick<PostgrestError, "code" | "message">): Error {
+  switch (error.code) {
+    case "42501":
+      return new ApiError(403, "Kamu tidak punya akses untuk tindakan ini.");
+    case "P0002":
+    case "PGRST116":
+    case "22P02":
+      return new ApiError(404, error.message);
+    case "22023":
+    case "23503":
+    case "23505":
+      return new ApiError(400, error.message);
+    default:
+      return new Error(`[db ${error.code}] ${error.message}`);
+  }
+}
+
 /** A path for `revalidatePath`; `layout` also covers every page beneath it. */
 export type RevalidateTarget = string | { path: string; type: "layout" | "page" };
 

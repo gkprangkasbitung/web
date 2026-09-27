@@ -19,3 +19,12 @@ export function getInitials(name: string): string {
   const last = words.length > 1 ? words[words.length - 1]!.charAt(0) : "";
   return (first + last).toUpperCase();
 }
+
+const AVATAR_PALETTE_SIZE = 6;
+
+/** Deterministic index into the avatar palette (1-6), from the name (brief §9.9). */
+export function avatarColorIndex(name: string): number {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return (Math.abs(hash) % AVATAR_PALETTE_SIZE) + 1;
+}

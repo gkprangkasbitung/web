@@ -4,7 +4,7 @@
 - [x] 2. Security: RLS hardening + public functions (§12.1), atomic RPCs (§12.6)
 - [x] 3. Shared table pattern (§9.2)
 - [x] 4. Master data: Tempat, Wilayah, Label Jemaat (§9.8)
-- [ ] 5. Data Jemaat + Keluarga (§9.9–9.10)
+- [x] 5. Data Jemaat + Keluarga (§9.9–9.10)
 - [ ] 6. Peribadahan (§9.5)
 - [ ] 7. Sarana & Dana (§9.7)
 - [ ] 8. Litbang template (§9.6)
@@ -297,3 +297,39 @@
 - **Not verified yet**: the pages in a real browser (light and dark, 360px, keyboard).
   - Another `next dev` was already running for this folder on :3000, pointed at the `*.supabase.co` project, and Next 16 allows only one dev server per folder. It was left alone, and no request was made to that project.
 
+
+### Stage 5 (Data Jemaat + Keluarga), 2026-09-28
+
+**Decisions approved before starting (asked, not decided alone)**
+- **"Tambah Anggota" and other families**: the picker shows every jemaat not already in *this* family, including people already in another family (brief §9.10's own wording), and picking one moves them. Approved with a warning: the picker/form shows which family they'd be moved out of, and a confirmation ("akan dipindahkan dari keluarga X") is required before the move is submitted.
+- **Kepala Keluarga**: enforced at one per family (the brief doesn't set this rule). Enforced in the database with a partial unique index (`jemaat_satu_kepala_keluarga` on `jemaat(keluarga_id) where hubungan_keluarga = 'Kepala Keluarga'`), so it holds for every write path (`save_jemaat`, `set_jemaat_keluarga`, and any future one), not just the ones the app happens to check. Message: "Keluarga ini sudah punya Kepala Keluarga."
+
+**0023 migration**
+- `keluarga_nama_lower_idx`: unique index on `lower(nama)`, catching case-only duplicates that the existing case-sensitive constraint (0017) doesn't. Both stay; the case-sensitive one is now redundant but harmless.
+- `save_jemaat(...)`: one atomic RPC for both create and edit (`p_id` null = create). Resolves `keluarga` by name case-insensitively (creates it if unmatched, races handled by catching the unique violation and re-selecting), clears `hubungan_keluarga` when the family name is blank, checks Kepala Keluarga and `nomor_anggota` uniqueness with clean pre-checks *and* a fallback that catches the underlying constraint by name (never leaks raw constraint text), then calls the existing `replace_jemaat_labels` to set labels. Because it's fully atomic, save_jemaat can never partially fail the way the brief's §10 207 describes — same reasoning as `create_warta` in stage 2 has this pattern. **This module never returns a 207.**
+- `set_jemaat_keluarga(p_jemaat_id, p_keluarga_id, p_hubungan_keluarga)`: one RPC behind three UI actions — "Tambah Anggota" (both set), the inline hubungan edit (same family, new hubungan), and "Keluarkan" (both omitted/null). Keeps the Kepala Keluarga check in one place regardless of which action calls it.
+- `rpcError` added to `lib/api-mutation.ts` next to `dbError`: unlike `dbError`, it forwards the RPC's own message for 42501/P0002/22023/23503/23505, because every message these two RPCs raise is hand-authored Indonesian text, not raw Postgres text. Route handlers for future RPC-backed mutations (Peribadahan's SMKA grid, stage 6) should use the same helper rather than `dbError`.
+- Both RPCs and the new indexes are covered by `supabase/tests/database/jemaat_keluarga.test.sql` (30 tests): permission checks, family resolve/reuse/race, blank-name clears hubungan too, Kepala Keluarga rejected and allowed-on-no-change, nomor_anggota uniqueness, and all three `set_jemaat_keluarga` actions.
+
+**Routes and data loading**
+- `lib/jemaat-routes.ts` / `lib/keluarga-routes.ts`: the `mutation()` pattern from stage 4, same as master data. Lists are loaded with plain per-table queries joined in TypeScript (`Map` lookups) rather than PostgREST embedding, to keep the return types exact without fighting the generated embedding types — jemaat and keluarga are both small, fully-loaded tables anyway (brief §9.2).
+- `penulis_id`/`penulis_nama` on a pastoral note: the Zod schema for the create route has no such fields at all, so a client-sent value is dropped before it ever reaches the handler; the server always sets them from the session user.
+- Deleting a jemaat is a plain `delete` (not an RPC): the FKs already do the right thing (cascade for labels/notes, set null everywhere else per brief §9.9), so there's nothing multi-step about it.
+
+**UI**
+- Added `combobox.tsx`, `input-group.tsx`, and `textarea.tsx` under `components/ui`, generated from `shadcn add combobox` (Base UI's own `Combobox` primitive) but **hand-copied**, not run directly — the CLI would have overwritten `button.tsx`/`input.tsx` with un-customized defaults (h-8 controls, no `icon-sm`), clobbering the stage-1 36px control convention. Heights in the copied files were adjusted from `h-8`/`min-h-8` to `h-9`/`min-h-9` to match.
+- `components/shared/person-picker.tsx` (brief §9.5, reusable): searchable combobox over jemaat, matching name or any label, each option showing its labels. Used now in Keluarga's "Tambah Anggota"; will be reused for Peribadahan's person fields in stage 6.
+- `components/shared/keluarga-combobox.tsx`: a *creatable* combobox — the typed text is the value (submitted and resolved server-side by `save_jemaat`), suggestions are just existing families. The brief's "Tidak ditemukan - buat dulu di halaman Keluarga" empty-state text is informational only; per §9.9's own description of the server behavior, typing a new name and saving still creates the family.
+- `components/shared/label-multi-select.tsx`: multi-select combobox with chips, over Label Jemaat.
+- `components/shared/date-picker.tsx`: single-date version of the existing `DateRangeFilter`, for Tanggal Lahir/Masuk and pastoral note dates.
+- Avatar palette: 6 tokens (`--avatar-1`..`--avatar-6` + `-foreground`) added to `globals.css`/`@theme inline`, light and dark. `avatarColorIndex(name)` in `lib/format.ts` picks one deterministically (simple string hash mod 6); `InitialsAvatar` uses it instead of the flat neutral badge color it had before.
+- Status badges use exactly the brief's own example: Simpatisan `outline-accent`, Baptis Anak `accent`, Sidi and Anggota Penuh both `neutral`.
+- "Anggota Keluarga" on the jemaat detail page is a plain list, not the shared `DataTable`: it has no sort/filter/search/pagination need (brief just asks for name, hubungan, and status), so the table pattern would be pure overhead there. Catatan Pastoral and the Keluarga members table *do* use `DataTable`, since they're real lists.
+- CSV export (`lib/csv.ts`) runs entirely in the browser from `table.filteredRows`; formula-injection prefixes (`=`, `+`, `-`, `@`, tab, CR) get a leading `'` before the cell is quoted. BOM prepended in `downloadCsv`.
+
+**Verification (stage 5)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` all pass; all 26 routes (list/detail pages + the new API routes) show up in the build's route list.
+- `pnpm test`: 96 tests, 13 files (adds `lib/csv.test.ts`: quoting, formula-injection escaping; BOM is `downloadCsv`'s job so untested here since it needs a browser).
+- `pnpm test:db`: 7 files, 223 tests (30 new, see above).
+- `pnpm test:integration`: 2 files, 35 tests. New file `jemaat-keluarga.test.ts` (15 tests) covers, against the real local stack: 401/403 on every route; create resolves/reuses a family case-insensitively; label replacement is all-or-nothing (an unknown label id in the set leaves the old set intact); Kepala Keluarga rejected through the HTTP route with the friendly message; a pastoral note's `penulis_nama`/`penulis_id` sent by the client are silently ignored; deleting a jemaat removes their notes and clears a schedule reference; keluarga name uniqueness (case-insensitive) through HTTP; deleting a family detaches members; add/inline-edit/"Keluarkan" each log exactly one activity row with the right sentence; "Tambah Anggota" can move someone out of another family.
+- **Not verified yet**: everything that needs an actual browser — light/dark/360px/keyboard-only use in general (per stages 1, 3, 4), and specifically the three new Base UI Combobox-based components (person picker keyboard nav and label matching, label chips add/remove, the keluarga creatable combobox's fill-on-select behavior). These were built directly against Base UI's documented prop types and exercised only through typecheck/build/integration tests, not in a live browser session.

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:db": "supabase test db --local",
     "db:types": "supabase gen types typescript --local --schema public > src/types/database.ts"
   },
   "engines": {

@@ -442,13 +442,52 @@ isOneToOne: false
                 }
           }
           Functions: {
-            "get_my_access":
+            "create_warta":
+{ Args: { "p_judul_kebaktian": string,"p_renungan_isi"?: string,"p_renungan_judul"?: string,"p_renungan_kitab"?: string,"p_renungan_sumber"?: string,"p_slug": string,"p_tanggal_kebaktian": string,"p_tema_kebaktian"?: string }; Returns: string
+                           },
+"delete_keluarga":
+{ Args: { "p_id": string }; Returns: undefined
+                           },
+"get_my_access":
 { Args: Record<PropertyKey, never>; Returns: {
               "action": string,"resource": string,"role_id": string,"role_name": string
             }[]
                            },
 "has_permission":
 { Args: { "p_action": string,"p_resource": string,"p_user_id": string }; Returns: boolean
+                           },
+"link_user_jemaat":
+{ Args: { "p_jemaat_id"?: string,"p_user_id": string }; Returns: undefined
+                           },
+"public_jadwal_pekan_ini":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
+            }[]
+                           },
+"public_warta_finance":
+{ Args: { "p_slug": string }; Returns: {
+              "key": string,"name": string,"pemasukan": number,"pengeluaran": number,"saldo_akhir": number,"saldo_awal": number
+            }[]
+                           },
+"public_warta_schedule":
+{ Args: { "p_slug": string }; Returns: {
+              "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
+            }[]
+                           },
+"reorder_litbang_categories":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
+"replace_jemaat_labels":
+{ Args: { "p_jemaat_id": string,"p_label_ids": (string)[] }; Returns: undefined
+                           },
+"set_role_permissions":
+{ Args: { "p_permission_ids": (string)[],"p_role_id": string }; Returns: undefined
+                           },
+"set_user_access":
+{ Args: { "p_jemaat_id"?: string,"p_role_id"?: string,"p_user_id": string }; Returns: undefined
+                           },
+"set_user_role":
+{ Args: { "p_role_id"?: string,"p_user_id": string }; Returns: undefined
                            }
           }
           Enums: {

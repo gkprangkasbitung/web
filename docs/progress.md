@@ -1,7 +1,7 @@
 # Progress
 
 - [x] 1. Foundation: project setup, migrations copied, generated types, design tokens (light/dark), admin shell, auth (§6), permission helpers (§4), activity log (§7), date helpers (§11)
-- [ ] 2. Security: RLS hardening + public functions (§12.1), atomic RPCs (§12.6)
+- [x] 2. Security: RLS hardening + public functions (§12.1), atomic RPCs (§12.6)
 - [ ] 3. Shared table pattern (§9.2)
 - [ ] 4. Master data: Tempat, Wilayah, Label Jemaat (§9.8)
 - [ ] 5. Data Jemaat + Keluarga (§9.9–9.10)
@@ -58,3 +58,100 @@
   - An old cookie reused after logout is rejected.
   - `/auth/set-password` without a session and `/auth/callback` with a bad code both go to `/login`.
 - **Not verified yet**: the visual check of light, dark, and system themes, the 360px layout, and keyboard-only use. These need a manual look in a browser.
+
+### Stage 2 (Security), 2026-09-28
+
+**Before deploying to production**
+- Push migrations `0019`–`0022` together with `0018`, before deploying.
+  - After `0019`, anon can read only published warta and their Litbang and Kesaksian rows. No public page reads anything else yet; stage 9 uses the functions from `0020`.
+- Create the first super_admin as described in `docs/bootstrap-super-admin.md`.
+
+**Decisions**
+- **0019 RLS hardening**
+  - The 11 `*_select` policies that were `using (true)` are dropped and recreated under the same names, now `to authenticated` with `warta:read`. Affected tables: `jemaat`, `keluarga`, `jemaat_labels`, `label_jemaat`, `tempat`, `wilayah`, `peribadahan_*`, `sarana_dana_*`.
+    - This conflicts with brief §3 ("never drop or recreate policies"). It was accepted because the project is new and empty, and `0001`–`0017` stay untouched.
+    - The unchanged `*_write` policies are `for all`, so `warta:update` still implies read.
+  - anon loses every table privilege except `select` on `warta`, `warta_litbang_items`, and `warta_kesaksian_items`. Tables created later still get anon grants from Supabase's default privileges; RLS remains their boundary.
+  - `sarana_dana_balances` is now `security_invoker`. It used to bypass RLS.
+  - `profiles`: authenticated may update only `full_name` and `avatar_url`. Before, any user could set their own `jemaat_id` or `email` through REST.
+    - `jemaat_id` now changes only through `link_user_jemaat`.
+    - `email` changes only through the auth trigger.
+- **0020 public functions**
+  - Three functions:
+    - `public_warta_schedule(p_slug)`: the service week.
+    - `public_warta_finance(p_slug)`: the finance week, as per-item aggregates in the §9.7 formula, ordered by `name`.
+    - `public_jadwal_pekan_ini()`: the Minggu–Sabtu week containing today in Asia/Jakarta, for Beranda and Jadwal Ibadah.
+  - A draft or unknown slug returns no rows.
+  - All three are SECURITY DEFINER with `search_path = ''`, executable only by anon and authenticated.
+  - Shared SQL lives in the `private` schema, which the API does not expose.
+  - People appear by name only.
+  - `smka_kelompok` is a jsonb array of `{kelompok, pf_nama, laki_laki, perempuan}`. It lists only groups with data (a PF, or an L or P count, 0 included), in the fixed group order.
+  - Pages show the ranges with `serviceWeek()` / `financeWeek()` from `lib/dates.ts`, which uses the same arithmetic.
+  - The generated types mark every returned column as non-null, but many are nullable (`tempat_nama`, `pelayan_firman_nama`, …). Parse the results with Zod in stage 9.
+- **0021 self-lockout guard (§12.3)**
+  - Triggers on `user_roles`, `role_permissions`, `roles`, and `permissions` refuse any change that removes one of the acting user's own `roles:*` / `users:*` permissions, unless another of their roles still grants it.
+  - The error is `42501` "Tidak bisa mencabut akses roles atau users milik akun sendiri."
+  - The triggers cover direct REST writes, not only the RPCs.
+  - They stand aside when `auth.uid()` is null (SQL Editor, service role).
+- **0022 RPCs.** Each checks the permission explicitly first.
+
+  | Function | Mode | Permission |
+  |---|---|---|
+  | `set_user_role` | invoker | `users:update` |
+  | `link_user_jemaat` | definer (writes `profiles.jemaat_id`) | `users:update` |
+  | `set_user_access` | invoker | `users:update` |
+  | `set_role_permissions` | invoker | `roles:update` |
+  | `create_warta` | definer (the Litbang snapshot must see the whole template) | `warta:create` |
+  | `reorder_litbang_categories` | invoker | `warta:update` |
+  | `delete_keluarga` | invoker | `warta:update` |
+  | `replace_jemaat_labels` | invoker | `warta:update` |
+
+  - Errors for route handlers to map:
+    - `42501` → 403
+    - `P0002` → 404
+    - `23505` → 409
+    - `23503` / `22023` → 400
+  - Messages are Indonesian.
+  - Arguments that default to null are optional in the generated types. Omit them to pass null (for example, no role = "Tidak ada").
+  - `set_user_role` on your own account: any real change is refused with "Tidak bisa mengubah role akun sendiri." Saving an unchanged role is a no-op, so `set_user_access` can still update only the jemaat on your own row.
+  - `create_warta` inserts the warta and its Litbang snapshot atomically, so the §10 207 "Warta dibuat, tapi gagal menyalin Litbang" can no longer happen. A taken slug raises `23505`; stage 9 retries with a random suffix, up to 5 attempts.
+  - Invite (stage 10): `inviteUserByEmail` first, then `set_user_access(user, role, jemaat)` as one transaction. If that call fails, answer 207 "Pengguna diundang, tapi gagal set role/jemaat: …".
+  - **Deferred** to their module stages as new migrations, because their parameters depend on the forms:
+    - `save_jemaat`: find or create the keluarga case-insensitively, save the profile, and set the labels (stage 5).
+    - `update_peribadahan_item` with the SMKA grid (stage 6).
+
+    Whether labels and SMKA keep the §10 207 behavior is decided in those stages.
+  - Appends that use `sort_order = count` stay in the app. A race only produces duplicate `sort_order` values.
+
+**Local development**
+- `pnpm test:db` runs pgTAP (`supabase test db --local`) on `supabase/tests/database/*.test.sql`.
+  - Each file creates its own fixtures and rolls back, so the tests don't depend on the seed.
+  - Never run it with `--linked`.
+- `pnpm supabase migration up --local` applies new migrations without a reset.
+- `supabase/seed.sql` also adds clearly fictional sample data ("Contoh …"):
+  - master data, keluarga, and jemaat with labels and a pastoral note;
+  - a published warta for this week and a draft for next week;
+  - schedule rows, including SMKA with its grid;
+  - opening balances and transactions around the finance week.
+
+  Dates are relative to today in Asia/Jakarta.
+
+**Verification (stage 2)**
+- `pnpm test:db`: 5 files, 166 tests, all passing:
+  - anon RLS
+  - public functions
+  - finance formula
+  - RPC permissions and happy paths
+  - self-lockout guard
+- Mutation check: with the `role_permissions` guard trigger dropped, a super_admin's self-removal of `users:update` goes through. The guard tests therefore aren't vacuous.
+- REST against the local stack with the anon key:
+  - `jemaat`, `keluarga`, `sarana_dana_transactions`, `sarana_dana_balances`, and the schedule and master tables → 42501 (HTTP 401).
+  - `warta` → the published row only.
+  - `rpc/public_warta_finance` and `rpc/public_warta_schedule` → aggregates and names only. A draft slug returns `[]`.
+  - `rpc/set_user_role` → permission denied.
+- With real sessions:
+  - viewer and super_admin still load the sidebar's categories and Sarana & Dana items;
+  - `tanpa-role@` gets none;
+  - updating your own `jemaat_id` → 42501, while `full_name` → 204.
+- `pnpm typecheck`, `pnpm lint`, `pnpm build`, and `pnpm test` (21 tests) all pass.
+- Acceptance 17: the anon half is verified. "`/warta/[slug]` still renders fully" is checked in stage 9.

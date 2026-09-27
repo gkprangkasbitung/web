@@ -14,6 +14,7 @@ The functional spec is `docs/rebuild-brief.md`. It is the source of truth: when 
 - Never commit `.env*` files. Never invent church facts, member data, schedules, or money figures; use `TODO` placeholders.
 - Every successful mutation writes an activity log row (brief §7). A logging failure never breaks the action.
 - Multi-step writes go through Postgres functions called via RPC, so they are atomic (brief §12.6).
+- The Supabase project is new and empty; no legacy app depends on it. Old data does not need to be preserved. Still keep migrations 0001–0017 unchanged and put every change in 0018+, so the schema history stays clean.
 
 ## Conventions
 - All UI text is in Bahasa Indonesia, reusing the labels in the brief. Code, identifiers, and comments are in English.

@@ -51,6 +51,13 @@ export type DataTableColumnMeta = {
     /** `false` renders a single-select dropdown instead of the multi-select. */
     multiple?: boolean;
   };
+  /**
+   * Feeds a toolbar facet without its own header/body cell: for a value
+   * that's already shown merged into another column (e.g. a combined
+   * "Ringkasan" column), so the facet still filters on the raw value while
+   * the table doesn't show it twice.
+   */
+  facetOnly?: boolean;
   /** Extra classes for the header and body cells of this column. */
   className?: string;
 };

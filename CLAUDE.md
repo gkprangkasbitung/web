@@ -15,6 +15,7 @@ The functional spec is `docs/rebuild-brief.md`. It is the source of truth: when 
 - Every successful mutation writes an activity log row (brief §7). A logging failure never breaks the action.
 - Multi-step writes go through Postgres functions called via RPC, so they are atomic (brief §12.6).
 - The Supabase project is new and empty; no legacy app depends on it. Old data does not need to be preserved. Still keep migrations 0001–0017 unchanged and put every change in 0018+, so the schema history stays clean.
+- Business invariants that protect data integrity (money rules, category field layouts, fixed values) are enforced in the database (constraints/triggers/RPC), not only in Next.js, because signed-in users can call the Supabase REST API directly with their session token.
 
 ## Conventions
 - All UI text is in Bahasa Indonesia, reusing the labels in the brief. Code, identifiers, and comments are in English.

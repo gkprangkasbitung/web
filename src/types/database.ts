@@ -480,6 +480,11 @@ isOneToOne: false
 "replace_jemaat_labels":
 { Args: { "p_jemaat_id": string,"p_label_ids": (string)[] }; Returns: undefined
                            },
+"sarana_dana_report":
+{ Args: { "p_end": string,"p_start": string }; Returns: {
+              "key": string,"name": string,"pemasukan": number,"pengeluaran": number,"saldo_akhir": number,"saldo_awal": number
+            }[]
+                           },
 "save_jemaat":
 { Args: { "p_alamat"?: string,"p_hubungan_keluarga"?: string,"p_id"?: string,"p_jenis_kelamin"?: string,"p_keluarga_nama"?: string,"p_label_ids"?: (string)[],"p_nama": string,"p_no_hp"?: string,"p_nomor_anggota"?: string,"p_pekerjaan"?: string,"p_status_keanggotaan"?: string,"p_tanggal_lahir"?: string,"p_tanggal_masuk"?: string,"p_wilayah_id"?: string }; Returns: string
                            },

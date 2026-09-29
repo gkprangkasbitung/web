@@ -158,18 +158,20 @@ it("editing or deleting a card already copied into a warta never touches that wa
   const cardId = (add.body.data as unknown as { id: string }).id;
   createdCards.push(cardId);
 
-  const { data: warta, error: wartaError } = await editor.supabase
-    .from("warta")
-    .insert({ slug: `e2e-litbang-${Date.now()}`, tanggal_kebaktian: "2031-02-02", judul_kebaktian: "E2E" })
-    .select("id")
-    .single();
+  // create_warta is the only way a card gets copied into a warta (0026 refuses direct inserts).
+  const { data: wartaId, error: wartaError } = await editor.supabase.rpc("create_warta", {
+    p_slug: `e2e-litbang-${Date.now()}`,
+    p_tanggal_kebaktian: "2031-02-02",
+    p_judul_kebaktian: "E2E",
+  });
   expect(wartaError).toBeNull();
-  createdWarta.push(warta!.id);
+  createdWarta.push(wartaId!);
 
   const { data: snapshot, error: snapshotError } = await editor.supabase
     .from("warta_litbang_items")
-    .insert({ warta_id: warta!.id, litbang_category_id: cardId, name: cardName, deskripsi: "Isi asli", sort_order: 0 })
     .select("id")
+    .eq("warta_id", wartaId!)
+    .eq("litbang_category_id", cardId)
     .single();
   expect(snapshotError).toBeNull();
 

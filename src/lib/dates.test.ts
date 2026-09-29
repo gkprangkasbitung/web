@@ -16,6 +16,7 @@ import {
   nextSunday,
   serviceWeek,
   today,
+  weekContaining,
   weekday,
 } from "./dates";
 
@@ -90,6 +91,17 @@ describe("serviceWeek() and financeWeek()", () => {
   it("finance week is − 7 through − 1 days", () => {
     expect(financeWeek("2025-11-30")).toEqual({ start: "2025-11-23", end: "2025-11-29" });
     expect(financeWeek("2026-01-04")).toEqual({ start: "2025-12-28", end: "2026-01-03" });
+  });
+
+  it("weekContaining() is the Minggu–Sabtu week around a date", () => {
+    expect(weekContaining("2025-11-30")).toEqual({ start: "2025-11-30", end: "2025-12-06" });
+    expect(weekContaining("2025-12-03")).toEqual({ start: "2025-11-30", end: "2025-12-06" });
+    expect(weekContaining("2025-12-06")).toEqual({ start: "2025-11-30", end: "2025-12-06" });
+    expect(weekContaining("2026-01-01")).toEqual({ start: "2025-12-28", end: "2026-01-03" });
+  });
+
+  it("weekContaining() at 05:00 WIB on a Sunday starts that Sunday, not the UTC Saturday", () => {
+    expect(weekContaining(today(SUNDAY_05_00_WIB))).toEqual({ start: "2025-11-30", end: "2025-12-06" });
   });
 });
 

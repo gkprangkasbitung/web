@@ -8,7 +8,8 @@
 - [x] 6. Peribadahan (§9.5)
 - [x] 7. Sarana & Dana (§9.7)
 - [x] 8. Litbang template (§9.6)
-- [ ] 9. Warta admin (§9.4) + public site (§8)
+- [x] 9a. Warta admin (§9.4) + Dashboard summaries (§9.3, §12.8)
+- [ ] 9b. Public site (§8)
 - [ ] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
 
 ## Notes / decisions
@@ -438,3 +439,127 @@
 - `pnpm test:db`: 10 files, 291 tests (17 new, `litbang.test.sql`): viewer reads but can't write; editor writes; editing or deleting a card already copied into a warta leaves that warta's `warta_litbang_items` row untouched (only `litbang_category_id` goes null on delete); deactivating a card doesn't touch the warta's copy; reorder rejects a list with a foreign id even at the right count (the one branch of the existing RPC the stage-2 tests hadn't exercised).
 - `pnpm test:integration`: 5 files, 66 tests. New file `litbang.test.ts` (7 tests): 401/403 on every route including reorder, with nothing written; add/rename/toggle-off/toggle-on/delete each log exactly one activity row with the right sentence; 400 for a blank name and a no-op PATCH body; 404 for a missing/malformed id; reorder saves atomically and rejects a stale (incomplete) list with the RPC's own message; editing then deleting a card already copied into a real `warta_litbang_items` row leaves that row's `name`/`deskripsi` untouched and only nulls `litbang_category_id`.
 - **Not verified yet**: an actual browser (light/dark, 360px, and specifically pointer/touch dragging, which the component tests don't cover — only the keyboard path was exercised, since mouse/touch drag-and-drop can't be driven through Testing Library's `userEvent` the way keyboard activation can). No `next dev` was running at the end of this session; `.env.development.local` still points at the `*.supabase.co` project rather than the local stack (the same pre-existing mismatch noted since stage 3).
+
+### Stage 9a (Warta admin + Dashboard), 2026-09-29
+
+**Before deploying to production**
+- Push migration `0026_warta_rules.sql` together with 0018–0025.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Creating a warta needs no 207 path.** `create_warta` (0022, stage 2) already inserts the draft (`created_by = auth.uid()`) and snapshots the active Litbang cards in one transaction, so "Warta dibuat, tapi gagal menyalin Litbang" can't happen. It was not changed.
+- **Slug**: `slugify("{tanggal}-{judul}")` in `lib/warta.ts` (NFD, strip marks, lowercase, runs of other characters become `-`, trim). One plain attempt, then up to **5 retries** with `-xxxx` (4 base-36 characters from `crypto.getRandomValues`). A retry happens only on `23505` for `warta_slug_key`; there is no check-then-insert. After that, 400 "Gagal membuat alamat unik untuk warta ini. Coba simpan lagi."
+- **`warta_litbang_items` is update-only at the RLS layer.** `warta_litbang_items_write` (`for all`, 0003) is replaced by `warta_litbang_items_update`, the same accepted pattern as 0025's `sarana_dana_items_update`.
+  - Cards come only from `create_warta` (definer, bypasses RLS) and leave only through the FK cascade.
+  - A direct REST insert is refused (`42501`), and a direct delete affects 0 rows.
+- **Tanggal Kebaktian is not restricted to Sunday.** Other services in the week (KRT, PA, Doa Pagi, …) fall on other days anyway. The create form defaults to `nextSunday()`.
+- **Changing Tanggal Kebaktian later keeps the old slug** (§9.4 "never changes"). The service and finance weeks follow the new date.
+- **Transactions in the warta finance tab** use the stage-7 `TransactionDialog` defaults as they are: Tanggal defaults to today, and there are **no** min/max bounds. The brief doesn't restrict transactions to the finance week (unlike "Tambah Jadwal", §12.5). A transaction dated outside the week is saved to the ledger but doesn't show in that tab.
+- **Optimistic concurrency, for Section 1 (Informasi & Renungan) only.**
+  - The PATCH body carries `expectedUpdatedAt`, and the update is `… where id = $1 and updated_at = $2`: compare-and-swap in one statement, with no gap between reading and writing.
+  - 0 rows on a warta that still exists → 400 "Warta ini sudah diubah orang lain sejak kamu membukanya. Muat ulang halaman …". It's 400 rather than 409 because §10 lists only 400/401/403/404. The typed text stays in the form.
+  - The form keeps its base `updated_at` in local state (not the prop), so a refresh from another section can't silently move it forward under unsaved edits. It advances only from its own save's response.
+  - Not applied to:
+    - status: the body is the *target* status, so it's idempotent;
+    - Litbang deskripsi and Kesaksian items: small per-row edits, and those tables have no `updated_at` (same stance as stage 8);
+    - schedule rows and transactions: their own modules.
+
+**0026 migration**
+- `warta_slug_format_check`: `slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`.
+- `private.enforce_warta_rules()`, `before insert or update` on `warta`:
+  - **Insert** by a signed-in user: `created_by := auth.uid()` and `status := 'draft'`, since publishing needs `warta:update`, not `warta:create`. It stands aside when `auth.uid()` is null (seed, SQL Editor), like 0021.
+  - `published_at` is set on insert from the status; `created_at` / `updated_at` = `now()`.
+  - **Update**: a changed slug raises `22023` "Slug warta tidak bisa diubah." `created_by` and `created_at` revert to the old values.
+  - `published_at`: `now()` when the status becomes published, `null` when it returns to draft, otherwise the old value. A client value is always ignored.
+  - `updated_at` moves **only when an Informasi/Renungan column changes**, so Terbitkan doesn't cause a false concurrency conflict.
+- `private.enforce_warta_litbang_item_rules()`, `before update` on `warta_litbang_items`:
+  - `name` and `warta_id` are fixed (`22023`).
+  - `litbang_category_id` may only become null, which the FK set-null from a deleted template card still needs; the pgTAP test proves it passes.
+
+**Routes and data loading**
+- `lib/warta-routes.ts` uses the `mutation()` pattern:
+  - `POST /api/admin/warta` (`warta:create`);
+  - `PATCH /[id]` (`warta:update`; either `{ status }` or the fields + `expectedUpdatedAt`, with the branch picked by the presence of `status` so Zod reports the field's own message instead of a generic union error);
+  - `DELETE /[id]` (`warta:delete`);
+  - `PATCH /[id]/litbang/[itemId]` (`{ deskripsi }` only);
+  - `POST /[id]/kesaksian`, `PATCH` / `DELETE /[id]/kesaksian/[itemId]`.
+
+  No GET routes (same as stage 8); pages load on the server. Child rows are always filtered by `warta_id` too, so an item addressed under the wrong warta is a 404.
+- Kesaksian appends at `max(sort_order) + 1` within the warta (stage 4's convention).
+- Activity sentences (module `warta`):
+  - `Membuat warta "…" (YYYY-MM-DD)`, `Mengubah warta …`, `Mempublikasikan warta …`, `Menarik warta … ke draft`, `Menghapus warta …`;
+  - `Mengubah litbang "…" pada warta …`;
+  - `Menambah/Mengubah kesaksian "…" pada warta …`, `Menghapus kesaksian "…" dari warta …`.
+- New loaders:
+  - `loadPeribadahanRange(supabase, range)` (peribadahan-routes, reusing `loadReferenceData`/`toItemRow`/`loadSmkaGroups`; ordered by date then `sort_order`).
+  - `loadWartaFinance(supabase, range)` (sarana-dana-routes). The four figures come **only** from `rpc('sarana_dana_report')`, never recomputed in TS. The transactions go through `toTransactionRows`, extracted from `loadSaranaDanaLedger` so both share it.
+  - `loadWartaList` / `loadLatestWarta` / `loadWartaEditor`.
+- Peribadahan and Sarana & Dana mutations now revalidate `/admin/warta` as a **layout** (it was the page only, so `/admin/warta/[id]` was missed) plus `/admin` for the dashboard (`WARTA_VIEWS` in each file).
+- `weekContaining(date)` in `lib/dates.ts`: the Minggu–Sabtu week around a date, for the dashboard, with the same definition as `public_jadwal_pekan_ini`.
+
+**UI**
+- **Peribadahan reuse without a copy.** `PeribadahanManager` was split:
+  - column builders moved to `peribadahan-columns.tsx`, with a new `buildWeekColumns` (Tanggal, Waktu, Jenis, Ringkasan, no sorting, per §9.4);
+  - the add/edit/delete wiring (button, row actions, both dialogs) moved to the `usePeribadahanActions` hook.
+
+  The Peribadahan pages behave as before; the warta section composes the same hook with `defaultDate`/`minDate`/`maxDate` = the service week.
+- `components/warta/`:
+  - `warta-list-manager` (Status facet, date range on tanggal, "Hapus" hidden without `warta:delete`);
+  - `warta-create-form`;
+  - `warta-info-fields` (shared by create and Section 1);
+  - `warta-editor` (back link, judul + status badge + date + slug, Terbitkan/Tarik ke Draft, Hapus Warta);
+  - one file per section;
+  - `warta-status-badge` (Published = accent, Draft = neutral; server-safe, so the dashboard can use it).
+- Each section is a `<section aria-labelledby>` with an `h2`.
+- Litbang cards show the name as fixed text (not an input). Kesaksian items are edited in place, with "Tambah Item Baru" closing the list.
+- The page renders `<WartaEditor key={warta.id}>`, so moving between two warta remounts every form instead of keeping stale local state.
+- **shadcn `tabs`** added (only `tabs.tsx`). Two changes from the generated file:
+  - list height `h-8` → `h-9` (36px controls);
+  - inactive tab text `text-foreground/60` → `text-muted-foreground`, because 60% foreground on `--muted` is about 4.4:1 (under AA), while muted-foreground is about 6.8:1 light / 6.1:1 dark.
+- **Dashboard**:
+  - The existing greeting, roles, permission count, and forbidden notice (stage 1) stay.
+  - With `warta:read` it adds read-only cards: Warta terbaru (status badge + link), Jadwal minggu ini (Minggu–Sabtu containing today in WIB), and Saldo Sarana & Dana (from `sarana_dana_balances`).
+  - A failed summary shows an inline message instead of failing the page.
+
+**Verification (stage 9a)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/warta`, `/admin/warta/new`, `/admin/warta/[id]`, and the five API routes are in the build's route list.
+- `next dev`: a dev server for this folder was already running on :3000 and was left alone. Its log shows clean recompiles after the new route files were added (no route-tree conflict; the only dynamic segment names under `warta` are `[id]` and `[itemId]`).
+- `pnpm test`: 133 tests, 20 files.
+  - `lib/warta.test.ts`: slugify, diacritics, runs/trim, a non-latin judul, and every output matching the DB check; the suffix format.
+  - `weekContaining` tests.
+  - `warta-editor.test.tsx`:
+    - read-only mode: all 5 sections, every textbox disabled, no action buttons or add form;
+    - an editor without delete;
+    - the figures rendered exactly as passed;
+    - publish sends only `{ status }`;
+    - Section 1 sends its starting `updated_at`, then the one the server returned, and keeps the typed text on a conflict;
+    - a blank judul is caught client-side.
+- `pnpm test:db`: 11 files, 323 tests (32 new, `warta.test.sql`):
+  - create_warta snapshot (active only);
+  - a direct insert forced to draft, the caller as author, and no published_at;
+  - slug format; slug update rejected; created_by kept;
+  - published_at set, kept, and cleared;
+  - updated_at moves on content only and can't be set directly;
+  - Litbang copy: deskripsi editable, template untouched; name, warta_id, and category repoint rejected; direct insert and delete refused;
+  - the FK set-null still works;
+  - viewer can't update; editor can't delete; admin deletes;
+  - after a delete, only Litbang and Kesaksian go, while schedule rows, transactions, other warta, and the template stay.
+- `pnpm test:integration`: 6 files, 79 tests. New `warta.test.ts` (13 tests):
+  - 401 and 403 on every route, with nothing written;
+  - the whole lifecycle for §13 #2 (editor creates, edits, publishes, unpublishes; editor delete → 403; admin delete → 200), with exact activity rows (email, IP) and `created_by`/`status`/`published_at`/slug from the body ignored;
+  - validation, and 404 for missing or malformed ids;
+  - a second identical tanggal + judul gets `base-xxxx`;
+  - a REST slug update is refused even for super_admin;
+  - a stale `expectedUpdatedAt` → 400 with nothing written, and a status change doesn't cause a false conflict;
+  - §13 #3: only the active card is copied, and editing warta A's copy changes neither the template nor warta B (a client-sent `name` is ignored);
+  - Kesaksian appends in order;
+  - §13 #4: a row added through the warta's "Tambah Jadwal" path shows on the overview and category loaders, and an edit made there shows in the warta's service-week loader, while a row outside the week doesn't;
+  - the finance tab's figures deep-equal `rpc('sarana_dana_report')` for the finance week, and the tab holds exactly that item's in-range transactions;
+  - deleting a warta leaves its schedule row and transaction.
+
+  `litbang.test.ts` now builds its snapshot with `create_warta` instead of a direct insert, which 0026 refuses.
+- Mutation checks:
+  - dropping both 0026 triggers fails 5 pgTAP tests before the file aborts (it can't disable a trigger that no longer exists);
+  - removing the `updated_at` condition from the UPDATE fails the concurrency integration test;
+  - showing the Kesaksian add form without `warta:update` fails the read-only component test.
+- **Not verified yet**: an actual browser (light and dark, 360px, keyboard-only; in particular the tabs on a narrow screen, the DatePicker inside the Informasi fieldset, and the editor's long page). The running dev server points at the `*.supabase.co` project (`.env.development.local`, the same mismatch noted since stage 3), so no request was made to it.
+- The local database was **not** reset; 0026 was applied with `migration up --local`. The seed inserts warta as `postgres` (where `auth.uid()` is null), so the new trigger stands aside for it, the same way the pgTAP fixtures run.

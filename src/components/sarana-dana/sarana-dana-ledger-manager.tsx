@@ -86,7 +86,7 @@ export function SaranaDanaLedgerManager({
 
       <TransactionsTable
         rows={rows}
-        itemKey={item.key}
+        itemId={item.id}
         isPersembahanBulanan={item.key === PERSEMBAHAN_BULANAN_KEY}
         peopleOptions={peopleOptions}
         canWrite={canWrite}

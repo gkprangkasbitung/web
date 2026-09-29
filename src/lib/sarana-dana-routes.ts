@@ -120,8 +120,8 @@ export async function loadSaranaDanaFormOptions(supabase: ServerSupabase): Promi
   return listPeopleForPicker(supabase);
 }
 
-const keyParams = z.object({ key: z.string().min(1) });
-const transactionParams = z.object({ key: z.string().min(1), id: z.uuid() });
+const itemIdParams = z.object({ id: z.uuid() });
+const transactionParams = z.object({ id: z.uuid(), transactionId: z.uuid() });
 
 /**
  * Both UI actions send only the field they own (Overview's Edit dialog:
@@ -157,10 +157,10 @@ const transactionSchema = z.object({
   keterangan: optionalText(500),
 });
 
-/** PATCH /api/admin/sarana-dana/[id] (Overview's "Edit" dialog, or the ledger's inline Saldo Awal). */
+/** PATCH /api/admin/sarana-dana/[id] (Overview's "Edit" dialog, or the ledger's inline Saldo Awal; brief §10). */
 export const updateSaranaDanaItem = mutation({
   permission: ["warta", "update"],
-  params: z.object({ id: z.uuid() }),
+  params: itemIdParams,
   schema: updateItemSchema,
   notFound: "Item tidak ditemukan.",
   async run({ input, params, supabase }) {
@@ -190,15 +190,15 @@ export const updateSaranaDanaItem = mutation({
   },
 });
 
-/** POST /api/admin/sarana-dana/[key]/transaksi ("Tambah Transaksi"). */
+/** POST /api/admin/sarana-dana/[id]/transactions ("Tambah Transaksi"; brief §10). `id` is the item's own id. */
 export const createTransaction = mutation({
   permission: ["warta", "update"],
-  params: keyParams,
+  params: itemIdParams,
   schema: transactionSchema,
   status: 201,
   notFound: "Item tidak ditemukan.",
   async run({ input, params, user, supabase }) {
-    const item = await supabase.from("sarana_dana_items").select("id, key, name").eq("key", params.key).maybeSingle();
+    const item = await supabase.from("sarana_dana_items").select("id, key, name").eq("id", params.id).maybeSingle();
     if (item.error) throw dbError(item.error, { notFound: "Item tidak ditemukan." });
     if (!item.data) throw new ApiError(404, "Item tidak ditemukan.");
 
@@ -230,14 +230,14 @@ export const createTransaction = mutation({
   },
 });
 
-/** PATCH /api/admin/sarana-dana/[key]/transaksi/[id]. */
+/** PATCH /api/admin/sarana-dana/[id]/transactions/[transactionId] (brief §10). */
 export const updateTransaction = mutation({
   permission: ["warta", "update"],
   params: transactionParams,
   schema: transactionSchema,
   notFound: "Transaksi tidak ditemukan.",
   async run({ input, params, supabase }) {
-    const item = await supabase.from("sarana_dana_items").select("id, key, name").eq("key", params.key).maybeSingle();
+    const item = await supabase.from("sarana_dana_items").select("id, key, name").eq("id", params.id).maybeSingle();
     if (item.error) throw dbError(item.error, { notFound: "Item tidak ditemukan." });
     if (!item.data) throw new ApiError(404, "Item tidak ditemukan.");
 
@@ -250,7 +250,7 @@ export const updateTransaction = mutation({
         jumlah: input.jumlah,
         keterangan: input.keterangan,
       })
-      .eq("id", params.id)
+      .eq("id", params.transactionId)
       .eq("item_id", item.data.id)
       .select()
       .maybeSingle();
@@ -268,20 +268,20 @@ export const updateTransaction = mutation({
   },
 });
 
-/** DELETE /api/admin/sarana-dana/[key]/transaksi/[id]. */
+/** DELETE /api/admin/sarana-dana/[id]/transactions/[transactionId] (brief §10). */
 export const deleteTransaction = mutation({
   permission: ["warta", "update"],
   params: transactionParams,
   notFound: "Transaksi tidak ditemukan.",
   async run({ params, supabase }) {
-    const item = await supabase.from("sarana_dana_items").select("id, key, name").eq("key", params.key).maybeSingle();
+    const item = await supabase.from("sarana_dana_items").select("id, key, name").eq("id", params.id).maybeSingle();
     if (item.error) throw dbError(item.error, { notFound: "Item tidak ditemukan." });
     if (!item.data) throw new ApiError(404, "Item tidak ditemukan.");
 
     const { data, error } = await supabase
       .from("sarana_dana_transactions")
       .delete()
-      .eq("id", params.id)
+      .eq("id", params.transactionId)
       .eq("item_id", item.data.id)
       .select("jumlah, tanggal")
       .maybeSingle();
@@ -289,7 +289,7 @@ export const deleteTransaction = mutation({
     if (!data) throw new ApiError(404, "Transaksi tidak ditemukan.");
 
     return {
-      data: { id: params.id },
+      data: { id: params.transactionId },
       log: {
         module: "sarana_dana",
         activity: `Menghapus transaksi ${formatRupiah(data.jumlah)} untuk ${item.data.name} tanggal ${data.tanggal}`,

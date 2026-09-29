@@ -20,7 +20,7 @@ describe("TransactionDialog", () => {
       <TransactionDialog
         open
         onOpenChange={() => {}}
-        itemKey="kas_jemaat"
+        itemId="00000000-0000-4000-8000-000000000001"
         isPersembahanBulanan={false}
         row={null}
         peopleOptions={[]}

@@ -35,8 +35,8 @@ function valuesFromRow(row: TransactionRow | null): Values {
 export type TransactionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The item's `key` (URL segment), not its uuid. */
-  itemKey: string;
+  /** The item's own id (brief §10's route shape). */
+  itemId: string;
   isPersembahanBulanan: boolean;
   /** null = "Tambah Transaksi"; a row = edit, reset to its saved values every time the dialog opens. */
   row: TransactionRow | null;
@@ -52,7 +52,7 @@ export type TransactionDialogProps = {
 export function TransactionDialog({
   open,
   onOpenChange,
-  itemKey,
+  itemId,
   isPersembahanBulanan,
   row,
   peopleOptions,
@@ -100,10 +100,10 @@ export function TransactionDialog({
         keterangan: values.keterangan || null,
       };
       if (isEdit) {
-        await apiFetch(`/api/admin/sarana-dana/${itemKey}/transaksi/${row.id}`, { method: "PATCH", body });
+        await apiFetch(`/api/admin/sarana-dana/${itemId}/transactions/${row.id}`, { method: "PATCH", body });
         toast.success("Transaksi diperbarui");
       } else {
-        await apiFetch(`/api/admin/sarana-dana/${itemKey}/transaksi`, { method: "POST", body });
+        await apiFetch(`/api/admin/sarana-dana/${itemId}/transactions`, { method: "POST", body });
         toast.success("Transaksi ditambahkan");
       }
       onOpenChange(false);

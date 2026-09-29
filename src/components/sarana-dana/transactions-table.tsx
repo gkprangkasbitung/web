@@ -77,8 +77,8 @@ function buildColumns(showJemaat: boolean): DataTableColumnDef<TransactionRow>[]
 
 export type TransactionsTableProps = {
   rows: TransactionRow[];
-  /** The item's `key` (URL segment). */
-  itemKey: string;
+  /** The item's own id (brief §10's route shape: `/api/admin/sarana-dana/[id]/transactions`). */
+  itemId: string;
   isPersembahanBulanan: boolean;
   peopleOptions: readonly PersonOptionRow[];
   canWrite: boolean;
@@ -97,7 +97,7 @@ export type TransactionsTableProps = {
  */
 export function TransactionsTable({
   rows,
-  itemKey,
+  itemId,
   isPersembahanBulanan,
   peopleOptions,
   canWrite,
@@ -121,7 +121,7 @@ export function TransactionsTable({
 
   async function remove(row: TransactionRow) {
     try {
-      await apiFetch(`/api/admin/sarana-dana/${itemKey}/transaksi/${row.id}`, { method: "DELETE" });
+      await apiFetch(`/api/admin/sarana-dana/${itemId}/transactions/${row.id}`, { method: "DELETE" });
       toast.success("Transaksi dihapus");
       onChanged();
     } catch (error) {
@@ -175,7 +175,7 @@ export function TransactionsTable({
         key={addKey}
         open={addOpen}
         onOpenChange={setAddOpen}
-        itemKey={itemKey}
+        itemId={itemId}
         isPersembahanBulanan={isPersembahanBulanan}
         row={null}
         peopleOptions={peopleOptions}
@@ -188,7 +188,7 @@ export function TransactionsTable({
         key={editRow?.id ?? "none"}
         open={editOpen}
         onOpenChange={setEditOpen}
-        itemKey={itemKey}
+        itemId={itemId}
         isPersembahanBulanan={isPersembahanBulanan}
         row={editRow}
         peopleOptions={peopleOptions}

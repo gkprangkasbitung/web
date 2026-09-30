@@ -55,9 +55,15 @@ export default async function TentangKamiPage() {
             )}
 
             {(profil.data.visi || profil.data.misi.length > 0) && (
-              <div className="grid gap-4 md:grid-cols-2">
+              // Misi is a list and usually runs longer than Visi, so it gets the
+              // wider column; both cards center their content so the shorter
+              // one doesn't leave a block of empty space at the bottom.
+              <div className="grid gap-4 md:grid-cols-5">
                 {profil.data.visi && (
-                  <section aria-labelledby="visi" className="flex flex-col gap-3 rounded-2xl bg-brand p-8 text-brand-foreground">
+                  <section
+                    aria-labelledby="visi"
+                    className={`flex flex-col justify-center gap-3 rounded-2xl bg-brand p-8 text-brand-foreground ${profil.data.misi.length > 0 ? "md:col-span-2" : "md:col-span-5"}`}
+                  >
                     <h2 id="visi" className="text-xs font-medium tracking-[0.12em] text-brand-muted uppercase">
                       Visi
                     </h2>
@@ -65,7 +71,10 @@ export default async function TentangKamiPage() {
                   </section>
                 )}
                 {profil.data.misi.length > 0 && (
-                  <section aria-labelledby="misi" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-8">
+                  <section
+                    aria-labelledby="misi"
+                    className={`flex flex-col justify-center gap-3 rounded-2xl border border-border bg-card p-8 ${profil.data.visi ? "md:col-span-3" : "md:col-span-5"}`}
+                  >
                     <h2 id="misi" className="text-xs font-medium tracking-[0.12em] text-primary uppercase">
                       Misi
                     </h2>

@@ -493,6 +493,22 @@ isOneToOne: false
 "save_jemaat":
 { Args: { "p_alamat"?: string,"p_hubungan_keluarga"?: string,"p_id"?: string,"p_jenis_kelamin"?: string,"p_keluarga_nama"?: string,"p_label_ids"?: (string)[],"p_nama": string,"p_no_hp"?: string,"p_nomor_anggota"?: string,"p_pekerjaan"?: string,"p_status_keanggotaan"?: string,"p_tanggal_lahir"?: string,"p_tanggal_masuk"?: string,"p_wilayah_id"?: string }; Returns: string
                            },
+"search_activity_logs":
+{ Args: { "p_search"?: string }; Returns: {
+              "activity": string,
+"created_at": string,
+"id": string,
+"ip_address": string | null,
+"module": string,
+"user_email": string | null,
+"user_id": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "activity_logs"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "search_peribadahan_item_ids":
 { Args: { "p_search": string }; Returns: {
               "id": string
@@ -502,6 +518,9 @@ isOneToOne: false
 { Args: { "p_hubungan_keluarga"?: string,"p_jemaat_id": string,"p_keluarga_id"?: string }; Returns: undefined
                            },
 "set_role_permissions":
+{ Args: { "p_permission_ids": (string)[],"p_role_id": string }; Returns: undefined
+                           },
+"set_role_ui_permissions":
 { Args: { "p_permission_ids": (string)[],"p_role_id": string }; Returns: undefined
                            },
 "set_user_access":

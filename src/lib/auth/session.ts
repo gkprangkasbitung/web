@@ -79,13 +79,22 @@ export type ApiAuth =
   | { ok: true; user: AuthUser; supabase: ServerSupabase }
   | { ok: false; response: ReturnType<typeof fail> };
 
+const SESSION_EXPIRED = "Sesi kamu sudah berakhir. Silakan masuk kembali.";
+
+/** For route handlers open to every signed-in user (Profil Saya): 401 without a session. */
+export async function requireUserApi(): Promise<ApiAuth> {
+  const user = await getAuthenticatedUser();
+  if (!user) return { ok: false, response: fail(SESSION_EXPIRED, 401) };
+  return { ok: true, user, supabase: await createClient() };
+}
+
 /**
  * For route handlers: 401 without a session, 403 without the permission.
  * Usage: `const auth = await requirePermissionApi("warta", "update"); if (!auth.ok) return auth.response;`
  */
 export async function requirePermissionApi(resource: Resource, action: Action): Promise<ApiAuth> {
   const user = await getAuthenticatedUser();
-  if (!user) return { ok: false, response: fail("Sesi kamu sudah berakhir. Silakan masuk kembali.", 401) };
+  if (!user) return { ok: false, response: fail(SESSION_EXPIRED, 401) };
   if (!can(user, resource, action)) {
     return { ok: false, response: fail("Kamu tidak punya akses untuk tindakan ini.", 403) };
   }

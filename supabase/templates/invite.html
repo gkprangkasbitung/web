@@ -1,0 +1,10 @@
+<!-- Invite email (brief §6, §9.11). The same template goes into the Supabase
+     Dashboard for production: Authentication > Emails > Invite user. The link
+     is built from the project's Site URL, never from the redirectTo the app
+     sends, so its domain can't be changed by a request. /auth/callback
+     verifies token_hash and then opens /auth/set-password. -->
+<h2>Undangan ke admin GKP Rangkasbitung</h2>
+<p>Kamu diundang untuk memakai halaman admin GKP Rangkasbitung dengan email {{ .Email }}.</p>
+<p>Klik tautan di bawah ini, lalu buat password untuk akun kamu:</p>
+<p><a href="{{ .SiteURL }}/auth/callback?next=/auth/set-password&amp;token_hash={{ .TokenHash }}&amp;type=invite">Terima undangan</a></p>
+<p>Kalau kamu tidak merasa diundang, abaikan email ini.</p>

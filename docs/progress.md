@@ -10,7 +10,7 @@
 - [x] 8. Litbang template (§9.6)
 - [x] 9a. Warta admin (§9.4) + Dashboard summaries (§9.3, §12.8)
 - [x] 9b. Public site (§8)
-- [ ] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
+- [x] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
 
 ## Notes / decisions
 
@@ -637,3 +637,188 @@
   - The fixtures were deleted afterwards, and `pnpm build` was rerun with the normal env.
 - **Not verified yet**: an actual browser (light, dark, and system themes; 360px; keyboard-only use, especially the Sheet menu's focus return and the SMKA table's horizontal scroll on a narrow screen). No browser tool was available in this session.
 - Follow-up outside this stage: an unmatched URL (for example `/halaman-acak`) still gets Next's default English 404, because there is no root `app/not-found.tsx`. A root one would also replace the admin's 404 pages, so it was left alone.
+
+### Stage 10 (Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya), 2026-09-30
+
+**Before deploying to production**
+- Push migration `0028_users_roles_audit.sql` together with 0018–0027.
+- Set `SITE_URL` (server-only) in the hosting environment, and configure Supabase Auth: Site URL, the Redirect URL `https://<domain>/auth/callback**`, and the "Invite user" template. Step by step in `docs/bootstrap-super-admin.md` → "Invites". Without `SITE_URL`, invites fail closed with a 500.
+- Configure custom SMTP in Supabase before inviting in earnest. The built-in sender allows only a few emails per hour.
+- This settles the stage 1 note on the invite template: the link uses `{{ .SiteURL }}`, not `{{ .RedirectTo }}`.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **`SITE_URL` is server-only** (`lib/site-url.ts`). It must be an origin only, on https (http only for localhost).
+  - The invite's `redirectTo` is `${SITE_URL}/auth/callback?next=/auth/set-password`. It is never built from Host / Origin / X-Forwarded-Host.
+  - The invite template builds its link from the Supabase Site URL, so a request can't steer the link's domain at all.
+  - Added to `.env.local.example`. Approved despite the `.env*` rule, because the file holds no secret.
+- **The password change asks for the current password.** This is an addition to §9.14. The server:
+  1. checks the password with a throwaway, cookie-less `signInWithPassword` (the email comes from the session, not the request);
+  2. revokes that throwaway session;
+  3. calls `updateUser`;
+  4. calls `signOut({ scope: "others" })`.
+
+  The invite's `/auth/set-password` is unchanged; it has no old password.
+- **The super_admin guards apply on every path**: the service role, the Supabase dashboard, and the SQL Editor. 0021, by contrast, stands aside when `auth.uid()` is null. Manual repair means disabling the trigger inside a transaction (documented).
+- **Role edit dialog** (Nama + Deskripsi) exists; the super_admin name is fixed. `PATCH /api/admin/roles/[id]` takes either `{ permissionIds }` or `{ name, description }`, branched the same way as warta's PATCH.
+- **One user PATCH**: `PATCH /api/admin/users/[id]` `{ roleId?, jemaatId }` goes through `set_user_access`, so it is atomic. It replaces §10's separate `/role` and `/jemaat` endpoints.
+  - Leaving out `roleId` keeps the roles and calls `link_user_jemaat` only.
+  - The dialog does this on your own row, where the role can't change.
+- **`activity_logs` hardening**: every item approved (see 0028 below).
+- **Skipped** (suggested and approved):
+  - an "undangan belum diterima" badge, which would need a definer function over `auth.users`;
+  - user counts in the delete-role dialog.
+
+**0028 migration**
+- **super_admin guards.** The triggers are named `guard_super_admin`, which sorts after 0021's `guard_own_admin_access`, so acting on your own access still reports 0021's message.
+  - `user_roles`: the last super_admin assignment can't be deleted (including the cascade from deleting the auth user), switched, or moved.
+    - The check is serialized with `select … for update` on the super_admin role row, so two super_admins demoting each other at once can't both succeed.
+    - No automated test covers this, because pgTAP runs in one session.
+  - `roles`: super_admin can't be deleted or renamed. Its description can change.
+  - `role_permissions`: super_admin's `roles:*` / `users:*` grants can't be removed. Its other grants (`warta:*`, `activity_log:read`) can.
+  - Messages (42501):
+    - "Harus ada minimal satu super_admin."
+    - "Role super_admin tidak bisa dihapus."
+    - "Nama role super_admin tidak bisa diubah."
+    - "Permission roles dan users milik super_admin tidak bisa dicabut."
+- **`set_role_ui_permissions(p_role_id, p_permission_ids)`**: invoker, needs `roles:update`.
+  - It replaces the set only within `warta`, `users`, `roles`, and `activity_log`. `announcements`/`content` grants stay.
+  - Ids outside those four resources → 22023 "Permission tidak dikenal."
+  - `set_role_permissions` (0022) is kept, but the app no longer uses it.
+- **Role names**: `roles_name_lower_idx` (unique `lower(name)`) and `roles_name_not_blank_check`.
+- **`activity_logs` is append-only for everyone.**
+  - `revoke update, delete, truncate` from anon, authenticated, and service_role.
+  - A `before update or delete` trigger refuses everything except the FK's own set-null of `user_id`, with every other column unchanged.
+  - A `before truncate` trigger refuses truncation.
+  - On a signed-in user's insert, `user_email` comes from `auth.users` and `created_at` is `now()`, whatever the client sent. Without `auth.uid()` (seed, tests), the given values are kept.
+- **`search_activity_logs(p_search)`**: invoker, returns `setof activity_logs`, and matches activity or email with ILIKE.
+  - Same pattern as stage 6: `escapeLike` in TS, then a bound parameter, never a `.or()` string.
+  - Module, date range, order, and range are PostgREST filters on the RPC result.
+- **Bug fix found this stage: deleting an account that had created a warta failed.**
+  - 0026's `enforce_warta_rules` reverted every change to `created_by`, including the FK's `on delete set null`. The delete therefore raised a foreign-key violation (reproduced on the local DB before the fix).
+  - The replaced function lets `created_by` become null only when that user no longer exists. Any other rewrite is still reverted.
+  - It is now `security definer`, so it can read `auth.users`; otherwise it is identical.
+
+**Routes and data loading**
+- `lib/supabase/admin.ts` (`server-only`) exports only `inviteUser` and `deleteAuthUser`. The service-role client is never exported (brief §3).
+- `mutation()` gained two options:
+  - `permission: "signed-in"` (with `requireUserApi`), for `/api/account/*`;
+  - `partial` in `run`'s result → 207 `{ data, error }`, still logging the main write.
+- `apiFetchWithWarning` returns the 207's `error`. `apiFetch` is unchanged for callers.
+- `rpcError` and the new `guardError` forward a 42501 only when its message is one of the hand-written access-guard messages (0021, 0022, 0028). Any other 42501 (RLS, privileges) still gets the generic text.
+- **Invite** (`POST /api/admin/users`, `users:create`):
+  1. Pre-checks run before the email goes out: the role exists, and the jemaat exists and isn't linked. Failing them gives a 400, not a 207.
+  2. `inviteUserByEmail` with `full_name`.
+     - `email_exists` → "Email ini sudah terdaftar sebagai pengguna."
+     - An email rate limit → a friendly 400.
+  3. `set_user_access`. On failure → 207 "Pengguna diundang, tapi gagal set role/jemaat: …".
+
+  GoTrue sends the invite again to an address that was invited but never accepted.
+- **Delete** (`DELETE /api/admin/users/[id]`, `users:delete`):
+  1. Your own id → 403 "Tidak bisa menghapus akun sendiri."
+  2. The last super_admin → 403. This is a friendly pre-check; the trigger is the real guard.
+  3. `deleteAuthUser`.
+- **One jemaat per account**:
+  - The RPC's pre-check plus the unique index enforce it. A race's raw 23505 is mapped to "Jemaat ini sudah terhubung ke akun lain."
+  - In the picker, a jemaat linked to another account is shown disabled with "Terhubung ke {email}" (`PersonPicker` gained `disabledReason`).
+- **Log Aktivitas** (`lib/activity-log-routes.ts`):
+  - The URL is parsed with stage 3's `parseTableSearchParams`: size 10/20/50/100, sort only on `created_at`/`module`. Only a known module key is applied.
+  - The date range uses `jakartaTimestampBounds`: the end date counts through 23:59:59 WIB, sent as `lt` 00:00 WIB the next day.
+  - A page past the end (PostgREST 416 or an empty page) falls back to the last page, and the page redirects so the URL matches.
+  - Sorting by Modul uses the key, so "Pengguna" (`users`) sorts near the end rather than by its label.
+- Activity sentences:
+
+  | Module | Sentences |
+  |---|---|
+  | `users` | `Mengundang pengguna "…"`, `Mengubah role pengguna "…" menjadi "…"`, `Menautkan pengguna "…" ke jemaat "…"`, `Melepas tautan jemaat dari pengguna "…"`, `Mengubah akses pengguna "…": role "…", jemaat "…"`, `Menghapus pengguna "…"` |
+  | `roles` | `Menambah role "…"`, `Mengubah role "…"` / `Mengubah nama role "…" menjadi "…"`, `Mengubah permission role "…" (+warta:update, −warta:delete)`, `Menghapus role "…"` |
+  | `akun` | `Mengubah nama lengkap menjadi "…"`, `Mengosongkan nama lengkap`, `Mengganti password` |
+
+**Revoking access (E)**
+- Permissions are re-read on every request:
+  - `getAuthenticatedUser` calls `getUser()` (the Auth server) and `get_my_access`, and React `cache()` lasts only one request.
+  - RLS uses `has_permission` on live tables.
+  - A role change applies on the next request with the same cookie (integration-tested both ways).
+- A deleted user:
+  - `getUser()` fails, so pages redirect to `/login` and APIs answer 401.
+  - Their access token still passes PostgREST's signature check until it expires (1 h). But `user_roles` cascaded, so the token has no permissions, and log inserts fail the FK (tested over REST).
+- Open browser tabs keep their already-rendered sidebar until the next navigation. Every page and API still checks on the server.
+
+**Client IP (brief §7) and hosting**
+- `getClientIp` takes the first `x-forwarded-for` entry, else `x-real-ip`. The client can put anything in `x-forwarded-for`, so the value can only be trusted when a proxy you trust overwrites it.
+- **Vercel (current)**: Vercel overwrites `x-forwarded-for` with the real client IP, so the logged IP is reliable.
+- **Domainesia (possible later)**: on cPanel Node.js hosting (Apache/LiteSpeed in front) or a VPS behind nginx, the proxy usually *appends* to `x-forwarded-for`. Its first entry is then whatever the client sent.
+  - Before moving, change `getClientIp` to trust only what that proxy sets. Options:
+    - `x-real-ip` set by nginx (`proxy_set_header X-Real-IP $remote_addr;`);
+    - the last `x-forwarded-for` entry, added by the trusted proxy;
+    - `cf-connecting-ip` behind Cloudflare.
+  - Not changed now, as agreed.
+
+**UI**
+- **Pengguna**:
+  - The shared table: Nama (avatar and a "Kamu" badge), Email, Role (facet, with "Tanpa role"), Jemaat.
+  - Edit/Lihat dialog: Role + Jemaat, one "Simpan".
+  - On your own row, the Role select is disabled with a note, and "Hapus" isn't offered.
+  - A user holding several roles (possible only through SQL) is shown with all of them. Saving replaces them with one, and the dialog says so.
+  - A 207 invite shows a warning toast (10 s), not a success.
+- **Roles & Permissions**:
+  - Role cards, sorted by name: description, and one mono badge per visible permission. announcements/content are never shown.
+  - Icon buttons on each card: Edit (`roles:update`) and Hapus (`roles:delete`, not on super_admin).
+  - The permission editor appears only with `roles:update`. It is a real `<table>`:
+    - rows are roles, columns are resource/action, and the role column is sticky, with horizontal scroll on narrow screens;
+    - "—" marks a permission that doesn't exist (activity_log has only read);
+    - each row has its own "Simpan"/"Batal", enabled only after a change;
+    - super_admin's roles/users boxes are disabled, with "(terkunci)" in their label.
+  - A standing warning says roles:*/users:* equal super admin access. A save that newly grants one of them asks for confirmation first.
+  - The matrix is an editor, not a list, so it doesn't use the shared DataTable.
+- **Log Aktivitas**: stage 3's server-mode table (search, Modul single-select with the §7 labels, date range, Waktu in WIB, IP in mono).
+- **Profil Saya**:
+  - Informasi Akun: email, role badges or "Tanpa role", and Nama Lengkap + Simpan.
+  - Ganti Password: Password saat ini, Password baru, Konfirmasi.
+- **Streamed redirects**: `/admin` has a `loading.tsx` (stage 1). Once streaming has started, a forbidden page can answer 200 with `<meta http-equiv="refresh" content="1;url=/admin?error=forbidden">` instead of a 307, which is Next's documented behavior.
+  - The HTTP check confirmed that such a response carries no other account's data.
+  - It applies to every admin page, not only this stage's.
+- **To check in a browser**: Peribadahan's `Select`s (stage 6) don't pass `items`. Base UI uses `items` to show the selected label before the popup has opened. This stage's selects do pass it.
+
+**Local development**
+- `supabase/config.toml` now loads `supabase/templates/invite.html`. That needed a `supabase stop` + `start`, which restored from the local backup with nothing lost. Invite emails land in Mailpit (`http://127.0.0.1:54324`).
+- The integration harness now also sets `SUPABASE_SERVICE_ROLE_KEY` and `SITE_URL`, from the local stack only. It gained `serviceClient`, `createTestUser`, `latestMail`, `setRequestHeaders`, and a `password` argument for `signIn`.
+
+**Verification (stage 10)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/users`, `/admin/roles`, `/admin/log-aktivitas`, `/admin/akun`, and the six new API routes are in the build's route list.
+- `pnpm test`: 180 tests, 26 files. New:
+  - `site-url.test.ts`: accepted and rejected origins; it fails closed.
+  - `mutation`: "signed-in", the 207, and guard-message forwarding.
+  - `users-manager.test.tsx`: no Hapus on your own row; your own role locked and not sent; a 207 shown as a warning; no invite/delete controls without the permission.
+  - `permission-matrix.test.tsx`: the warning, hidden resources, locked super_admin boxes, per-row save, and the confirmation before granting users:*.
+- `pnpm test:db`: 14 files, 389 tests.
+  - New: `users_roles.test.sql` (29) and `activity_logs.test.sql` (26).
+  - `access_guard.test.sql`'s "postgres can still change role permissions" now uses the backup role, because super_admin's own grants are locked by design since 0028.
+- `pnpm test:integration`: 8 files, 105 tests. The new `users-roles.test.ts` (18) covers every item on the stage's test list:
+  - viewer 403s and the forbidden redirects (§13 #1);
+  - the invite with a forged Host/X-Forwarded-Host/Origin: the `redirectTo` passed to Supabase and the emailed link both use the configured origin;
+  - the exists / linked-jemaat / invalid-email errors, with no email sent;
+  - the 207;
+  - one jemaat per account;
+  - your own role change refused, while your own jemaat link can change;
+  - deleting your own account refused (§13 #12);
+  - the last super_admin can't be demoted or deleted;
+  - a role change applying on the next request, both ways;
+  - a deleted user's cookie → 401 and `/login`, and their token can't write or log over REST;
+  - roles CRUD with hidden grants preserved, and the super_admin role protections;
+  - update/delete on `activity_logs` over REST → 42501, for both super_admin and viewer;
+  - the log filter: an entry at 23:30 WIB on the end date included and one at 00:30 the next day excluded; a literal `%`; the module filter; an injection-shaped search; page clamping;
+  - the profile name, including an empty name saved as null;
+  - the password change: wrong current password, too short, mismatch, and unchanged password each give their message; a successful change signs out the other session.
+- **HTTP**: `next build` + `next start` on :3107 against the local stack. It used env overrides, the server output contains no project URL, and the normal build was rerun afterwards.
+  - `/login?next=https://example.com` → `/admin` (§13 #15).
+  - Viewer on the three pages → `/admin?error=forbidden`; the notice shows, the sidebar hides them, and the API → 403.
+  - An invite sent with a forged Host / X-Forwarded-Host / Origin → the email link uses the Site URL.
+  - Invite end to end locally (§13 #13): following the link → `/auth/set-password` → a no-JS password form post → `/admin` showing role editor; signing in with the new password works.
+  - The callback ignores a forged Host.
+  - `?page=9999&size=1000` on the log → the last page, with size dropped from the URL.
+- Mutation checks:
+  - dropping the three super_admin triggers fails 14 pgTAP tests;
+  - dropping the two log triggers fails 5;
+  - showing "Hapus" on your own row fails the component test;
+  - removing the server's own-account check fails the integration test. It was run alone, so the last-super_admin guard kept the seed account safe.
+- **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only). This matters most for the permission matrix's horizontal scroll and sticky column, the Base UI Select/Combobox dialogs, and the disabled "Terhubung ke …" options. No browser tool was available. The dev server already running on :3000 (pointed at the `*.supabase.co` project) was left alone.

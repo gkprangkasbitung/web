@@ -26,6 +26,8 @@ export type PersonPickerProps = {
   disabled?: boolean;
   /** Ids to leave out of the list, e.g. members already in this family. */
   excludeIds?: readonly string[];
+  /** A reason to show an option as unavailable, e.g. already linked to another account. */
+  disabledReason?: (person: PersonOption) => string | null;
   id?: string;
   "aria-invalid"?: boolean;
 };
@@ -46,6 +48,7 @@ export function PersonPicker({
   placeholder = "Cari nama atau label...",
   disabled,
   excludeIds,
+  disabledReason,
   id,
   "aria-invalid": ariaInvalid,
 }: PersonPickerProps) {
@@ -70,10 +73,13 @@ export function PersonPicker({
       <ComboboxContent>
         <ComboboxEmpty>Tidak ada jemaat yang cocok.</ComboboxEmpty>
         <ComboboxList>
-          {(item: PersonOption) => (
-            <ComboboxItem key={item.id} value={item}>
+          {(item: PersonOption) => {
+            const reason = item.id === value ? null : (disabledReason?.(item) ?? null);
+            return (
+            <ComboboxItem key={item.id} value={item} disabled={reason !== null}>
               <span className={cn("flex min-w-0 flex-1 items-center gap-2")}>
                 <span className="truncate">{item.nama}</span>
+                {reason && <span className="shrink-0 text-xs text-muted-foreground">{reason}</span>}
                 {item.labels.length > 0 && (
                   <span className="flex shrink-0 flex-wrap gap-1">
                     {item.labels.map((label) => (
@@ -85,7 +91,8 @@ export function PersonPicker({
                 )}
               </span>
             </ComboboxItem>
-          )}
+            );
+          }}
         </ComboboxList>
       </ComboboxContent>
     </Combobox>

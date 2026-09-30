@@ -1,8 +1,4 @@
-"use client";
-
-import { cn } from "cn";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 
@@ -10,29 +6,17 @@ import { BrandMark } from "./brand-mark";
 import { PublicMobileNav, PublicNav } from "./public-nav";
 
 /**
- * The header has two looks, both built from the same markup so the
- * breakpoint switch needs no extra logic:
- * - "brand": the dark green band from beranda/tentang-kami/jadwal-ibadah/
- *   kontak's mockups, desktop only (≥ md).
- * - "plain": the light bordered bar from warta-detail's mockup, used for
- *   `/warta*` at every width, and for every page below `md` (matching
- *   beranda-mobile.html, which collapses the header to this same light bar
- *   regardless of which page it's for).
- * The variant is derived from the route here, since it's purely
- * presentational and needs `usePathname` — the only reason this file (and
- * only this file) is a client component.
+ * One header for every public page, built from the same markup at every
+ * width so the breakpoint switch needs no extra logic:
+ * - from `md` up, the dark green "brand" band from the mockups;
+ * - below `md`, the light bordered bar (docs/design/beranda-mobile.html
+ *   collapses the header to it regardless of which page it's for).
+ * `/warta*` used to keep the light bar at every width (warta-detail.html);
+ * it now shares the brand band with the other pages.
  */
 export function PublicHeader() {
-  const pathname = usePathname();
-  const isBrand = !pathname.startsWith("/warta");
-
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-20 border-b border-border bg-card text-foreground",
-        isBrand && "md:border-brand-border md:bg-brand md:text-brand-foreground",
-      )}
-    >
+    <header className="sticky top-0 z-20 border-b border-border bg-card text-foreground md:border-brand-border md:bg-brand md:text-brand-foreground">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-3 px-4 md:px-8">
         <Link
           href="/"
@@ -41,10 +25,8 @@ export function PublicHeader() {
           <BrandMark />
           GKP Rangkasbitung
         </Link>
-        <PublicNav variant={isBrand ? "brand" : "plain"} />
-        <ThemeSwitcher
-          className={isBrand ? "md:border-brand-border md:bg-transparent md:text-brand-foreground md:hover:bg-brand-border" : undefined}
-        />
+        <PublicNav variant="brand" />
+        <ThemeSwitcher className="md:border-brand-border md:bg-transparent md:text-brand-foreground md:hover:bg-brand-border" />
         <PublicMobileNav />
       </div>
     </header>

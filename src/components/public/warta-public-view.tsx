@@ -5,7 +5,7 @@ import { financeWeek, formatDateLong, serviceWeek, type DateRange } from "@/lib/
 import { formatRupiah } from "@/lib/format";
 import type { PublicFinanceItem, PublicWarta } from "@/lib/public-site";
 
-import { PublicSection } from "./public-shell";
+import { PublicContainer, PublicPageTitleBand, PublicSection } from "./public-shell";
 import { ScheduleList } from "./schedule-list";
 import { WartaTableOfContents } from "./warta-table-of-contents";
 
@@ -45,7 +45,7 @@ function FinanceItem({ item }: { item: PublicFinanceItem }) {
 
 /**
  * `/warta/[slug]` (brief §8), sections in order:
- * 1. header; 2. Renungan (only with a judul or isi); 3. Bidang Peribadahan
+ * 1. header (the dark title band shared with the other public pages); 2. Renungan (only with a judul or isi); 3. Bidang Peribadahan
  * (service week); 4. Bidang Litbang (if any); 5. Bidang Sarana dan Dana
  * (finance week, four figures per item from `public_warta_finance`);
  * 6. Bidang Kesaksian dan Keesaan (if any).
@@ -65,26 +65,28 @@ export function WartaPublicView({ warta }: { warta: PublicWarta }) {
   ].filter((section): section is { id: string; label: string } => Boolean(section));
 
   return (
-    <div className="grid gap-10 lg:grid-cols-[200px_minmax(0,42rem)] lg:justify-center">
-      <WartaTableOfContents sections={sections} />
-      <article className="flex flex-col gap-12">
-      <header className="flex flex-col gap-3">
-        <Link
-          href="/warta"
-          className="inline-flex w-fit items-center gap-1.5 rounded-lg text-sm font-medium text-primary underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-        >
-          <ArrowLeftIcon aria-hidden="true" className="size-4" />
-          Semua warta
-        </Link>
-        <p className="text-sm font-medium text-primary">
-          <time dateTime={warta.tanggalKebaktian}>{formatDateLong(warta.tanggalKebaktian)}</time>
-        </p>
-        <h1 className="font-serif text-4xl font-normal tracking-tight text-balance md:text-5xl">{warta.judulKebaktian}</h1>
-        {hasText(warta.temaKebaktian) && (
-          <p className="font-serif text-xl text-muted-foreground italic">Tema: {warta.temaKebaktian}</p>
-        )}
-      </header>
+    <>
+      <PublicPageTitleBand
+        breadcrumb={
+          <Link
+            href="/warta"
+            className="inline-flex w-fit items-center gap-1.5 rounded-lg font-medium underline-offset-4 outline-none hover:text-brand-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <ArrowLeftIcon aria-hidden="true" className="size-4" />
+            Semua warta
+          </Link>
+        }
+        eyebrow={<time dateTime={warta.tanggalKebaktian}>{formatDateLong(warta.tanggalKebaktian)}</time>}
+        title={warta.judulKebaktian}
+        description={
+          hasText(warta.temaKebaktian) && <span className="font-serif italic">Tema: {warta.temaKebaktian}</span>
+        }
+      />
 
+      <PublicContainer>
+        <div className="grid gap-10 lg:grid-cols-[200px_minmax(0,42rem)] lg:justify-center">
+          <WartaTableOfContents sections={sections} />
+          <article className="flex flex-col gap-12">
       {showRenungan && (
         <PublicSection id="renungan" title="Renungan">
           <div className="flex flex-col gap-3">
@@ -155,7 +157,9 @@ export function WartaPublicView({ warta }: { warta: PublicWarta }) {
           </div>
         </PublicSection>
       )}
-      </article>
-    </div>
+          </article>
+        </div>
+      </PublicContainer>
+    </>
   );
 }

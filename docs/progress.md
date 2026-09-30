@@ -1105,3 +1105,13 @@ Visual-only stage on top of stage 9b's data layer: no migration, no new route, n
   - Found and fixed during this pass: the multipart `waktu` field 400'd on blank input (see "waktu's Zod schema" above) — caught by the "adds as draft" test before any component code shipped with the same bug (`KegiatanDialog` always sends `waktu: ""` when the field is empty).
 - Mutation checks were not run as a separate pass this stage (time budget); the pgTAP and integration suites above were written to fail without their matching route/RPC behavior (e.g. the reorder staleness checks, the delete-permission split, the photo-cleanup-on-delete assertions), consistent with the project's usual mutation-check intent.
 - **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only, pointer/touch drag on the two new card lists). No browser tool was available in this session, consistent with every prior stage's note. `next dev` was not started; `pnpm build` (production mode) was used instead to confirm the route tree and no compile-time regressions.
+
+### Follow-up: Warta pages share the public template, 2026-09-30
+
+- On request, `/warta` and `/warta/[slug]` now use the same template as Beranda, Tentang Kami, Jadwal Ibadah, and Kontak. This replaces 9c's choice to follow `docs/design/warta-detail.html`'s light header.
+- `PublicHeader` is no longer route-dependent: the brand band from `md` up on every page, and the light bar below `md` (unchanged). It no longer needs `usePathname`, so it is a Server Component; `PublicNav`/`ThemeSwitcher` stay the client pieces.
+- `PublicPageTitleBand` renders a `<header>`, takes a `ReactNode` breadcrumb, and has an optional `eyebrow` line.
+  - `/warta`: breadcrumb "Beranda / Warta", title "Warta".
+  - `/warta/[slug]`: the "Semua warta" back link sits in the breadcrumb slot, the date is the eyebrow, judul is the H1, and "Tema: …" is the description. The ToC rail and sections sit below in `PublicContainer`. Heading levels, ids, and text are unchanged, so `warta-public-view.test.tsx` passes untouched.
+- `PublicPageHeader` (light title) is now used only by the public 404 page.
+- Verified: typecheck, lint, `vitest run` (235 tests), and `next build` pass. Not checked in a browser.

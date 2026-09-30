@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { PublicContainer } from "@/components/public/public-shell";
 import { WartaPublicView } from "@/components/public/warta-public-view";
 import { formatDateLong } from "@/lib/dates";
 import { loadPublicWarta } from "@/lib/public-site";
@@ -25,9 +24,5 @@ export default async function WartaPage({ params }: Props) {
   const warta = await loadPublicWarta(slug);
   if (!warta) notFound();
 
-  return (
-    <PublicContainer>
-      <WartaPublicView warta={warta} />
-    </PublicContainer>
-  );
+  return <WartaPublicView warta={warta} />;
 }

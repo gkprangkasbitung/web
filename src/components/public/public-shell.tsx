@@ -73,7 +73,7 @@ export function PublicContainer({ narrow = false, children }: { narrow?: boolean
   );
 }
 
-/** A simple light title, used only on `/warta` (no dark title band there, matching warta-detail.html's plain header). */
+/** A simple light title, used only on the public 404 page (every real page has the dark title band). */
 export function PublicPageHeader({ title, description }: { title: string; description?: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
@@ -85,26 +85,30 @@ export function PublicPageHeader({ title, description }: { title: string; descri
 
 /**
  * The dark "page-title band" (brief §9c instruction A), shared by Tentang
- * Kami, Jadwal Ibadah, and Kontak: breadcrumb, H1, one-line description.
+ * Kami, Jadwal Ibadah, Warta, Warta detail, and Kontak: breadcrumb, an
+ * optional eyebrow line (Warta detail's date), H1, one-line description.
  * Sits flush under the brand header with no visible seam between them.
  */
 export function PublicPageTitleBand({
   breadcrumb,
+  eyebrow,
   title,
   description,
 }: {
-  breadcrumb: string;
+  breadcrumb: React.ReactNode;
+  eyebrow?: React.ReactNode;
   title: string;
   description?: React.ReactNode;
 }) {
   return (
-    <div className="bg-brand text-brand-foreground">
+    <header className="bg-brand text-brand-foreground">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-12 md:px-8 md:py-16">
         <span className="text-sm text-brand-muted">{breadcrumb}</span>
+        {eyebrow && <p className="text-sm font-medium text-brand-foreground">{eyebrow}</p>}
         <h1 className="font-serif text-4xl font-normal tracking-tight text-balance md:text-6xl">{title}</h1>
         {description && <p className="max-w-2xl text-base text-brand-muted md:text-lg">{description}</p>}
       </div>
-    </div>
+    </header>
   );
 }
 

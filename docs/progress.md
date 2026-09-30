@@ -9,7 +9,7 @@
 - [x] 7. Sarana & Dana (§9.7)
 - [x] 8. Litbang template (§9.6)
 - [x] 9a. Warta admin (§9.4) + Dashboard summaries (§9.3, §12.8)
-- [ ] 9b. Public site (§8)
+- [x] 9b. Public site (§8)
 - [ ] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
 
 ## Notes / decisions
@@ -563,3 +563,77 @@
   - showing the Kesaksian add form without `warta:update` fails the read-only component test.
 - **Not verified yet**: an actual browser (light and dark, 360px, keyboard-only; in particular the tabs on a narrow screen, the DatePicker inside the Informasi fieldset, and the editor's long page). The running dev server points at the `*.supabase.co` project (`.env.development.local`, the same mismatch noted since stage 3), so no request was made to it.
 - The local database was **not** reset; 0026 was applied with `migration up --local`. The seed inserts warta as `postgres` (where `auth.uid()` is null), so the new trigger stands aside for it, the same way the pgTAP fixtures run.
+
+### Stage 9b (Public site), 2026-09-29
+
+**Before deploying to production**
+- Push migration `0027_public_jadwal_mendatang.sql` together with 0018–0026.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Reading the warta tables directly as anon.** Stage 2 has no function for the warta header, renungan, Litbang, Kesaksian, or the `/warta` list. They are read straight from `warta`, `warta_litbang_items`, and `warta_kesaksian_items`, which RLS (0019) already limits to published warta. Every query also filters `status = 'published'` and names its columns. The schedule and finance still come **only** from the public functions. No query touches `jemaat`, `keluarga`, or transactions, and no service-role key is used.
+- **Cookie-less public client** (`lib/supabase/public.ts`): anon key, no session, `cache: "no-store"` on every fetch. With the cookie client, a signed-in admin would get `warta:read` through RLS and see drafts on public pages.
+- **Jadwal Ibadah uses a new function, `public_jadwal_mendatang()` (0027).** It returns today through today + 6 in WIB. `public_jadwal_pekan_ini` returns the Minggu–Sabtu week around today, which on a Saturday is mostly past.
+  - The function takes no parameters, so anon can't page through history.
+  - It reuses `private.schedule_rows`.
+  - It returns schedule columns and names only: no attendance, no catatan, no SMKA grid.
+  - Beranda keeps `public_jadwal_pekan_ini` ("this week", brief §2).
+- **Caching: every data page renders per request.** Each loader in `lib/public-site.ts` calls `connection()`. There is no ISR and no `revalidateTag`. Reasons:
+  - "Tarik ke Draft" must take effect immediately, including for writes made outside the app (SQL Editor, or direct REST by a signed-in user).
+  - Too many mutations would otherwise need invalidating, and missing one silently leaves the page stale:
+    - warta status, fields, delete, Litbang deskripsi, and Kesaksian;
+    - every peribadahan write;
+    - every transaction write and `saldo_awal` (they change Saldo Awal of every later week);
+    - tempat and wilayah renames and deletes;
+    - jemaat renames and deletes (names appear in the schedule).
+  - "This week" and "7 days" roll over at midnight WIB.
+  - The load is 3–4 small parallel queries per request.
+  - Without `connection()`, cookie-less fetches would be prerendered at `next build` against the production DB and never refreshed.
+  - So **no mutation needs to revalidate the public site.** The existing admin `revalidatePath` calls stay as they are.
+  - Tentang Kami and Kontak have no data. They are static with `revalidate = 86400`, so the footer's year rolls over.
+- **Placeholders**: visitors see a dashed "Konten sedang disiapkan." block (`PlaceholderBlock`), not a raw "TODO:". Each call site has a `TODO(konten)` comment saying what the church must supply. No church facts were invented, apart from one generic welcome line on Beranda, which is also marked `TODO(konten)`.
+
+**Routes and data loading**
+- Route group `src/app/(public)/`: `/`, `/tentang-kami`, `/jadwal-ibadah`, `/warta`, `/warta/[slug]`, `/kontak`, plus `not-found.tsx` and `error.tsx` (Next 16's `retry()` prop). The old `src/app/page.tsx` placeholder moved in here.
+- **No `loading.tsx` anywhere in the group.** A Suspense boundary starts streaming with status 200, and `notFound()` on `/warta/[slug]` must answer a real 404 (Next 16 docs, loading.md "Status codes").
+- `loadPublicWarta(slug)` is wrapped in React `cache()`, so `generateMetadata` and the page share one load per request.
+  - A malformed slug (the 0026 format) returns null before any query.
+  - A draft or unknown slug returns null → `notFound()`.
+  - A database error throws, and `error.tsx` shows the message.
+- `generateMetadata`: title = judul kebaktian, description = tema (the long date when tema is empty).
+- RPC results are parsed with Zod (`lib/public-schedule.ts`), since the generated types call nullable columns non-null. `numeric` is coerced.
+- `scheduleFields(row)` shows a field only when the row's category layout has it (`layoutFor`, stage 6) **and** it's filled, in §8's order.
+  - An attendance count of 0 counts as filled.
+  - SMKA uses `liturgosLabel` "Pelayan Liturgi". The group table lists exactly the groups `public_warta_schedule` returns, which are only the groups with data.
+- The four finance figures come straight from `public_warta_finance`, never recomputed.
+
+**UI** (`components/public/`)
+- Shell: skip link, sticky header (brand, links with `aria-current`, `ThemeSwitcher`), footer "© {year} GKP Rangkasbitung." with the year in WIB. Below `md`, the links move into a Sheet menu ("Buka menu"), because five links don't fit at 360px.
+- `/warta/[slug]` is one `<article>`: h1 judul, h2 per section, h3 day, h4 service. Renungan, Litbang, and Kesaksian are hidden when empty, per §8. Multi-line text is plain text with `whitespace-pre-line`, with no `dangerouslySetInnerHTML`.
+- The finance figures are a `dl` per item: one column under 400px, then 2, then 4, with tabular figures.
+- Beranda: a hero with the name and this week's services (compact list), the latest warta card, and placeholder sections. A failed section shows an inline message instead of failing the page.
+
+**Verification (stage 9b)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/`, `/jadwal-ibadah`, `/warta`, and `/warta/[slug]` build as ƒ (dynamic). `/kontak` and `/tentang-kami` are ○ with a 1-day revalidate.
+- `pnpm test`: 152 tests, 23 files.
+  - `lib/public-schedule.test.ts`: field order and labels, hidden empty fields, 0 kept, "Pelayan Liturgi", a field outside the layout never shown, the umum fallback, Zod parsing, grouping.
+  - `warta-public-view.test.tsx`: section order and both ranges; a renungan holding `<script>`/`<b>` renders no element and keeps its text; the SMKA table lists only the given groups; the four figures; empty sections hidden.
+  - `public-nav.test.tsx`: five links in order, `aria-current`, and the mobile menu opened by keyboard and closed after a link.
+- `pnpm test:db`: 12 files, 334 tests. New `public_jadwal_mendatang.test.sql` (11 tests): definer, empty search_path, no parameters, anon/authenticated only, the column set, today..+6 in WIB only, and no phone, address, birth date, occupation, or catatan in the output.
+- `pnpm test:integration`: 7 files, 87 tests. New `public-site.test.ts` (8 tests), all through the cookie-less client:
+  - §13 #17: anon `select` on `jemaat`, `keluarga`, `sarana_dana_transactions`, `sarana_dana_balances`, and the schedule tables → `42501`. A published warta loads all sections, with the Pelayan Firman by name and none of their other data.
+  - §13 #5: the public figures deep-equal both the editor's `loadWartaFinance` and `rpc('sarana_dana_report')` for the finance week.
+  - Drafts, unknown slugs, and malformed slugs return null. "Tarik ke Draft" through the real PATCH route makes the next load null and removes the warta from the list; republishing brings it back.
+  - `<script>` in a renungan comes back as the literal text.
+  - `loadJadwalMendatang` returns today..+6 only, without attendance or catatan.
+  - `connection()` is mocked to a no-op there, because it throws outside a Next request.
+- Mutation checks: rendering the renungan with `dangerouslySetInnerHTML` fails the `<script>` test, and dropping the layout filter in `scheduleFields` fails 2 tests.
+- **HTTP**, with `next build` + `next start` on :3107. Both used process-env overrides pointing at the local stack only; the built server bundle was checked to contain no project `*.supabase.co` URL.
+  - All five pages → 200, with titles "{page} | GKP Rangkasbitung", `lang="id"`, and the warta description = tema.
+  - Seeded draft, test draft, unknown slug, `Huruf-Besar`, and an encoded `../` slug → 404.
+  - A renungan with `<script>` and `<img onerror>` appears only HTML-escaped.
+  - Setting the warta to draft in the DB → the very next request is 404, and it's gone from `/warta` and Beranda.
+  - A schedule edit shows on the next request.
+  - Warta pages are sent `Cache-Control: private, no-cache, no-store`.
+  - The fixtures were deleted afterwards, and `pnpm build` was rerun with the normal env.
+- **Not verified yet**: an actual browser (light, dark, and system themes; 360px; keyboard-only use, especially the Sheet menu's focus return and the SMKA table's horizontal scroll on a narrow screen). No browser tool was available in this session.
+- Follow-up outside this stage: an unmatched URL (for example `/halaman-acak`) still gets Next's default English 404, because there is no root `app/not-found.tsx`. A root one would also replace the admin's 404 pages, so it was left alone.

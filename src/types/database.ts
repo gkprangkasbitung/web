@@ -459,6 +459,11 @@ isOneToOne: false
 "link_user_jemaat":
 { Args: { "p_jemaat_id"?: string,"p_user_id": string }; Returns: undefined
                            },
+"public_jadwal_mendatang":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "bahan_alkitab": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
+            }[]
+                           },
 "public_jadwal_pekan_ini":
 { Args: Record<PropertyKey, never>; Returns: {
               "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string

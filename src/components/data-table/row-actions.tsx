@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export type RowAction<TData> = {
-  label: string;
+  label: string | ((row: TData) => string);
   icon?: LucideIcon;
   /** Either navigate… */
   href?: (row: TData) => string;
@@ -75,7 +75,7 @@ export function resolveRowActions<TData>(
     if (action.write && !canWrite) return;
     items.push({
       key: `extra-${index}`,
-      label: action.label,
+      label: typeof action.label === "function" ? action.label(row) : action.label,
       icon: action.icon,
       href: action.href?.(row),
       onSelect: action.onSelect && (() => action.onSelect?.(row)),

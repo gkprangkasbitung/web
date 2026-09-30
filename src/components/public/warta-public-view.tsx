@@ -7,6 +7,7 @@ import type { PublicFinanceItem, PublicWarta } from "@/lib/public-site";
 
 import { PublicSection } from "./public-shell";
 import { ScheduleList } from "./schedule-list";
+import { WartaTableOfContents } from "./warta-table-of-contents";
 
 function hasText(value: string | null): value is string {
   return value !== null && value.trim() !== "";
@@ -28,7 +29,7 @@ function FinanceItem({ item }: { item: PublicFinanceItem }) {
     ["Saldo Akhir", item.saldoAkhir],
   ] as const;
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
       <h3 className="font-semibold">{item.name}</h3>
       <dl className="grid grid-cols-1 gap-2 text-sm min-[400px]:grid-cols-2 lg:grid-cols-4">
         {figures.map(([label, value]) => (
@@ -55,8 +56,18 @@ function FinanceItem({ item }: { item: PublicFinanceItem }) {
 export function WartaPublicView({ warta }: { warta: PublicWarta }) {
   const showRenungan = hasText(warta.renunganJudul) || hasText(warta.renunganIsi);
 
+  const sections = [
+    showRenungan && { id: "renungan", label: "Renungan" },
+    { id: "bidang-peribadahan", label: "Bidang Peribadahan" },
+    warta.litbang.length > 0 && { id: "bidang-litbang", label: "Bidang Litbang" },
+    { id: "bidang-sarana-dana", label: "Bidang Sarana dan Dana" },
+    warta.kesaksian.length > 0 && { id: "bidang-kesaksian", label: "Kesaksian dan Keesaan" },
+  ].filter((section): section is { id: string; label: string } => Boolean(section));
+
   return (
-    <article className="flex flex-col gap-12">
+    <div className="grid gap-10 lg:grid-cols-[200px_minmax(0,42rem)] lg:justify-center">
+      <WartaTableOfContents sections={sections} />
+      <article className="flex flex-col gap-12">
       <header className="flex flex-col gap-3">
         <Link
           href="/warta"
@@ -65,11 +76,13 @@ export function WartaPublicView({ warta }: { warta: PublicWarta }) {
           <ArrowLeftIcon aria-hidden="true" className="size-4" />
           Semua warta
         </Link>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm font-medium text-primary">
           <time dateTime={warta.tanggalKebaktian}>{formatDateLong(warta.tanggalKebaktian)}</time>
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-balance">{warta.judulKebaktian}</h1>
-        {hasText(warta.temaKebaktian) && <p className="text-lg text-muted-foreground">{warta.temaKebaktian}</p>}
+        <h1 className="font-serif text-4xl font-normal tracking-tight text-balance md:text-5xl">{warta.judulKebaktian}</h1>
+        {hasText(warta.temaKebaktian) && (
+          <p className="font-serif text-xl text-muted-foreground italic">Tema: {warta.temaKebaktian}</p>
+        )}
       </header>
 
       {showRenungan && (
@@ -142,6 +155,7 @@ export function WartaPublicView({ warta }: { warta: PublicWarta }) {
           </div>
         </PublicSection>
       )}
-    </article>
+      </article>
+    </div>
   );
 }

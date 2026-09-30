@@ -20,12 +20,12 @@ const OPTIONS = [
   { value: "system", label: "Sistem", icon: MonitorIcon },
 ] as const;
 
-export function ThemeSwitcher() {
+export function ThemeSwitcher({ className }: { className?: string }) {
   const { theme, setTheme } = useTheme();
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="Pilih tema tampilan" />}>
+      <DropdownMenuTrigger render={<Button variant="outline" size="icon" aria-label="Pilih tema tampilan" className={className} />}>
         {/* Icons follow the resolved theme via CSS, so nothing depends on client-only state. */}
         <SunIcon className="dark:hidden" aria-hidden="true" />
         <MoonIcon className="hidden dark:block" aria-hidden="true" />

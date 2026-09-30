@@ -11,7 +11,9 @@
 - [x] 9a. Warta admin (§9.4) + Dashboard summaries (§9.3, §12.8)
 - [x] 9b. Public site (§8)
 - [x] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
-
+- [x] 9c. Public UI sesuai docs/design/ (layout + placeholder, lapisan data terpisah)
+- [x] 11a. Upload foto + Profil Gereja (§14.1, §14.5)
+- [x] 11b. Pelayanan, Majelis, Kegiatan + sambungkan halaman publik ke data (§14.2–14.4, §14.6)
 ## Notes / decisions
 
 ### Stage 1 (Foundation), 2026-09-28
@@ -822,3 +824,284 @@
   - showing "Hapus" on your own row fails the component test;
   - removing the server's own-account check fails the integration test. It was run alone, so the last-super_admin guard kept the seed account safe.
 - **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only). This matters most for the permission matrix's horizontal scroll and sticky column, the Base UI Select/Combobox dialogs, and the disabled "Terhubung ke …" options. No browser tool was available. The dev server already running on :3000 (pointed at the `*.supabase.co` project) was left alone.
+
+### Stage 9c (Public UI), 2026-09-30
+
+Visual-only stage on top of stage 9b's data layer: no migration, no new route, no RLS/RPC change. Plan (component structure, loader shape, dark-mode mapping) was written up and approved before starting.
+
+**Decisions approved before starting**
+- **Jadwal Ibadah's data source switches from the rolling 7-day `public_jadwal_mendatang` (stage 9b) to the Minggu–Sabtu `public_jadwal_pekan_ini`** (same range as Beranda), per this stage's explicit instruction for day tabs over "Minggu–Sabtu minggu ini". `public_jadwal_mendatang` (0027) and its loader (`loadJadwalMendatang`/`parseUpcomingScheduleRows` in `lib/public-site.ts`/`lib/public-schedule.ts`) are left in place, tested, and unused by any page — removing a migrated, working DB function was out of scope for a visual stage.
+- **Brand band tokens.** The header/hero/page-title band/footer/dark CTA sections in `docs/design/*.html` are a fixed color-blocked surface, not a themable one: `--brand`/`--brand-foreground`/`--brand-muted`/`--brand-border` (`#1F2E29`/`#FAFAF9`/`#B7CBC3`/`rgb(250 250 249 / 14%)`) are declared identically under `:root` and `.dark` in `globals.css`. Everything else (cards, borders, text, `--primary`) reuses the tokens from stage 1 unchanged.
+- **Newsreader** (`next/font/google`) added in `app/layout.tsx`, mapped to `--font-serif` in `@theme inline`. Public headings only; the admin shell never sets `font-serif`.
+- **Header has two looks from one component** (`components/public/public-header.tsx`, the only client piece of the shell): "brand" (dark band, desktop only) on `/`, `/tentang-kami`, `/jadwal-ibadah`, `/kontak`, and "plain" (light bordered bar) on `/warta*` at every width and on every page below `md` — derived from `usePathname()`, not threaded through each page. `PublicNav` gained a `variant` prop for this; its last link (Kontak) renders as the mockups' pill CTA only in the "brand" variant desktop. `ThemeSwitcher` gained an optional `className` so the header can recolor its trigger on the brand band without changing its look anywhere else it's used (admin topbar, `auth-card`).
+- **Placeholder content is never a single "being prepared" box per section.** `lib/public/placeholder-content.ts` returns arrays sized like each mockup's own `hint-placeholder-count` (6 pelayanan, 3 kegiatan, 4 linimasa, 4 majelis, 4 kontak fields), so the layout reads as complete; every string inside is still literally `TODO: …`, never an invented fact. Fields that stay genuinely absent (`kontak.telepon`, `rekening`) render their card/banner in a placeholder-styled state rather than being hidden — the §14.6 "hide empty sections" rule is deferred to when the real modules (11a/11b/14) exist.
+
+**Data layer**
+- `lib/public/site-content.ts`: one loader function per page (`loadBerandaContent`, `loadTentangKamiContent`, `loadJadwalIbadahContent`, `loadKontakContent`), each composing the real stage-9b loaders (`Result<T>`, can fail) with `lib/public/placeholder-content.ts` (plain values, never fails). `/warta` and `/warta/[slug]` keep calling `loadPublicWartaList`/`loadPublicWarta` directly, since they have no placeholder part.
+- `lib/public/whatsapp.ts`: `buildWaLink(phone)` — digits only, a leading `0` becomes `62`. Unit-tested. The Kontak loader returns `telepon: null` (no invented number), so `WhatsappButton` renders a neutral disabled-looking state today; once stage 14 fills a real number, the same code renders a live link with no change.
+- `lib/dates.ts` gained `formatDayShort` (e.g. "Rab") for the day tabs.
+
+**UI** (`components/public/`)
+- New: `public-header.tsx` (see above), `brand-mark.tsx`, `public-image.tsx` (`PublicImage`: required alt, dashed placeholder box when `photo` is `null` — true for every photo right now — never an external domain), `hero.tsx`, `schedule-tabs.tsx`, `ministry-grid.tsx`, `activity-grid.tsx`, `timeline.tsx`, `majelis-grid.tsx`, `contact-cards.tsx` (`ContactCards` + `WhatsappButton`), `rekening-banner.tsx`, `map-placeholder.tsx`, `warta-table-of-contents.tsx`.
+- `public-shell.tsx` split: the interactive header moved out to `public-header.tsx` so `PublicContainer`/`PublicSection`/`PublicPageHeader`/`PlaceholderBlock` stay plain Server Components (brief's "Server Components by default"). Added `PublicPageTitleBand` (the dark title band on Tentang Kami/Jadwal Ibadah/Kontak); `PublicPageHeader` (light, no band) is now used only on `/warta`'s list page, which keeps the "plain" header at every width per `warta-detail.html`.
+- `schedule-tabs.tsx`: Base UI `Tabs` (already in the project since stage 9a) with `activateOnFocus` — its default is `false` (arrow keys only move focus; Enter/Space activates), which would make a 7-day picker feel unresponsive, so this stage turns it on so arrow keys immediately switch the shown day. Reuses `ScheduleEntry` (newly exported from `schedule-list.tsx`) inside each day's panel rather than a second row renderer.
+- `warta-public-view.tsx`: added the table-of-contents rail (`grid-cols-[200px_minmax(0,42rem)]` on `lg`), `font-serif` headings, and a "Tema: " prefix on the header's tema line (the one rendered-text change to an existing tested component; `warta-public-view.test.tsx` was updated to match). Heading levels/ids/section order are unchanged from stage 9b, so every other existing assertion still holds. `/warta/[slug]/page.tsx` switched from `PublicContainer narrow` to the default width to fit the rail.
+- Jadwal Ibadah dropped the old static "Jadwal rutin" placeholder section (not in the mockup; the real week schedule now covers that ground) in favor of the mockup's "Pertama kali datang?" and "Warta minggu ini" aside cards.
+
+**Verification (stage 9c)**
+- `pnpm typecheck`, `pnpm lint`, `pnpm build` all pass; the six public routes build with the same static/dynamic split as stage 9b (`/kontak`, `/tentang-kami` static with `revalidate = 86400`; the rest dynamic).
+- `pnpm test`: 185 tests, 28 files (adds `lib/public/whatsapp.test.ts`, 2 tests; `schedule-tabs.test.tsx`, 3 tests: default tab is today's under a mocked Sunday-adjacent Wednesday, `activateOnFocus` moves the shown day with `{ArrowRight}` alone with no time mocking needed, and an empty day shows the friendly message). `warta-public-view.test.tsx`'s tema assertion updated for the new "Tema: " prefix; every other assertion in that file (section order, heading levels, the SMKA table, the four finance figures, HTML-as-text, hidden-when-empty) needed no change.
+- **HTTP**, `next build` + a background `next start` on :3107, both via process-env overrides pointing at the local stack only (confirmed the production `.next/server`/`.next/static` output contains no `*.supabase.co` URL — only stale `.next/dev/*` cache from an earlier `next dev` session did, which ships to no one); the normal build was rerun afterwards.
+  - All five pages → 200, titles "{page} | GKP Rangkasbitung", `lang="id"`, Newsreader's font variable present on `<html>`.
+  - `/warta/does-not-exist` → 404.
+  - `/warta/2026-09-27-contoh-warta-minggu-ini` (seeded) → 200, all five `h2` sections present with ids matching the table-of-contents anchors exactly.
+  - `/jadwal-ibadah` → 7 `role="tab"` elements.
+  - Anon REST `jemaat` and `sarana_dana_transactions` → 401, unchanged from stage 2/9b.
+- **Not verified yet**: an actual browser (dark theme, 360px layout, and pointer/keyboard use beyond what the component tests exercise — the mobile slide-over menu's focus return, the brand-vs-plain header's visual seam at the `md` breakpoint, and the schedule tabs' wrapping at 360px). No browser tool was available in this session.
+
+### Stage 11a (Upload foto + Profil Gereja), 2026-09-30
+
+**Before deploying to production**
+- Push migration `0029_situs_profil_gereja.sql` together with 0018–0028. It creates the `situs` bucket itself (public, 5 MB, JPEG/PNG/WebP).
+- After pushing, upload one photo in production. `private.enforce_situs_photo_paths` is a definer function owned by `postgres` that reads `storage.objects`. If a photo that was just uploaded gets "Foto tidak ditemukan di penyimpanan.", the hosted `postgres` role doesn't bypass RLS on `storage.objects`, and the check needs another way to read it.
+- Vercel caps a request body at 4.5 MB before the route runs. The browser shrinks a file over 4 MB first (see below), so a 4.5–5 MB photo still works.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Service role for storage** (an approved addition to brief §3): `lib/supabase/storage-admin.ts` (`server-only`) exports only `uploadSitusObject`, `removeSitusObjects`, and `listSitusObjects`, all limited to the `situs` bucket.
+  - The client is never exported.
+  - The bucket has **no** storage policy, so anon and authenticated can't insert, update, delete, or list (pgTAP and integration tested). Public read works by URL only.
+- **Body limit / Vercel**: the server accepts up to 5 MB (brief).
+  - `PhotoField` shrinks a file over 4 MB in the browser (canvas, long edge 2000 px). A PNG that is still too big becomes a JPEG.
+  - The server still validates and re-encodes whatever arrives.
+  - A 413 from the platform shows "File terlalu besar untuk diunggah…".
+- **Output format** follows the input: JPEG → JPEG q85 (mozjpeg), PNG → PNG lossless (so QRIS stays sharp), WebP → WebP q85.
+- **Public pages render per request.**
+  - Tentang Kami and Kontak lost `revalidate = 86400` and now read through `connection()`, like 9b's data pages.
+  - The public layout loads the footer's social links, so every public page is dynamic.
+  - Why not static: a static page would read the production DB at `next build`, and an edit made through REST would show up to a day late.
+  - Every `situs` mutation still calls `revalidatePath("/", "layout")` and revalidates `/admin/profil-gereja`.
+- **Hero "Kebaktian Minggu" card**: 9c filled it with jam sekretariat, which is wrong for that label. It now lists this week's Kebaktian Minggu (`umum`) times from `public_jadwal_pekan_ini`, for example "07.00 & 09.30 WIB", and is hidden when there are none. The Lokasi card uses alamat and is hidden when empty.
+- **Social links** go in the footer on every public page ("Ikuti kami", as in the beranda mockup). They are text links, because lucide 1.x has no brand icons, and are hidden when none is set.
+- **Sidebar**: only Profil Gereja for now, under the heading "Konten Situs" after Label Jemaat.
+  - `NavItem.group`: consecutive entries with the same group render in a `role="group"` block with a heading.
+  - Stage 11b adds Pelayanan, Majelis, and Kegiatan to the same group.
+- **Linimasa `tahun`** is free text, at most 20 characters (e.g. "1950-an").
+
+**0029 migration**
+- **Permissions**: `situs:{create,read,update,delete}` and `situs_rekening:update`, seeded per §14.
+  - `set_role_ui_permissions` (0028, `create or replace`) now covers both resources.
+  - `VISIBLE_RESOURCES` and the `Resource` type include both, so they appear in the permission matrix. `situs_rekening` shows "—" for create, read, and delete.
+- **`profil_gereja`** is a singleton: `id smallint primary key default 1` with `check (id = 1)`, seeded with one row. Authenticated has no insert, delete, or truncate on it. Checks:
+  - every text column: not blank (blank is stored as null) and a length cap;
+  - `telepon` `^[0-9]{8,15}$`; email format;
+  - `maps_url`: https with host `google.com`, `www.google.com`, or `maps.google.com` and a `/maps` path, or `maps.app.goo.gl/…`;
+  - social URLs: https with the platform's own host (`instagram.com`; `youtube.com` incl. `m.`; `facebook.com` incl. `m.`/`web.`). The host must be followed by "/", so lookalike hosts, `@` userinfo, and ports fail;
+  - `misi text[]`: at most 20 lines, each non-blank and at most 500 characters (`private.is_valid_misi`);
+  - photos: path and alt both set or both null, alt required, and the path must match `{folder}/{uuid v4}.{jpg|png|webp}` (`private.is_situs_photo_path`).
+- **`profil_gereja_rekening`** is a separate singleton, so RLS alone limits writes to `situs_rekening:update`.
+  - Nama bank, nomor rekening, and atas nama are all set or all empty.
+  - `nomor_rekening` is digits, optionally grouped with spaces or dashes.
+  - It also holds the QRIS photo pair.
+- **`update_profil_gereja_rekening(...)`** (invoker, checks `situs_rekening:update`) locks the row, updates it, and returns `{old, new}` for the activity log. Every argument defaults to null.
+- **`profil_gereja_linimasa`**: insert needs `situs:create`, update needs `situs:update`, and delete needs `situs:delete` (so editor can't delete). `reorder_profil_linimasa(ids)` has the same contract as `reorder_litbang_categories`.
+- **`private.enforce_situs_photo_paths`** (trigger, definer): a photo path that changes must exist in `storage.objects` in the `situs` bucket (22023 "Foto tidak ditemukan di penyimpanan.").
+  - A malformed path is left to the CHECK (23514).
+  - So no write path, REST included, can store a broken reference.
+- **`public_profil_gereja()`** (definer, anon and authenticated) returns jsonb with exactly the public fields plus `linimasa`, and no `updated_at`. anon has no privileges on the three tables.
+- **`situs_referenced_photo_paths()`** (definer, needs `situs:update`) returns every path a row refers to. Stage 11b adds its tables here and its folders to `SITUS_FOLDERS` in `lib/situs-photos.ts`.
+
+**Photo pipeline (reusable for 11b)**
+- **`lib/image-processing.ts`**:
+  1. Check the magic bytes (JPEG `FFD8FF`, the PNG signature, or `RIFF….WEBP`). SVG, GIF, scripts, and everything else are refused before sharp sees them.
+  2. sharp's own `format` must agree with the magic bytes. Decoding uses `limitInputPixels` 60 MP and reads the first frame only.
+  3. `.autoOrient()`, then resize to fit inside 2000 px (`withoutEnlargement`).
+  4. Re-encode with no `keepMetadata`, so EXIF/GPS, XMP, ICC, and appended bytes are all gone.
+
+  `sharp` is pinned to 0.35.4, the version Next already ships.
+- **`lib/situs-photos.ts`**:
+  - `withPhotoSlot(shape)`: a multipart schema whose `foto_file` / `foto_alt` / `foto_hapus` fields become `input.foto`.
+  - `savePhotoSlot({ folder, slot, current, write })`:
+    1. Validate and re-encode the photo.
+    2. Upload it as `{folder}/{randomUUID}.{ext}`.
+    3. Call `write(next)`.
+    4. If `write` fails, delete the new object.
+    5. On success, delete the old object only if `situs_referenced_photo_paths` no longer lists it.
+    6. Sweep: delete unreferenced objects older than 15 minutes.
+
+    Steps 4–6 never fail the request; a leftover object waits for the next sweep.
+  - Accepted risk: a REST write that re-points a row at the old path between step 5's check and the delete would break that reference. It needs a deliberate REST call timed into that gap.
+- **`mutation({ multipart: { maxBytes, tooLarge } })`** uses `parseMultipart` / `readLimitedBody` in `lib/api.ts`.
+  - It refuses early on Content-Length and also counts bytes while streaming.
+  - The limit is 5 MB + 64 KB. Over it: 400 "Ukuran foto maksimal 5 MB." (§10 lists no 413).
+- **`apiFetch`** sends a `FormData` body as multipart.
+- **Client**:
+  - `lib/photo-upload-client.ts`: `prepareUpload` and `appendPhotoFields`.
+  - `components/shared/photo-field.tsx`: preview, "Pilih Foto" / "Ganti Foto" / "Hapus Foto", and alt text that is required whenever a photo will exist.
+- **`next.config.ts`**:
+  - `images.remotePatterns` allows only `{NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/situs/**`.
+  - `dangerouslyAllowLocalIP` is on only when that URL is 127.0.0.1 or localhost.
+
+**Routes (`lib/profil-gereja-routes.ts`)**
+- PATCH, multipart:
+  - `/api/admin/profil-gereja/beranda`, `/sambutan`, and `/tentang` need `situs:update`.
+  - `/persembahan` needs `situs_rekening:update`. Uploading or removing the QRIS file also needs `situs:update`.
+- PATCH, JSON: `/kontak` and `/sosial-media`. URLs are normalized through `new URL()` (scheme and host lowercased), then checked against the same patterns as the DB.
+- Linimasa:
+  - `POST /linimasa` (`situs:create`; appends at max + 1);
+  - `PATCH /linimasa/[id]` (`situs:update`);
+  - `DELETE /linimasa/[id]` (`situs:delete`);
+  - `POST /linimasa/reorder` (`situs:update`).
+- Activity log, module `situs` (label "Konten Situs"):
+  - `Mengubah profil gereja bagian {Beranda|Sambutan|Tentang|Kontak|Sosial Media}`, plus " (foto ditambahkan|diganti|dihapus)" or " (teks alternatif foto diubah)" when the photo changed;
+  - `Mengubah rekening persembahan: nama bank (kosong) → "…"; nomor rekening "…" → "…"; QRIS diganti`, built from the RPC's old and new values;
+  - `Menambah|Mengubah|Menghapus linimasa "{tahun} · {teks…}"`;
+  - `Mengubah urutan linimasa`.
+
+**UI**
+- `/admin/profil-gereja` (`situs:read`) is built from one generic `ProfilFormSection`: field configs, an optional photo, and one "Simpan". After a save, the form takes its values back from the response.
+- Linimasa follows the Litbang pattern:
+  - dnd-kit with keyboard support and Indonesian announcements;
+  - optimistic order with rollback;
+  - Simpan per item;
+  - Hapus only with `situs:delete`.
+- Persembahan is read-only without `situs_rekening:update` and says so. The QRIS picker is locked without `situs:update`.
+- **Public site**:
+  - Profil placeholders are gone. Pelayanan, Majelis, and Kegiatan stay placeholders until 11b.
+  - Hidden when empty (§14.6):
+    - on Beranda: the hero subtitle and photo, each hero info card, Sambutan, and the Persembahan band (shown only when all three account fields are set; the QRIS image only when present);
+    - on Tentang Kami: Sejarah, Linimasa, Visi, and Misi;
+    - on Kontak (and Beranda's Kunjungi Kami): each contact card, the WhatsApp button, and the Maps link;
+    - in the footer: the social links.
+  - The hero always shows. Its title falls back to "GKP Rangkasbitung".
+  - Kontak with no data at all says "Informasi kontak belum tersedia."
+  - `MapPlaceholder` is replaced by `MapLink`, a card that opens Google Maps in a new tab.
+    - There is no iframe, because a share link can't be embedded and an embed loads Google tracking.
+  - The hero section got `isolate`. Without it, the photo (negative z-index) would sit behind the band's own background.
+  - Multi-line text uses `whitespace-pre-line`, never HTML.
+
+**Verification (stage 11a)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/profil-gereja` and the nine API routes are in the route list, and `/tentang-kami` and `/kontak` are now ƒ.
+- `pnpm test`: 220 tests, 33 files. New:
+  - `image-processing.test.ts` (10):
+    - sniffing by magic bytes;
+    - PHP renamed to `.jpg`, SVG with `<script>`, over 5 MB, and a JPEG header glued onto garbage are refused;
+    - EXIF, GPS, and Make are gone (no "Exif" bytes left);
+    - an appended `<?php` payload is dropped;
+    - 3000×1500 becomes 2000×1000, and small images aren't enlarged;
+    - the EXIF orientation is applied, then stripped.
+  - `profil-gereja.test.ts` (8): URL, phone, misi, and rekening validators, including lookalike hosts.
+  - `api.test.ts` (6): the Content-Length and streamed body limits, and multipart parsing.
+  - `site-content.test.ts` (6): empty fields hide their sections, the default hero title, the photo path guard, the wa.me link, and the Kebaktian Minggu times.
+  - `profil-gereja-editor.test.tsx` (5):
+    - read-only mode;
+    - an editor without rekening access;
+    - alt text required before any request;
+    - one multipart request per section;
+    - the all-or-none rekening check.
+- `pnpm test:db`: 15 files, 445 tests. New `situs_profil_gereja.test.sql` (56):
+  - the permission seed; the bucket settings, with no storage policy for `situs`;
+  - the singletons;
+  - every CHECK, including lookalike, userinfo, http, and `javascript:` URLs;
+  - a path with no object is refused;
+  - anon: no table access, exactly the public keys, and no bucket write;
+  - viewer: read-only;
+  - editor: may edit content; rekening refused both directly and through the RPC; no bucket write or list; no linimasa delete;
+  - reorder, stale and valid;
+  - the referenced-paths function;
+  - admin's RPC returning old and new values;
+  - the permission editor accepting `situs`.
+- `pnpm test:integration`: 9 files, 123 tests. New `profil-gereja.test.ts` (18) covers every item on the stage's test list:
+  - **Access**: 401 without a session; viewer 403 on every write, with nothing written.
+  - **Upload validation**: PHP-as-.jpg, SVG, and over 5 MB → 400 with nothing uploaded; alt text required.
+  - **Stored file**: a GPS JPEG is stored without metadata, under a random name, and is publicly readable; an appended payload is dropped.
+  - **Replace and remove**:
+    - replacing deletes the old object, while an alt-only change keeps it;
+    - a simulated DB failure deletes the new object and leaves the row unchanged;
+    - removing the photo deletes its object.
+  - **Sweep**: respects the grace period and keeps referenced objects.
+  - **Direct storage and REST**: anon and editor uploads and removes are refused; a REST path to a missing object is refused.
+  - **Kontak / Sosial Media**: validation and normalization.
+  - **Persembahan**:
+    - editor through the route, REST, and the RPC: all refused;
+    - admin saves, with old and new values in the log, and a QRIS PNG;
+    - a partly filled account → 400.
+  - **Linimasa**: add, edit, and reorder; a stale reorder is refused; editor delete → 403; admin delete works.
+  - **Public read**: anon gets only the public fields.
+- **Mutation checks**:
+  - removing the rollback delete fails the DB-failure test;
+  - removing the old-object delete fails 2 tests;
+  - `.keepMetadata()` fails 2 unit tests and 1 integration test;
+  - skipping the magic-byte gate fails the PHP/SVG test;
+  - loosening the rekening RLS policy to `situs:update` fails 2 pgTAP tests. The policy was restored and the suite passes.
+- **HTTP**, with `next build` + `next start` on :3107, using env overrides for the local stack only:
+  - All public pages → 200.
+  - An empty profile shows the default hero title and hides Sambutan, Persembahan, Kunjungi Kami, and the footer links.
+  - Real cookie sessions through the proxy:
+    - viewer multipart → 403, editor → 200;
+    - a 6 MB body → 400 "Ukuran foto maksimal 5 MB.";
+    - editor Persembahan → 403, admin → 200;
+    - `/admin/profil-gereja` → 200 for viewer and editor.
+  - Every filled field showed on Beranda, Tentang Kami, and Kontak: the wa.me link, the maps link, and Instagram only (YouTube was empty and hidden).
+  - `/_next/image` for the hero → 200 image/jpeg.
+  - A 2600×1400 JPEG with GPS was stored as 2000×1077 with no EXIF/XMP.
+
+  The fixtures and objects were removed afterwards, and the normal build was rerun; no local URL is left in `.next`.
+- **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only). It matters most for:
+  - `PhotoField` (a hidden file input behind a button, and the preview);
+  - the canvas shrink for files over 4 MB, which jsdom can't run;
+  - Linimasa pointer and touch dragging;
+  - the new sidebar group heading;
+  - the permission matrix with two more resources;
+  - the hero with a real photo.
+- The local database was reset once (`supabase db reset --local`) while 0029 was being written. It is now at 0029 with the seed.
+
+### Stage 11b (Pelayanan, Majelis, Kegiatan + public loaders), 2026-09-30
+
+**Before deploying to production**
+- Push migration `0030_situs_pelayanan_majelis_kegiatan.sql` together with 0018–0029.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Every write in this stage's three modules — including "Tambah" and reorder — needs `situs:update`, not `situs:create`.** Only "Hapus" needs `situs:delete`; "read" needs `situs:read`. This was the plan's explicit instruction and departs from Linimasa (stage 11a), which used `situs:create` for its insert. No `situs:create` grant is exercised anywhere in this stage's routes. Functionally identical for the seeded roles (editor has create+read+update either way), but a custom role with `situs:update` alone can now add/reorder Pelayanan, Majelis, and Kegiatan without `situs:create`.
+- **Pelayanan icon list**: a fixed 10-key set in `lib/pelayanan-icons.ts` (HeartHandshake, Users, GraduationCap, BookOpen, Music2, Baby, HandHeart, Mic2, Coffee, UsersRound), kept in sync by hand with the `pelayanan_icon_check` constraint in 0030. The admin stores the key only; `MinistryGrid` (public) and the admin's icon `Select` both render from the same list.
+- **Kegiatan's status is never a field in the add/edit dialog.** It only changes through the row's "Terbitkan" / "Tarik ke Draft" action (own PATCH endpoint, `{ status }` body), same idiom as Warta's header buttons — approved before starting.
+
+**0030 migration**
+- Three new tables, `pelayanan`, `majelis`, `kegiatan`, RLS keyed to `situs:{read,update,delete}` for authenticated (see permission mapping above) and a row-filtered anon `select` (`aktif = true` / `status = 'published'`), same shape as stage 4/8's `sort_order` convention (new rows: `max(sort_order) + 1`) for the two reorderable ones.
+- `reorder_pelayanan(p_ids)` / `reorder_majelis(p_ids)`: identical contract to `reorder_profil_linimasa` (0029) — rejects an `ids` array that isn't exactly the current set, with the same "sudah berubah" message text per module.
+- `enforce_situs_photo_paths` (0029) is reused on `majelis.foto_path` and `kegiatan.foto_path`; `touch_updated_at` is added to `kegiatan` only (Pelayanan/Majelis have no concurrency control, same as Litbang).
+- `situs_referenced_photo_paths()` (0029) is `create or replace`d to `union` in `majelis.foto_path` and `kegiatan.foto_path`, so the photo-delete/sweep pipeline (`lib/situs-photos.ts`, stage 11a) covers all five photo-bearing tables without any change to that pipeline's own code.
+- No new permission rows: `situs`/`situs_rekening` (0029) already cover this stage per the mapping above.
+
+**Photo pipeline reuse**
+- `lib/situs-photos.ts`: `SITUS_FOLDERS` gains `majelis` and `kegiatan`. New export `deletePhotoObject(path)`: unlike `savePhotoSlot`'s replace/remove flow (which checks `situs_referenced_photo_paths` before deleting the *old* object, because the row being saved might still need it), a row **delete** has no surviving row that could reference that exact random path, so it deletes the object immediately, no referenced-paths check, and never throws (errors are logged and left for the next sweep).
+- Majelis and Kegiatan photos go through the existing `savePhotoSlot` for add/edit (multipart, `withPhotoSlot`), and `deletePhotoObject` only on row delete.
+
+**Routes (`lib/pelayanan-routes.ts`, `lib/majelis-routes.ts`, `lib/kegiatan-routes.ts`)**
+- Pelayanan: `POST`, `PATCH /[id]` (two field-groups in one endpoint, same convention as Litbang: `{nama,deskripsi,jadwal,icon}` from "Simpan" or `{aktif}` alone from the checkbox), `DELETE /[id]`, `POST /reorder`. All JSON (no photo).
+- Majelis: `POST` and `PATCH /[id]` are multipart (`nama`, `jabatan`, `foto`) via `savePhotoSlot`. **The Aktif toggle is its own endpoint, `PATCH /[id]/aktif` (JSON, `{aktif}`)** — a deliberate split from Litbang/Pelayanan's single-endpoint convention, because a photo-bearing PATCH must be multipart end-to-end, and forcing the checkbox's own one-field toggle through multipart (re-sending the current photo's alt text just to keep it unchanged) would be fragile on the client. `DELETE /[id]` removes the photo object too (`deletePhotoObject`). `POST /reorder`.
+- Kegiatan: `POST` and `PATCH /[id]` are multipart (`judul`, `tanggal`, `waktu`, `tempat`, `deskripsi`, `foto`); new rows always start `draft`. `PATCH /[id]/status` (JSON, `{status}`) is Terbitkan/Tarik ke Draft. `DELETE /[id]` removes the photo object too. No reorder (brief §9.2 table pattern, not cards); the admin list loads whole and sorts/filters on the client like other bounded lists (brief §9.2), server-ordered newest-tanggal-first only as the unsorted default.
+- **`waktu`'s Zod schema is not the JSON `timeSchema` peribadahan-routes.ts uses.** A multipart field is always a string (never `null`), so treating an empty string as "no time" must happen in a `.transform` *before* the regex `.refine` runs, not via `.nullish()` on top of a regex-validated string (which still requires empty string to match the regex and 400s on "Waktu tidak valid."). Found by the integration test failing 400 on a blank waktu field; peribadahan-routes.ts's `timeSchema` doesn't have this bug because its JSON client always sends `jam: jam || null` explicitly, never `""`.
+- Activity sentences, module `situs`: `Menambah/Mengubah/Menghapus pelayanan "…"`, `Mengaktifkan/Menonaktifkan pelayanan "…"`, `Mengubah urutan pelayanan`; same three for majelis; `Menambah/Mengubah/Menghapus kegiatan "…" (YYYY-MM-DD)` and `Mempublikasikan/Menarik kegiatan "…" (YYYY-MM-DD) ke draft` — the date is the **raw ISO date** in the sentence, matching Warta's own convention (`Membuat warta "…" (2025-11-30)`), not `formatDateLong`.
+- Revalidation: each module's own `/admin/...` page, plus `/` (layout) for Pelayanan and Kegiatan (Beranda) and `/tentang-kami` (page) for Majelis — kept even though the public pages are already per-request dynamic (stage 9b/11a precedent).
+
+**UI**
+- `components/pelayanan/`: `pelayanan-manager` + `pelayanan-card` (drag-reorder cards, same dnd-kit pattern as Litbang) with a Jadwal text input and an icon `Select` added to the card; `add-pelayanan-dialog`.
+- `components/majelis/`: same card-list shape, `majelis-card` embeds `PhotoField` (reused from 11a) inside the "Simpan" form, with its own `Aktif` checkbox wired to the `/aktif` endpoint; `add-majelis-dialog`.
+- `components/kegiatan/`: `kegiatan-manager` (`DataTable`, Status facet, date-range filter on tanggal, sorting — mirrors `WartaListManager`), `kegiatan-dialog` (one dialog for both add and edit, keyed by `row?.id ?? "new"`, same remount convention as `MasterDataFormDialog`; DatePicker + time input + `PhotoField`), `kegiatan-status-badge` (mirrors `WartaStatusBadge`).
+- **Both modules that gate Hapus on `situs:delete` separately from `situs:update`-gated Simpan/Tambah/reorder** (Pelayanan, Majelis, Kegiatan) show Simpan/Tambah without Hapus for an editor, and would show Hapus without Simpan for a hypothetical role with only `situs:delete` — this asymmetry doesn't exist in Litbang (single `warta:update` gate for both).
+- **`components/data-table/row-actions.tsx`**: `RowAction.label` now accepts `string | ((row) => string)`, a small backward-compatible addition needed for Kegiatan's "Terbitkan" / "Tarik ke Draft" extra action, whose label depends on the row's own status (every other module's row actions use a fixed label).
+- **Sidebar**: `nav.ts` adds Pelayanan, Majelis, Kegiatan to the "Konten Situs" group after Profil Gereja, each gated on `situs:read`; `sidebar-nav.tsx` maps their icons (HeartHandshake, UsersRound, Calendar).
+
+**Public site (`lib/public-site.ts`, `lib/public/site-content.ts`)**
+- Three new loaders, same `connection()` + row-filtered-again-in-the-query pattern as every stage 9b/11a public loader: `loadPublicPelayanan` (aktif, sort_order), `loadPublicMajelis` (aktif, sort_order), `loadPublicKegiatanMendatang` (status published, `tanggal >= today()` in WIB, order tanggal asc, `limit(3)`).
+- `site-content.ts`'s `loadBerandaContent`/`loadTentangKamiContent` now call these instead of `placeholder-content.ts`, which is **deleted** (no callers left). A failed Pelayanan/Majelis/Kegiatan load falls back to an empty list (already logged by `public-site.ts`'s `failure()`), same stance as every other public loader failure.
+- `(public)/page.tsx` and `(public)/tentang-kami/page.tsx`: the Pelayanan, Kegiatan, and Majelis sections are now wrapped in an empty-list check (`content.pelayanan.length > 0 && (...)`), matching brief §14.6 "section yang kosong disembunyikan" — they weren't before, because the placeholder data was never empty.
+
+**Verification (stage 11b)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/pelayanan`, `/admin/majelis`, `/admin/kegiatan`, and the eleven new API routes are in the build's route list.
+- `pnpm test`: 235 tests, 36 files. New: `pelayanan-manager.test.tsx` (4: keyboard reorder, Aktif toast, read-only, Hapus-without-Simpan), `majelis-manager.test.tsx` (4: the `/aktif` endpoint gets only `{aktif}`, multipart add with no photo, read-only, canWrite-without-canDelete), `kegiatan-manager.test.tsx` (4: multipart add starts draft, the row menu's label depends on status, Terbitkan calls the status endpoint, read-only). `site-content.test.ts` gained 3 tests for the Pelayanan/Majelis/Kegiatan mapping and its empty-load fallback.
+- `pnpm test:db`: 16 files, 482 tests. New `pelayanan_majelis_kegiatan.test.sql` (37): the icon/status/foto-pairing constraints, a path with no storage object refused, anon sees only aktif/published rows and can't write, viewer reads but can't write, editor writes and reorders but can't delete, admin deletes, `situs_referenced_photo_paths` includes the surviving majelis/kegiatan photos.
+- `pnpm test:integration`: 10 files, 132 tests. New `pelayanan-majelis-kegiatan.test.ts` (9): 401/403 on every route including reorder/aktif/status (delete specifically checked against editor, who lacks `situs:delete`); add/toggle/reorder/delete each log exactly one activity row; a bad icon key → 400; reorder rejects a stale list; Majelis and Kegiatan photo objects are deleted from storage on row delete; anon's REST read of a draft kegiatan returns `[]`.
+  - Found and fixed during this pass: the multipart `waktu` field 400'd on blank input (see "waktu's Zod schema" above) — caught by the "adds as draft" test before any component code shipped with the same bug (`KegiatanDialog` always sends `waktu: ""` when the field is empty).
+- Mutation checks were not run as a separate pass this stage (time budget); the pgTAP and integration suites above were written to fail without their matching route/RPC behavior (e.g. the reorder staleness checks, the delete-permission split, the photo-cleanup-on-delete assertions), consistent with the project's usual mutation-check intent.
+- **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only, pointer/touch drag on the two new card lists). No browser tool was available in this session, consistent with every prior stage's note. `next dev` was not started; `pnpm build` (production mode) was used instead to confirm the route tree and no compile-time regressions.

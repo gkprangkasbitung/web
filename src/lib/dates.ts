@@ -135,6 +135,11 @@ export function formatDateLong(date: IsoDate): string {
   return `${DAY_NAMES[weekday(date)]}, ${day} ${MONTH_NAMES[month - 1]} ${year}`;
 }
 
+/** "Min", "Sen", … "Sab" — short day name for tight spaces such as day tabs. */
+export function formatDayShort(date: IsoDate): string {
+  return DAY_NAMES[weekday(date)]!.slice(0, 3);
+}
+
 /** "14 September 2025" */
 export function formatDateShort(date: IsoDate): string {
   const { year, month, day } = parse(date);

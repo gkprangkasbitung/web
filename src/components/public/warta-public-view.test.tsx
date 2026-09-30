@@ -55,7 +55,7 @@ describe("WartaPublicView (brief §8)", () => {
     const { container } = render(<WartaPublicView warta={WARTA} />);
     expect(screen.getByRole("heading", { level: 1, name: "Minggu Contoh" })).toBeInTheDocument();
     expect(container.querySelector("header time")).toHaveTextContent("Minggu, 30 November 2025");
-    expect(screen.getByText("Tema Kebaktian Contoh")).toBeInTheDocument();
+    expect(screen.getByText("Tema: Tema Kebaktian Contoh")).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 2 }).map((heading) => heading.textContent)).toEqual([
       "Renungan",
       "Bidang Peribadahan",

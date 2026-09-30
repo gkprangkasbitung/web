@@ -1,15 +1,19 @@
-import Link from "next/link";
-
-import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { today } from "@/lib/dates";
+import type { SosialMedia } from "@/lib/public/site-content";
 
-import { PublicMobileNav, PublicNav } from "./public-nav";
+import { PublicHeader } from "./public-header";
 
 /**
- * The public site's shell (brief §8): a header with the name, the five links,
- * and the theme switcher; the footer "© {year} GKP Rangkasbitung.".
+ * The public site's shell (brief §8, docs/design/*.html): a header, a
+ * footer "© {year} GKP Rangkasbitung." with the social links from Profil
+ * Gereja (docs/design/beranda.html "Ikuti kami"; hidden when none is set),
+ * `lang="id"` (root layout). The
+ * header itself is a client component (see `public-header.tsx`); everything
+ * else here stays a plain Server Component, since none of it is interactive.
  */
-export function PublicShell({ children }: { children: React.ReactNode }) {
+const SOCIAL_LABELS = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" } as const;
+
+export function PublicShell({ sosialMedia, children }: { sosialMedia: SosialMedia | null; children: React.ReactNode }) {
   // The year in WIB, not UTC: on 1 January before 07:00 WIB UTC is still last year.
   const year = today().slice(0, 4);
 
@@ -22,27 +26,38 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         Langsung ke konten
       </a>
 
-      <header className="sticky top-0 z-20 border-b border-border bg-card">
-        <div className="mx-auto flex h-16 w-full max-w-5xl items-center gap-3 px-4 md:px-8">
-          <Link
-            href="/"
-            className="mr-auto truncate rounded-lg text-base font-semibold tracking-tight outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            GKP Rangkasbitung
-          </Link>
-          <PublicNav />
-          <ThemeSwitcher />
-          <PublicMobileNav />
-        </div>
-      </header>
+      <PublicHeader />
 
       <main id="konten" tabIndex={-1} className="flex-1 outline-none">
         {children}
       </main>
 
-      <footer className="border-t border-border bg-card">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 text-sm text-muted-foreground md:px-8">
-          © {year} GKP Rangkasbitung.
+      <footer className="bg-brand text-brand-muted">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8 text-sm md:flex-row md:items-center md:justify-between md:px-8">
+          <span className="font-semibold text-brand-foreground">GKP Rangkasbitung</span>
+          {sosialMedia && (
+            <nav aria-label="Sosial media" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="font-semibold text-brand-foreground">Ikuti kami</span>
+              {(Object.keys(SOCIAL_LABELS) as (keyof SosialMedia)[]).map((platform) => {
+                const url = sosialMedia[platform];
+                return (
+                  url && (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-sm underline-offset-4 outline-none hover:text-brand-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      {SOCIAL_LABELS[platform]}
+                      <span className="sr-only"> (tab baru)</span>
+                    </a>
+                  )
+                );
+              })}
+            </nav>
+          )}
+          <span>© {year} GKP Rangkasbitung.</span>
         </div>
       </footer>
     </div>
@@ -58,12 +73,37 @@ export function PublicContainer({ narrow = false, children }: { narrow?: boolean
   );
 }
 
-/** A public page's title and one-line description. */
+/** A simple light title, used only on `/warta` (no dark title band there, matching warta-detail.html's plain header). */
 export function PublicPageHeader({ title, description }: { title: string; description?: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-2">
-      <h1 className="text-3xl font-semibold tracking-tight text-balance">{title}</h1>
+      <h1 className="font-serif text-4xl font-normal tracking-tight text-balance">{title}</h1>
       {description && <p className="text-muted-foreground">{description}</p>}
+    </div>
+  );
+}
+
+/**
+ * The dark "page-title band" (brief §9c instruction A), shared by Tentang
+ * Kami, Jadwal Ibadah, and Kontak: breadcrumb, H1, one-line description.
+ * Sits flush under the brand header with no visible seam between them.
+ */
+export function PublicPageTitleBand({
+  breadcrumb,
+  title,
+  description,
+}: {
+  breadcrumb: string;
+  title: string;
+  description?: React.ReactNode;
+}) {
+  return (
+    <div className="bg-brand text-brand-foreground">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 px-4 py-12 md:px-8 md:py-16">
+        <span className="text-sm text-brand-muted">{breadcrumb}</span>
+        <h1 className="font-serif text-4xl font-normal tracking-tight text-balance md:text-6xl">{title}</h1>
+        {description && <p className="max-w-2xl text-base text-brand-muted md:text-lg">{description}</p>}
+      </div>
     </div>
   );
 }
@@ -98,7 +138,7 @@ export function PublicSection({
   return (
     <section aria-labelledby={id} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
-        <h2 id={id} className="text-xl font-semibold tracking-tight">
+        <h2 id={id} className="font-serif text-2xl font-normal tracking-tight">
           {title}
         </h2>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}

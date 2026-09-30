@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { z } from "zod";
 
-import { isValidIsoDate } from "@/lib/dates";
+import { isValidIsoDate, today } from "@/lib/dates";
 import { parseFullScheduleRows, parseUpcomingScheduleRows, type PublicScheduleRow } from "@/lib/public-schedule";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -213,4 +213,112 @@ export async function loadJadwalMendatang(): Promise<Result<PublicScheduleRow[]>
   } catch (parseError) {
     return failure("jadwal mendatang", parseError);
   }
+}
+
+const nullableText = z.string().nullable();
+const profilSchema = z.object({
+  hero_judul: nullableText,
+  hero_subjudul: nullableText,
+  hero_foto_path: nullableText,
+  hero_foto_alt: nullableText,
+  sambutan_teks: nullableText,
+  sambutan_nama: nullableText,
+  sambutan_jabatan: nullableText,
+  sambutan_foto_path: nullableText,
+  sambutan_foto_alt: nullableText,
+  sejarah: nullableText,
+  visi: nullableText,
+  misi: z.array(z.string()),
+  sejarah_foto_path: nullableText,
+  sejarah_foto_alt: nullableText,
+  alamat: nullableText,
+  telepon: nullableText,
+  email: nullableText,
+  jam_sekretariat: nullableText,
+  maps_url: nullableText,
+  instagram_url: nullableText,
+  youtube_url: nullableText,
+  facebook_url: nullableText,
+  nama_bank: nullableText,
+  nomor_rekening: nullableText,
+  atas_nama: nullableText,
+  qris_foto_path: nullableText,
+  qris_foto_alt: nullableText,
+  linimasa: z.array(z.object({ tahun: z.string(), teks: z.string() })),
+});
+
+export type PublicProfilRow = z.infer<typeof profilSchema>;
+
+/**
+ * Profil Gereja for Beranda, Tentang Kami, Kontak, and the footer (brief
+ * §14.6), through `public_profil_gereja()` (0029), which returns only the
+ * fields the site shows. Wrapped in React `cache` so the layout (footer)
+ * and the page share one load per request.
+ */
+export const loadPublicProfil = cache(async (): Promise<Result<PublicProfilRow>> => {
+  await connection();
+  const { data, error } = await createPublicClient().rpc("public_profil_gereja");
+  if (error) return failure("profil gereja", error);
+  const parsed = profilSchema.safeParse(data);
+  if (!parsed.success) return failure("profil gereja", parsed.error);
+  return { data: parsed.data, error: null };
+});
+
+// ---------------------------------------------------------------------------
+// Pelayanan, Majelis, Kegiatan (brief §14.2-14.4, stage 11b)
+// ---------------------------------------------------------------------------
+
+export type PublicPelayananRow = { id: string; nama: string; deskripsi: string | null; jadwal: string | null; icon: string };
+export type PublicMajelisRow = { id: string; nama: string; jabatan: string; foto_path: string | null; foto_alt: string | null };
+export type PublicKegiatanRow = {
+  id: string;
+  judul: string;
+  tanggal: string;
+  waktu: string | null;
+  tempat: string | null;
+  foto_path: string | null;
+  foto_alt: string | null;
+};
+
+/** Beranda's "Pelayanan" grid: active cards, in the admin's own sort order (brief §14.2). */
+export async function loadPublicPelayanan(): Promise<Result<PublicPelayananRow[]>> {
+  await connection();
+  const { data, error } = await createPublicClient()
+    .from("pelayanan")
+    .select("id, nama, deskripsi, jadwal, icon")
+    .eq("aktif", true)
+    .order("sort_order")
+    .order("created_at")
+    .order("id");
+  if (error) return failure("pelayanan", error);
+  return { data: data as PublicPelayananRow[], error: null };
+}
+
+/** Tentang Kami's "Majelis Jemaat" grid: active cards, in the admin's own sort order (brief §14.3). */
+export async function loadPublicMajelis(): Promise<Result<PublicMajelisRow[]>> {
+  await connection();
+  const { data, error } = await createPublicClient()
+    .from("majelis")
+    .select("id, nama, jabatan, foto_path, foto_alt")
+    .eq("aktif", true)
+    .order("sort_order")
+    .order("created_at")
+    .order("id");
+  if (error) return failure("majelis", error);
+  return { data: data as PublicMajelisRow[], error: null };
+}
+
+/** Beranda's "Kegiatan mendatang" grid: the next 3 published, tanggal >= today in WIB (brief §14.4). */
+export async function loadPublicKegiatanMendatang(): Promise<Result<PublicKegiatanRow[]>> {
+  await connection();
+  const { data, error } = await createPublicClient()
+    .from("kegiatan")
+    .select("id, judul, tanggal, waktu, tempat, foto_path, foto_alt")
+    .eq("status", "published")
+    .gte("tanggal", today())
+    .order("tanggal", { ascending: true })
+    .order("id")
+    .limit(3);
+  if (error) return failure("kegiatan mendatang", error);
+  return { data: data as PublicKegiatanRow[], error: null };
 }

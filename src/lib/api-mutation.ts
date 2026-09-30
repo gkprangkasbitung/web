@@ -7,7 +7,7 @@ import type { z } from "zod";
 
 import { logActivity } from "@/lib/activity-log";
 import type { ActivityModule } from "@/lib/activity-modules";
-import { fail, ok, parseBody, partial } from "@/lib/api";
+import { fail, ok, parseBody, parseMultipart, partial } from "@/lib/api";
 import type { Action, Resource } from "@/lib/auth/permissions";
 import { requirePermissionApi, requireUserApi, type AuthUser } from "@/lib/auth/session";
 import type { ServerSupabase } from "@/lib/supabase/server";
@@ -133,7 +133,8 @@ type RouteContext = { params: Promise<Record<string, string | string[] | undefin
 
 /**
  * A route handler for one mutation, in the fixed order:
- * session + permission (401/403) → route params (404) → Zod body (400) →
+ * session + permission (401/403) → route params (404) → Zod body (400; for
+ * multipart, the size limit first) →
  * `run` (the write) → activity log (never fails the action) → revalidate → `{ data }`.
  *
  * `run` throws `ApiError` (or `dbError(...)`) for failures the user should
@@ -144,8 +145,13 @@ export function mutation<TInput = undefined, TParams = Record<string, never>, TD
   permission: readonly [Resource, Action] | "signed-in";
   /** Validates `{ id }` and friends; a mismatch is a 404. */
   params?: z.ZodType<TParams>;
-  /** Validates the JSON body. Omit for body-less requests (DELETE). */
+  /** Validates the JSON body (or the multipart fields). Omit for body-less requests (DELETE). */
   schema?: z.ZodType<TInput>;
+  /**
+   * Read the body as `multipart/form-data` (photo uploads) instead of JSON,
+   * refusing more than `maxBytes` with a 400 `tooLarge` before any parsing.
+   */
+  multipart?: { maxBytes: number; tooLarge: string };
   /** 201 for creates. */
   status?: 200 | 201;
   /** Message for a malformed route param. */
@@ -166,7 +172,9 @@ export function mutation<TInput = undefined, TParams = Record<string, never>, TD
 
     let input = undefined as TInput;
     if (config.schema) {
-      const body = await parseBody(request, config.schema);
+      const body = config.multipart
+        ? await parseMultipart(request, config.schema, config.multipart)
+        : await parseBody(request, config.schema);
       if (!body.ok) return body.response;
       input = body.data;
     }

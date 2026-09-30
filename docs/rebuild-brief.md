@@ -420,3 +420,32 @@ Current endpoints, for reference:
 16. Light, dark, and system themes all work; the admin works at 360px wide and with the keyboard alone; every delete asks for confirmation.
 17. After fix 12.1: the anon key can't read `jemaat` or individual transactions, and `/warta/[slug]` still renders fully.
 18. At 05:00 WIB on a Sunday, "Tambah Jadwal" defaults to that Sunday, and "Tambah Transaksi" and a new pastoral note default to that same day.
+
+## 14. Site content modules (new)
+
+New admin group "Konten Situs" in the sidebar, after Label Jemaat. New permission resource `situs` (create, read, update, delete), seeded: super_admin and admin get all four, editor gets create/read/update, viewer gets read. Plus a separate permission `situs_rekening:update` for bank-account details, seeded to super_admin and admin only. All new tables live in new additive migrations, have RLS enabled, and allow anon `select` only on published/active rows and only on the columns the public site shows. Every mutation writes an activity log row with module `situs` (display label "Konten Situs").
+
+### 14.1 Profil Gereja (`/admin/profil-gereja`)
+A single settings record, edited as one form with sections and one "Simpan" per section:
+- Beranda: hero title, hero subtitle, hero photo.
+- Sambutan: text, pastor name, pastor title, pastor photo.
+- Tentang: sejarah (multi-line text), visi, misi (ordered list of lines), sejarah photo.
+- Linimasa: ordered list of { tahun, teks } items, add/edit/delete/reorder.
+- Kontak: alamat, telepon/WhatsApp (digits only, used for a wa.me link), email, jam sekretariat, Google Maps URL (must be a google.com/maps or maps.app.goo.gl URL).
+- Sosial media: Instagram, YouTube, Facebook URLs (https only, validated per host).
+- Persembahan (requires `situs_rekening:update`): nama bank, nomor rekening, atas nama, optional QRIS image. Changes are logged with old and new values.
+
+### 14.2 Pelayanan (`/admin/pelayanan`)
+Reorderable cards like Litbang (§9.6): nama (required), deskripsi, jadwal (free text), icon (chosen from a fixed list), aktif. Only active cards show on the public site, in order.
+
+### 14.3 Majelis (`/admin/majelis`)
+Reorderable list: nama (required), jabatan (required), foto, aktif. Free text, not linked to `jemaat`.
+
+### 14.4 Kegiatan (`/admin/kegiatan`)
+Table pattern (§9.2): judul (required), tanggal (required), waktu, tempat, deskripsi, foto, status (`draft` / `published`). The public home page shows the next 3 published kegiatan with tanggal ≥ today (Asia/Jakarta).
+
+### 14.5 Photo uploads
+Supabase Storage bucket `situs` (public read, write only via server with `situs:update`). Accept JPEG, PNG, WebP up to 5 MB; verify by magic bytes, not extension; re-encode server-side, which strips EXIF (including GPS) and caps the long edge at 2000 px; store under a random file name. Deleting or replacing a photo removes the old object. Require alt text for every photo.
+
+### 14.6 Public site
+Beranda, Tentang Kami, and Kontak read from these modules through public, column-limited reads. An empty field hides its section instead of showing a placeholder. Content changes revalidate the affected public pages.

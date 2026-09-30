@@ -2,14 +2,16 @@ import { ArrowRightIcon, CircleAlertIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import {
-  PlaceholderBlock,
-  PublicContainer,
-  PublicSection,
-} from "@/components/public/public-shell";
+import { ActivityGrid } from "@/components/public/activity-grid";
+import { ContactCards } from "@/components/public/contact-cards";
+import { Hero } from "@/components/public/hero";
+import { MapPlaceholder } from "@/components/public/map-placeholder";
+import { MinistryGrid } from "@/components/public/ministry-grid";
+import { PublicContainer, PublicSection } from "@/components/public/public-shell";
+import { RekeningBanner } from "@/components/public/rekening-banner";
 import { CompactScheduleList } from "@/components/public/schedule-list";
-import { formatDateLong, weekContaining } from "@/lib/dates";
-import { loadJadwalPekanIni, loadLatestPublicWarta } from "@/lib/public-site";
+import { formatDateLong } from "@/lib/dates";
+import { loadBerandaContent } from "@/lib/public/site-content";
 
 export const metadata: Metadata = {
   title: "Beranda",
@@ -29,94 +31,91 @@ function LoadError() {
 }
 
 /**
- * Brief §2/§8: a hero with the church name and this week's services, a card
- * for the latest warta, then placeholder sections (§12.4). A failed section
- * shows an inline message instead of failing the page.
+ * Brief §2/§8, docs/design/beranda.html + beranda-mobile.html: a hero with
+ * this week's schedule and the latest warta (real data), then Sambutan,
+ * Pelayanan, Kegiatan, Persembahan, and Kunjungi Kami (placeholders until
+ * stage 11a/11b/14). A failed section shows an inline message instead of
+ * failing the page.
  */
 export default async function HomePage() {
-  // The same Minggu–Sabtu week `public_jadwal_pekan_ini` computes, for the heading.
-  const week = weekContaining();
-  const [schedule, latest] = await Promise.all([loadJadwalPekanIni(), loadLatestPublicWarta()]);
+  const content = await loadBerandaContent();
 
   return (
-    <PublicContainer>
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] lg:items-start">
-        <div className="flex flex-col gap-4 lg:pt-6">
-          <h1 className="text-4xl font-semibold tracking-tight text-balance md:text-5xl">GKP Rangkasbitung</h1>
-          <p className="max-w-prose text-lg text-muted-foreground">
-            {/* TODO(konten): a short welcome line or motto from the church. Don't invent one. */}
-            Selamat datang di situs GKP Rangkasbitung.
-          </p>
-          <div className="flex flex-wrap gap-x-6 gap-y-2">
-            <Link href="/jadwal-ibadah" className={linkClass}>
-              Jadwal Ibadah
-              <ArrowRightIcon aria-hidden="true" className="size-4" />
-            </Link>
-            <Link href="/warta" className={linkClass}>
-              Warta Jemaat
-              <ArrowRightIcon aria-hidden="true" className="size-4" />
-            </Link>
-          </div>
-        </div>
+    <>
+      <Hero title={content.heroTitle} subtitle={content.heroSubtitle} photo={content.heroPhoto} kontak={content.kontak} />
 
-        <section
-          aria-labelledby="jadwal-pekan-ini"
-          className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5"
-        >
+      <PublicContainer>
+        <section aria-labelledby="jadwal-pekan-ini" className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <h2 id="jadwal-pekan-ini" className="text-lg font-semibold tracking-tight">
+            <h2 id="jadwal-pekan-ini" className="font-serif text-2xl font-normal tracking-tight">
               Jadwal ibadah pekan ini
             </h2>
             <p className="text-sm text-muted-foreground">
-              {formatDateLong(week.start)} – {formatDateLong(week.end)}
+              {formatDateLong(content.jadwalMingguIniRange.start)} – {formatDateLong(content.jadwalMingguIniRange.end)}
             </p>
           </div>
-          {schedule.error !== null ? (
+          {content.jadwalMingguIni.error !== null ? (
             <LoadError />
           ) : (
-            <CompactScheduleList rows={schedule.data} emptyText="Belum ada jadwal ibadah pekan ini." />
+            <CompactScheduleList rows={content.jadwalMingguIni.data} emptyText="Belum ada jadwal ibadah pekan ini." />
           )}
           <Link href="/jadwal-ibadah" className={linkClass}>
-            Lihat jadwal lengkap
+            Semua jadwal
+            <ArrowRightIcon aria-hidden="true" className="size-4" />
           </Link>
         </section>
-      </div>
 
-      <PublicSection id="warta-terbaru" title="Warta terbaru">
-        {latest.error !== null ? (
-          <LoadError />
-        ) : latest.data ? (
-          <Link
-            href={`/warta/${latest.data.slug}`}
-            className="group flex flex-col gap-1 rounded-xl border border-border bg-card p-5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-          >
-            <time dateTime={latest.data.tanggalKebaktian} className="text-sm text-muted-foreground">
-              {formatDateLong(latest.data.tanggalKebaktian)}
-            </time>
-            <span className="text-lg font-semibold tracking-tight group-hover:underline group-hover:underline-offset-4">
-              {latest.data.judulKebaktian}
-            </span>
-            {latest.data.temaKebaktian && <span className="text-muted-foreground">{latest.data.temaKebaktian}</span>}
-            <span className="mt-2 text-sm font-medium text-primary">Baca warta</span>
-          </Link>
-        ) : (
-          <p className="text-sm text-muted-foreground">Belum ada warta yang diterbitkan.</p>
-        )}
-      </PublicSection>
+        <PublicSection id="warta-terbaru" title="Warta terbaru">
+          {content.wartaTerbaru.error !== null ? (
+            <LoadError />
+          ) : content.wartaTerbaru.data ? (
+            <Link
+              href={`/warta/${content.wartaTerbaru.data.slug}`}
+              className="group flex flex-col gap-2 rounded-2xl bg-brand p-6 text-brand-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              <time dateTime={content.wartaTerbaru.data.tanggalKebaktian} className="text-sm text-brand-muted">
+                {formatDateLong(content.wartaTerbaru.data.tanggalKebaktian)}
+              </time>
+              <span className="font-serif text-2xl group-hover:underline group-hover:underline-offset-4">
+                {content.wartaTerbaru.data.judulKebaktian}
+              </span>
+              {content.wartaTerbaru.data.temaKebaktian && (
+                <span className="text-brand-muted">Tema: {content.wartaTerbaru.data.temaKebaktian}</span>
+              )}
+              <span className="mt-1 text-sm font-medium">Baca warta →</span>
+            </Link>
+          ) : (
+            <p className="text-sm text-muted-foreground">Belum ada warta yang diterbitkan.</p>
+          )}
+        </PublicSection>
 
-      <PublicSection id="sambutan" title="Sambutan">
-        {/* TODO(konten): a welcome from the pastor or the majelis, supplied by the church. */}
-        <PlaceholderBlock />
-      </PublicSection>
+        <PublicSection id="sambutan" title="Sambutan">
+          <div className="grid gap-8 md:grid-cols-2 md:items-center">
+            <p className="font-serif text-xl leading-relaxed text-muted-foreground italic">{content.sambutan.text}</p>
+            <div className="flex flex-col gap-0.5">
+              <span className="font-semibold">{content.sambutan.pastorName}</span>
+              <span className="text-sm text-muted-foreground">{content.sambutan.pastorTitle}</span>
+            </div>
+          </div>
+        </PublicSection>
 
-      <PublicSection id="kegiatan" title="Kegiatan dan pelayanan">
-        {/* TODO(konten): the church's regular ministries and activities (names, short descriptions). */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <PlaceholderBlock title="Kegiatan 1" />
-          <PlaceholderBlock title="Kegiatan 2" />
-          <PlaceholderBlock title="Kegiatan 3" />
-        </div>
-      </PublicSection>
-    </PublicContainer>
+        <PublicSection id="pelayanan" title="Ada tempat untuk setiap usia">
+          <MinistryGrid items={content.pelayanan} />
+        </PublicSection>
+
+        <PublicSection id="kegiatan" title="Kegiatan mendatang">
+          <ActivityGrid items={content.kegiatan} />
+        </PublicSection>
+
+        <RekeningBanner rekening={content.rekening} />
+
+        <PublicSection id="kunjungi-kami" title="Kami menantikan kehadiran Anda">
+          <div className="grid gap-6 lg:grid-cols-2">
+            <ContactCards kontak={content.kontak} />
+            <MapPlaceholder />
+          </div>
+        </PublicSection>
+      </PublicContainer>
+    </>
   );
 }

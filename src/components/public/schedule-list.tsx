@@ -47,11 +47,11 @@ function SmkaGroupTable({ row }: { row: PublicScheduleRow }) {
   );
 }
 
-/** One service with every filled field of its category (brief §8). */
-function ScheduleEntry({ row }: { row: PublicScheduleRow }) {
+/** One service with every filled field of its category (brief §8). Also reused by `ScheduleTabs` (Jadwal Ibadah). */
+export function ScheduleEntry({ row }: { row: PublicScheduleRow }) {
   const fields = scheduleFields(row);
   return (
-    <article className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+    <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
       <h4 className="font-semibold">{row.categoryName}</h4>
       {fields.length > 0 && (
         <dl className="flex flex-col gap-2 text-sm">

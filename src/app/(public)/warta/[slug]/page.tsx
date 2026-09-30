@@ -26,7 +26,7 @@ export default async function WartaPage({ params }: Props) {
   if (!warta) notFound();
 
   return (
-    <PublicContainer narrow>
+    <PublicContainer>
       <WartaPublicView warta={warta} />
     </PublicContainer>
   );

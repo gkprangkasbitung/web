@@ -64,6 +64,20 @@
   --avatar-5-foreground: #115e59;
   --avatar-6: #ede9fe;
   --avatar-6-foreground: #5b21b6;
+
+  /*
+   * Public site "brand band" (docs/design/*.html, stage 9c): the header,
+   * hero, page-title band, footer, and dark CTA sections (Persembahan,
+   * "Pertama kali datang?", the Visi card) are a fixed color-blocked
+   * surface, not a themable one. It stays the same in light and dark mode
+   * (redeclared unchanged below under .dark) because light text on this
+   * dark green already passes AA against either page background, and the
+   * mockups only ever show it dark.
+   */
+  --brand: #1f2e29;
+  --brand-foreground: #fafaf9;
+  --brand-muted: #b7cbc3;
+  --brand-border: rgb(250 250 249 / 14%);
 }
 
 .dark {
@@ -115,12 +129,20 @@
   --avatar-5-foreground: #5eead4;
   --avatar-6: #2e1065;
   --avatar-6-foreground: #c4b5fd;
+
+  /* Unchanged from :root: the brand band is a fixed surface, not themed (see :root). */
+  --brand: #1f2e29;
+  --brand-foreground: #fafaf9;
+  --brand-muted: #b7cbc3;
+  --brand-border: rgb(250 250 249 / 14%);
 }
 
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* Public site headings only (docs/design/*.html); the admin shell never uses font-serif. */
+  --font-serif: var(--font-newsreader), Georgia, serif;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -170,6 +192,11 @@
   --color-avatar-5-foreground: var(--avatar-5-foreground);
   --color-avatar-6: var(--avatar-6);
   --color-avatar-6-foreground: var(--avatar-6-foreground);
+
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-muted: var(--brand-muted);
+  --color-brand-border: var(--brand-border);
 
   /* 8px for inputs and buttons (rounded-md / rounded-lg), 12px for cards and dialogs (rounded-xl). */
   --radius-sm: 6px;

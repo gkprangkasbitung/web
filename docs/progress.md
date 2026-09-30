@@ -11,7 +11,9 @@
 - [x] 9a. Warta admin (§9.4) + Dashboard summaries (§9.3, §12.8)
 - [x] 9b. Public site (§8)
 - [x] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
-
+- [x] 9c. Public UI sesuai docs/design/ (layout + placeholder, lapisan data terpisah)
+- [ ] 11a. Upload foto + Profil Gereja (§14.1, §14.5)
+- [ ] 11b. Pelayanan, Majelis, Kegiatan + sambungkan halaman publik ke data (§14.2–14.4, §14.6)
 ## Notes / decisions
 
 ### Stage 1 (Foundation), 2026-09-28
@@ -822,3 +824,37 @@
   - showing "Hapus" on your own row fails the component test;
   - removing the server's own-account check fails the integration test. It was run alone, so the last-super_admin guard kept the seed account safe.
 - **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only). This matters most for the permission matrix's horizontal scroll and sticky column, the Base UI Select/Combobox dialogs, and the disabled "Terhubung ke …" options. No browser tool was available. The dev server already running on :3000 (pointed at the `*.supabase.co` project) was left alone.
+
+### Stage 9c (Public UI), 2026-09-30
+
+Visual-only stage on top of stage 9b's data layer: no migration, no new route, no RLS/RPC change. Plan (component structure, loader shape, dark-mode mapping) was written up and approved before starting.
+
+**Decisions approved before starting**
+- **Jadwal Ibadah's data source switches from the rolling 7-day `public_jadwal_mendatang` (stage 9b) to the Minggu–Sabtu `public_jadwal_pekan_ini`** (same range as Beranda), per this stage's explicit instruction for day tabs over "Minggu–Sabtu minggu ini". `public_jadwal_mendatang` (0027) and its loader (`loadJadwalMendatang`/`parseUpcomingScheduleRows` in `lib/public-site.ts`/`lib/public-schedule.ts`) are left in place, tested, and unused by any page — removing a migrated, working DB function was out of scope for a visual stage.
+- **Brand band tokens.** The header/hero/page-title band/footer/dark CTA sections in `docs/design/*.html` are a fixed color-blocked surface, not a themable one: `--brand`/`--brand-foreground`/`--brand-muted`/`--brand-border` (`#1F2E29`/`#FAFAF9`/`#B7CBC3`/`rgb(250 250 249 / 14%)`) are declared identically under `:root` and `.dark` in `globals.css`. Everything else (cards, borders, text, `--primary`) reuses the tokens from stage 1 unchanged.
+- **Newsreader** (`next/font/google`) added in `app/layout.tsx`, mapped to `--font-serif` in `@theme inline`. Public headings only; the admin shell never sets `font-serif`.
+- **Header has two looks from one component** (`components/public/public-header.tsx`, the only client piece of the shell): "brand" (dark band, desktop only) on `/`, `/tentang-kami`, `/jadwal-ibadah`, `/kontak`, and "plain" (light bordered bar) on `/warta*` at every width and on every page below `md` — derived from `usePathname()`, not threaded through each page. `PublicNav` gained a `variant` prop for this; its last link (Kontak) renders as the mockups' pill CTA only in the "brand" variant desktop. `ThemeSwitcher` gained an optional `className` so the header can recolor its trigger on the brand band without changing its look anywhere else it's used (admin topbar, `auth-card`).
+- **Placeholder content is never a single "being prepared" box per section.** `lib/public/placeholder-content.ts` returns arrays sized like each mockup's own `hint-placeholder-count` (6 pelayanan, 3 kegiatan, 4 linimasa, 4 majelis, 4 kontak fields), so the layout reads as complete; every string inside is still literally `TODO: …`, never an invented fact. Fields that stay genuinely absent (`kontak.telepon`, `rekening`) render their card/banner in a placeholder-styled state rather than being hidden — the §14.6 "hide empty sections" rule is deferred to when the real modules (11a/11b/14) exist.
+
+**Data layer**
+- `lib/public/site-content.ts`: one loader function per page (`loadBerandaContent`, `loadTentangKamiContent`, `loadJadwalIbadahContent`, `loadKontakContent`), each composing the real stage-9b loaders (`Result<T>`, can fail) with `lib/public/placeholder-content.ts` (plain values, never fails). `/warta` and `/warta/[slug]` keep calling `loadPublicWartaList`/`loadPublicWarta` directly, since they have no placeholder part.
+- `lib/public/whatsapp.ts`: `buildWaLink(phone)` — digits only, a leading `0` becomes `62`. Unit-tested. The Kontak loader returns `telepon: null` (no invented number), so `WhatsappButton` renders a neutral disabled-looking state today; once stage 14 fills a real number, the same code renders a live link with no change.
+- `lib/dates.ts` gained `formatDayShort` (e.g. "Rab") for the day tabs.
+
+**UI** (`components/public/`)
+- New: `public-header.tsx` (see above), `brand-mark.tsx`, `public-image.tsx` (`PublicImage`: required alt, dashed placeholder box when `photo` is `null` — true for every photo right now — never an external domain), `hero.tsx`, `schedule-tabs.tsx`, `ministry-grid.tsx`, `activity-grid.tsx`, `timeline.tsx`, `majelis-grid.tsx`, `contact-cards.tsx` (`ContactCards` + `WhatsappButton`), `rekening-banner.tsx`, `map-placeholder.tsx`, `warta-table-of-contents.tsx`.
+- `public-shell.tsx` split: the interactive header moved out to `public-header.tsx` so `PublicContainer`/`PublicSection`/`PublicPageHeader`/`PlaceholderBlock` stay plain Server Components (brief's "Server Components by default"). Added `PublicPageTitleBand` (the dark title band on Tentang Kami/Jadwal Ibadah/Kontak); `PublicPageHeader` (light, no band) is now used only on `/warta`'s list page, which keeps the "plain" header at every width per `warta-detail.html`.
+- `schedule-tabs.tsx`: Base UI `Tabs` (already in the project since stage 9a) with `activateOnFocus` — its default is `false` (arrow keys only move focus; Enter/Space activates), which would make a 7-day picker feel unresponsive, so this stage turns it on so arrow keys immediately switch the shown day. Reuses `ScheduleEntry` (newly exported from `schedule-list.tsx`) inside each day's panel rather than a second row renderer.
+- `warta-public-view.tsx`: added the table-of-contents rail (`grid-cols-[200px_minmax(0,42rem)]` on `lg`), `font-serif` headings, and a "Tema: " prefix on the header's tema line (the one rendered-text change to an existing tested component; `warta-public-view.test.tsx` was updated to match). Heading levels/ids/section order are unchanged from stage 9b, so every other existing assertion still holds. `/warta/[slug]/page.tsx` switched from `PublicContainer narrow` to the default width to fit the rail.
+- Jadwal Ibadah dropped the old static "Jadwal rutin" placeholder section (not in the mockup; the real week schedule now covers that ground) in favor of the mockup's "Pertama kali datang?" and "Warta minggu ini" aside cards.
+
+**Verification (stage 9c)**
+- `pnpm typecheck`, `pnpm lint`, `pnpm build` all pass; the six public routes build with the same static/dynamic split as stage 9b (`/kontak`, `/tentang-kami` static with `revalidate = 86400`; the rest dynamic).
+- `pnpm test`: 185 tests, 28 files (adds `lib/public/whatsapp.test.ts`, 2 tests; `schedule-tabs.test.tsx`, 3 tests: default tab is today's under a mocked Sunday-adjacent Wednesday, `activateOnFocus` moves the shown day with `{ArrowRight}` alone with no time mocking needed, and an empty day shows the friendly message). `warta-public-view.test.tsx`'s tema assertion updated for the new "Tema: " prefix; every other assertion in that file (section order, heading levels, the SMKA table, the four finance figures, HTML-as-text, hidden-when-empty) needed no change.
+- **HTTP**, `next build` + a background `next start` on :3107, both via process-env overrides pointing at the local stack only (confirmed the production `.next/server`/`.next/static` output contains no `*.supabase.co` URL — only stale `.next/dev/*` cache from an earlier `next dev` session did, which ships to no one); the normal build was rerun afterwards.
+  - All five pages → 200, titles "{page} | GKP Rangkasbitung", `lang="id"`, Newsreader's font variable present on `<html>`.
+  - `/warta/does-not-exist` → 404.
+  - `/warta/2026-09-27-contoh-warta-minggu-ini` (seeded) → 200, all five `h2` sections present with ids matching the table-of-contents anchors exactly.
+  - `/jadwal-ibadah` → 7 `role="tab"` elements.
+  - Anon REST `jemaat` and `sarana_dana_transactions` → 401, unchanged from stage 2/9b.
+- **Not verified yet**: an actual browser (dark theme, 360px layout, and pointer/keyboard use beyond what the component tests exercise — the mobile slide-over menu's focus return, the brand-vs-plain header's visual seam at the `md` breakpoint, and the schedule tabs' wrapping at 360px). No browser tool was available in this session.

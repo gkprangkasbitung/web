@@ -136,7 +136,12 @@ export function JemaatProfileForm({
 
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${id}-jk`}>Jenis Kelamin</Label>
-          <Select value={values.jenisKelamin} onValueChange={(next) => set("jenisKelamin", next)} disabled={disabled}>
+          <Select
+            items={JENIS_KELAMIN.map((value) => ({ value, label: JENIS_KELAMIN_LABELS[value] }))}
+            value={values.jenisKelamin}
+            onValueChange={(next) => set("jenisKelamin", next)}
+            disabled={disabled}
+          >
             <SelectTrigger id={`${id}-jk`} className="w-full">
               <SelectValue placeholder="Pilih jenis kelamin" />
             </SelectTrigger>
@@ -155,6 +160,7 @@ export function JemaatProfileForm({
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${id}-status`}>Status Keanggotaan</Label>
           <Select
+            items={STATUS_KEANGGOTAAN.map((value) => ({ value, label: STATUS_KEANGGOTAAN_LABELS[value] }))}
             value={values.statusKeanggotaan}
             onValueChange={(next) => set("statusKeanggotaan", next)}
             disabled={disabled}
@@ -174,7 +180,15 @@ export function JemaatProfileForm({
 
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${id}-wilayah`}>Wilayah</Label>
-          <Select value={values.wilayahId} onValueChange={(next) => set("wilayahId", next)} disabled={disabled}>
+          <Select
+            items={[
+              { value: null, label: "Tidak ada wilayah" },
+              ...wilayahOptions.map((wilayah) => ({ value: wilayah.id, label: wilayah.nama })),
+            ]}
+            value={values.wilayahId}
+            onValueChange={(next) => set("wilayahId", next)}
+            disabled={disabled}
+          >
             <SelectTrigger id={`${id}-wilayah`} className="w-full">
               <SelectValue placeholder="Pilih wilayah" />
             </SelectTrigger>
@@ -241,6 +255,10 @@ export function JemaatProfileForm({
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${id}-hubungan`}>Hubungan dalam Keluarga</Label>
           <Select
+            items={[
+              { value: null, label: "Tidak ada" },
+              ...HUBUNGAN_KELUARGA.map((value) => ({ value, label: value })),
+            ]}
             value={values.hubunganKeluarga}
             onValueChange={(next) => set("hubunganKeluarga", next)}
             disabled={disabled}

@@ -157,7 +157,12 @@ export function TransactionDialog({
                 Pemasukan (tetap)
               </p>
             ) : (
-              <Select value={values.tipe} onValueChange={(value) => value && set("tipe", value as TransactionTipe)} disabled={disabled}>
+              <Select
+                items={TRANSACTION_TIPE.map((tipe) => ({ value: tipe, label: TIPE_LABELS[tipe] }))}
+                value={values.tipe}
+                onValueChange={(value) => value && set("tipe", value as TransactionTipe)}
+                disabled={disabled}
+              >
                 <SelectTrigger id={`${formId}-tipe`} className="w-full">
                   <SelectValue />
                 </SelectTrigger>

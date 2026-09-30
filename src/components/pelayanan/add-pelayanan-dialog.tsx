@@ -104,7 +104,20 @@ export function AddPelayananDialog({ open, onOpenChange, onSaved }: AddPelayanan
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${formId}-icon`}>Ikon</Label>
-            <Select value={icon} onValueChange={(value) => value && setIcon(value)} disabled={pending}>
+            <Select
+              items={PELAYANAN_ICONS.map((item) => ({
+                value: item.key,
+                label: (
+                  <span className="flex items-center gap-1.5">
+                    <item.icon aria-hidden className="size-4" />
+                    {item.label}
+                  </span>
+                ),
+              }))}
+              value={icon}
+              onValueChange={(value) => value && setIcon(value)}
+              disabled={pending}
+            >
               <SelectTrigger id={`${formId}-icon`} className="w-full">
                 <SelectValue placeholder="Pilih ikon" />
               </SelectTrigger>

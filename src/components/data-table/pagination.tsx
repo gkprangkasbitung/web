@@ -19,7 +19,10 @@ export function describeRange(pageIndex: number, pageSize: number, total: number
   return `${formatThousands(from)}–${formatThousands(to)} dari ${formatThousands(total)} ${noun}`;
 }
 
-const SIZE_ITEMS = PAGE_SIZES.map((size) => ({ value: size, label: String(size) }));
+const SIZE_ITEMS: readonly { value: number; label: string }[] = PAGE_SIZES.map((size) => ({
+  value: size,
+  label: String(size),
+}));
 
 export function DataTablePagination<TData extends RowData>({
   controller,

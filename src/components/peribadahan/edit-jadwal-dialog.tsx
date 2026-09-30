@@ -174,7 +174,15 @@ export function EditJadwalDialog({
           {has("tempat") && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${formId}-tempat`}>Tempat</Label>
-              <Select value={values.tempatId} onValueChange={(value) => set("tempatId", value)} disabled={disabled}>
+              <Select
+                items={[
+                  { value: null, label: "Tidak ada tempat" },
+                  ...tempatOptions.map((tempat) => ({ value: tempat.id, label: tempat.nama })),
+                ]}
+                value={values.tempatId}
+                onValueChange={(value) => set("tempatId", value)}
+                disabled={disabled}
+              >
                 <SelectTrigger id={`${formId}-tempat`} className="w-full">
                   <SelectValue placeholder="Pilih tempat" />
                 </SelectTrigger>
@@ -193,7 +201,15 @@ export function EditJadwalDialog({
           {has("wilayah") && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${formId}-wilayah`}>Wilayah</Label>
-              <Select value={values.wilayahId} onValueChange={(value) => set("wilayahId", value)} disabled={disabled}>
+              <Select
+                items={[
+                  { value: null, label: "Tidak ada wilayah" },
+                  ...wilayahOptions.map((wilayah) => ({ value: wilayah.id, label: wilayah.nama })),
+                ]}
+                value={values.wilayahId}
+                onValueChange={(value) => set("wilayahId", value)}
+                disabled={disabled}
+              >
                 <SelectTrigger id={`${formId}-wilayah`} className="w-full">
                   <SelectValue placeholder="Pilih wilayah" />
                 </SelectTrigger>

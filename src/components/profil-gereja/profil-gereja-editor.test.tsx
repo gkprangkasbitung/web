@@ -42,10 +42,7 @@ const PROFIL: ProfilGerejaRow = {
   hero_foto_path: null,
   hero_foto_alt: null,
   sambutan_teks: null,
-  sambutan_nama: null,
-  sambutan_jabatan: null,
-  sambutan_foto_path: null,
-  sambutan_foto_alt: null,
+  sambutan_pendeta_id: null,
   sejarah: null,
   visi: null,
   misi: ["Misi satu", "Misi dua"],
@@ -76,6 +73,19 @@ const DATA: ProfilGerejaAdminData = {
   profil: PROFIL,
   rekening: REKENING,
   linimasa: [{ id: "l1", tahun: "1950-an", teks: "Awal persekutuan", sort_order: 0 }],
+  pendeta: [
+    {
+      id: "p1",
+      nama: "Pdt. Contoh",
+      peran: "Pendeta Jemaat",
+      tahun_mulai: 2015,
+      tahun_selesai: null,
+      foto_path: null,
+      foto_alt: null,
+      keterangan: null,
+      tampil: true,
+    },
+  ],
 };
 
 const EDITOR: ProfilGerejaAccess = { canUpdate: true, canCreate: true, canDelete: false, canEditRekening: false };

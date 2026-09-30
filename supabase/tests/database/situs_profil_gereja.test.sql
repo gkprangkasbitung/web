@@ -181,8 +181,8 @@ select is(
   array[
     'alamat', 'atas_nama', 'email', 'facebook_url', 'hero_foto_alt', 'hero_foto_path', 'hero_judul',
     'hero_subjudul', 'instagram_url', 'jam_sekretariat', 'linimasa', 'maps_url', 'misi', 'nama_bank',
-    'nomor_rekening', 'qris_foto_alt', 'qris_foto_path', 'sambutan_foto_alt', 'sambutan_foto_path',
-    'sambutan_jabatan', 'sambutan_nama', 'sambutan_teks', 'sejarah', 'sejarah_foto_alt', 'sejarah_foto_path',
+    'nomor_rekening', 'qris_foto_alt', 'qris_foto_path', 'sambutan_pendeta_foto_alt', 'sambutan_pendeta_foto_path',
+    'sambutan_pendeta_nama', 'sambutan_pendeta_peran', 'sambutan_teks', 'sejarah', 'sejarah_foto_alt', 'sejarah_foto_path',
     'telepon', 'visi', 'youtube_url'
   ],
   'anon: public_profil_gereja returns exactly the public fields (no updated_at)'

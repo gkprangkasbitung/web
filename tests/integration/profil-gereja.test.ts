@@ -101,7 +101,7 @@ async function resetProfil() {
     .from("profil_gereja")
     .update({
       hero_judul: null, hero_subjudul: null, hero_foto_path: null, hero_foto_alt: null,
-      sambutan_teks: null, sambutan_nama: null, sambutan_jabatan: null, sambutan_foto_path: null, sambutan_foto_alt: null,
+      sambutan_teks: null, sambutan_pendeta_id: null,
       sejarah: null, visi: null, misi: [], sejarah_foto_path: null, sejarah_foto_alt: null,
       alamat: null, telepon: null, email: null, jam_sekretariat: null, maps_url: null,
       instagram_url: null, youtube_url: null, facebook_url: null,

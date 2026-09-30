@@ -8,9 +8,11 @@ import {
   loadPublicKegiatanMendatang,
   loadPublicMajelis,
   loadPublicPelayanan,
+  loadPublicPendeta,
   loadPublicProfil,
   type PublicMajelisRow,
   type PublicPelayananRow,
+  type PublicPendetaRow,
   type PublicProfilRow,
   type PublicKegiatanRow,
   type PublicWartaListItem,
@@ -163,9 +165,9 @@ export async function loadBerandaContent(): Promise<BerandaContent> {
     sambutan: profil?.sambutan_teks
       ? {
           teks: profil.sambutan_teks,
-          nama: profil.sambutan_nama,
-          jabatan: profil.sambutan_jabatan,
-          photo: toPhoto(profil.sambutan_foto_path, profil.sambutan_foto_alt),
+          nama: profil.sambutan_pendeta_nama,
+          jabatan: profil.sambutan_pendeta_peran,
+          photo: toPhoto(profil.sambutan_pendeta_foto_path, profil.sambutan_pendeta_foto_alt),
         }
       : null,
     pelayanan: (pelayananResult.data ?? []).map(toPelayananItem),
@@ -183,10 +185,43 @@ export type TentangKamiProfil = {
   linimasa: { tahun: string; teks: string }[];
 };
 
-export type TentangKamiContent = { profil: Result<TentangKamiProfil>; majelis: MajelisItem[] };
+export type PendetaItem = {
+  id: string;
+  nama: string;
+  peran: string;
+  tahunMulai: number;
+  tahunSelesai: number | null;
+  keterangan: string | null;
+  photo: PublicPhoto;
+};
+
+export type TentangKamiContent = {
+  profil: Result<TentangKamiProfil>;
+  /** Currently serving (brief §14.7: usually one, but not assumed to be exactly one). */
+  pendetaMelayani: PendetaItem[];
+  pendetaPernahMelayani: PendetaItem[];
+  majelis: MajelisItem[];
+};
+
+function toPendetaItem(row: PublicPendetaRow): PendetaItem {
+  return {
+    id: row.id,
+    nama: row.nama,
+    peran: row.peran,
+    tahunMulai: row.tahun_mulai,
+    tahunSelesai: row.tahun_selesai,
+    keterangan: row.keterangan,
+    photo: toPhoto(row.foto_path, row.foto_alt),
+  };
+}
 
 export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
-  const [result, majelisResult] = await Promise.all([loadPublicProfil(), loadPublicMajelis()]);
+  const [result, majelisResult, pendetaResult] = await Promise.all([
+    loadPublicProfil(),
+    loadPublicMajelis(),
+    loadPublicPendeta(),
+  ]);
+  const pendeta = (pendetaResult.data ?? []).map(toPendetaItem);
   return {
     profil: result.data
       ? {
@@ -200,6 +235,10 @@ export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
           error: null,
         }
       : { data: null, error: result.error },
+    // public_pendeta() already orders "currently serving first"; splitting
+    // on tahunSelesai here keeps that same order within each group.
+    pendetaMelayani: pendeta.filter((p) => p.tahunSelesai === null),
+    pendetaPernahMelayani: pendeta.filter((p) => p.tahunSelesai !== null),
     majelis: (majelisResult.data ?? []).map(toMajelisItem),
   };
 }

@@ -222,10 +222,10 @@ const profilSchema = z.object({
   hero_foto_path: nullableText,
   hero_foto_alt: nullableText,
   sambutan_teks: nullableText,
-  sambutan_nama: nullableText,
-  sambutan_jabatan: nullableText,
-  sambutan_foto_path: nullableText,
-  sambutan_foto_alt: nullableText,
+  sambutan_pendeta_nama: nullableText,
+  sambutan_pendeta_peran: nullableText,
+  sambutan_pendeta_foto_path: nullableText,
+  sambutan_pendeta_foto_alt: nullableText,
   sejarah: nullableText,
   visi: nullableText,
   misi: z.array(z.string()),
@@ -321,4 +321,35 @@ export async function loadPublicKegiatanMendatang(): Promise<Result<PublicKegiat
     .limit(3);
   if (error) return failure("kegiatan mendatang", error);
   return { data: data as PublicKegiatanRow[], error: null };
+}
+
+// ---------------------------------------------------------------------------
+// Pendeta (brief §14.7, stage 11c)
+// ---------------------------------------------------------------------------
+
+const pendetaRowSchema = z.object({
+  id: z.string(),
+  nama: z.string(),
+  peran: z.string(),
+  tahun_mulai: z.number(),
+  tahun_selesai: z.number().nullable(),
+  foto_path: nullableText,
+  foto_alt: nullableText,
+  keterangan: nullableText,
+});
+
+export type PublicPendetaRow = z.infer<typeof pendetaRowSchema>;
+
+/**
+ * Tentang Kami's "Pendeta Jemaat" / "Pendeta yang pernah melayani" sections
+ * (brief §14.7), through `public_pendeta()` (0031), already in the default
+ * order (currently serving first, then by tahun_selesai desc, tahun_mulai desc).
+ */
+export async function loadPublicPendeta(): Promise<Result<PublicPendetaRow[]>> {
+  await connection();
+  const { data, error } = await createPublicClient().rpc("public_pendeta");
+  if (error) return failure("pendeta", error);
+  const parsed = z.array(pendetaRowSchema).safeParse(data);
+  if (!parsed.success) return failure("pendeta", parsed.error);
+  return { data: parsed.data, error: null };
 }

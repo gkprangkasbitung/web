@@ -1,19 +1,24 @@
 import "server-only";
 
-import { weekContaining, type DateRange } from "@/lib/dates";
+import { formatDateLong, weekContaining, type DateRange } from "@/lib/dates";
 import { formatJam } from "@/lib/peribadahan";
 import {
   loadJadwalPekanIni,
   loadLatestPublicWarta,
+  loadPublicKegiatanMendatang,
+  loadPublicMajelis,
+  loadPublicPelayanan,
   loadPublicProfil,
+  type PublicMajelisRow,
+  type PublicPelayananRow,
   type PublicProfilRow,
+  type PublicKegiatanRow,
   type PublicWartaListItem,
   type Result,
 } from "@/lib/public-site";
 import type { PublicScheduleRow } from "@/lib/public-schedule";
 import { situsPhotoUrl } from "@/lib/situs-photo";
 
-import * as placeholder from "./placeholder-content";
 import { buildWaLink } from "./whatsapp";
 
 /**
@@ -21,13 +26,12 @@ import { buildWaLink } from "./whatsapp";
  * one function per page, each returning everything that page's components
  * need as typed props. Components never fetch on their own.
  *
- * Three kinds of fields:
- * - schedule and warta (`lib/public-site.ts`, stage 9b) — can fail, the page
- *   shows an inline error for just that piece;
+ * Two kinds of fields:
+ * - schedule, warta, Pelayanan, Majelis, and Kegiatan — can fail, the page
+ *   shows an inline error (schedule/warta) or an empty section (the rest,
+ *   which already render nothing for an empty list) for just that piece;
  * - Profil Gereja (`public_profil_gereja()`, stage 11a) — an empty field is
- *   `null` and its section is hidden (brief §14.6), never a placeholder;
- * - placeholder data (`./placeholder-content.ts`) for Pelayanan, Majelis, and
- *   Kegiatan until stage 11b — always present, clearly marked TODO.
+ *   `null` and its section is hidden (brief §14.6), never a placeholder.
  */
 
 export type PublicPhoto = { url: string; alt: string } | null;
@@ -93,6 +97,25 @@ function toRekening(row: PublicProfilRow): RekeningInfo | null {
   };
 }
 
+function toPelayananItem(row: PublicPelayananRow): PelayananItem {
+  return { id: row.id, nama: row.nama, deskripsi: row.deskripsi, jadwal: row.jadwal, icon: row.icon };
+}
+
+function toMajelisItem(row: PublicMajelisRow): MajelisItem {
+  return { id: row.id, nama: row.nama, jabatan: row.jabatan, photo: toPhoto(row.foto_path, row.foto_alt) };
+}
+
+function toKegiatanItem(row: PublicKegiatanRow): KegiatanItem {
+  return {
+    id: row.id,
+    judul: row.judul,
+    tanggal: formatDateLong(row.tanggal),
+    waktu: row.waktu ? formatJam(row.waktu) : null,
+    tempat: row.tempat,
+    photo: toPhoto(row.foto_path, row.foto_alt),
+  };
+}
+
 /** Beranda's "Kebaktian Minggu" card: this week's Kebaktian Minggu times, e.g. "07.00 & 09.30 WIB". */
 export function kebaktianMingguTimes(rows: PublicScheduleRow[]): string | null {
   const times = [...new Set(rows.filter((row) => row.categoryKey === "umum" && row.jam).map((row) => formatJam(row.jam)))];
@@ -119,10 +142,12 @@ export type BerandaContent = {
 export const DEFAULT_HERO_TITLE = "GKP Rangkasbitung";
 
 export async function loadBerandaContent(): Promise<BerandaContent> {
-  const [jadwalMingguIni, wartaTerbaru, profilResult] = await Promise.all([
+  const [jadwalMingguIni, wartaTerbaru, profilResult, pelayananResult, kegiatanResult] = await Promise.all([
     loadJadwalPekanIni(),
     loadLatestPublicWarta(),
     loadPublicProfil(),
+    loadPublicPelayanan(),
+    loadPublicKegiatanMendatang(),
   ]);
   // A failed Profil load hides its sections (already logged), like an empty profile.
   const profil = profilResult.data;
@@ -143,8 +168,8 @@ export async function loadBerandaContent(): Promise<BerandaContent> {
           photo: toPhoto(profil.sambutan_foto_path, profil.sambutan_foto_alt),
         }
       : null,
-    pelayanan: placeholder.placeholderPelayanan(),
-    kegiatan: placeholder.placeholderKegiatan(),
+    pelayanan: (pelayananResult.data ?? []).map(toPelayananItem),
+    kegiatan: (kegiatanResult.data ?? []).map(toKegiatanItem),
     kontak: profil ? toKontak(profil) : null,
     rekening: profil ? toRekening(profil) : null,
   };
@@ -161,7 +186,7 @@ export type TentangKamiProfil = {
 export type TentangKamiContent = { profil: Result<TentangKamiProfil>; majelis: MajelisItem[] };
 
 export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
-  const result = await loadPublicProfil();
+  const [result, majelisResult] = await Promise.all([loadPublicProfil(), loadPublicMajelis()]);
   return {
     profil: result.data
       ? {
@@ -175,7 +200,7 @@ export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
           error: null,
         }
       : { data: null, error: result.error },
-    majelis: placeholder.placeholderMajelis(),
+    majelis: (majelisResult.data ?? []).map(toMajelisItem),
   };
 }
 

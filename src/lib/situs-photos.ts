@@ -29,8 +29,8 @@ import { listSitusObjects, removeSitusObjects, uploadSitusObject } from "@/lib/s
  * object doesn't exist (0029), so a reference can't break either way.
  */
 
-/** Top-level folders in the bucket, one per module. Stage 11b adds its own. */
-const SITUS_FOLDERS = ["profil"] as const;
+/** Top-level folders in the bucket, one per module. */
+const SITUS_FOLDERS = ["profil", "majelis", "kegiatan"] as const;
 export type SitusFolder = (typeof SITUS_FOLDERS)[number];
 
 /** In-flight uploads (step 2 done, step 3 not yet) are younger than this. */
@@ -148,6 +148,16 @@ export async function savePhotoSlot<T>({
   else if (current && !next) change = "removed";
   else if (current && next && current.alt !== next.alt) change = "alt";
   return { result, change };
+}
+
+/**
+ * Deletes one row's photo object right away, for a delete route (Majelis,
+ * Kegiatan, §14.2-14.4): unlike `savePhotoSlot`'s old-object cleanup, there
+ * is no new row left that could still reference this exact random path, so
+ * no `situs_referenced_photo_paths` check is needed first. Never throws.
+ */
+export async function deletePhotoObject(path: string | null): Promise<void> {
+  if (path) await removeQuietly([path], "row delete");
 }
 
 async function removeQuietly(paths: string[], reason: string): Promise<void> {

@@ -126,13 +126,17 @@ export default async function HomePage() {
           </PublicSection>
         )}
 
-        <PublicSection id="pelayanan" title="Ada tempat untuk setiap usia">
-          <MinistryGrid items={content.pelayanan} />
-        </PublicSection>
+        {content.pelayanan.length > 0 && (
+          <PublicSection id="pelayanan" title="Ada tempat untuk setiap usia">
+            <MinistryGrid items={content.pelayanan} />
+          </PublicSection>
+        )}
 
-        <PublicSection id="kegiatan" title="Kegiatan mendatang">
-          <ActivityGrid items={content.kegiatan} />
-        </PublicSection>
+        {content.kegiatan.length > 0 && (
+          <PublicSection id="kegiatan" title="Kegiatan mendatang">
+            <ActivityGrid items={content.kegiatan} />
+          </PublicSection>
+        )}
 
         {content.rekening && <RekeningBanner rekening={content.rekening} />}
 

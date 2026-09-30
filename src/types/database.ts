@@ -87,6 +87,19 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
+                },"kegiatan": {
+                  Row: {
+                    "created_at": string,"deskripsi": string | null,"foto_alt": string | null,"foto_path": string | null,"id": string,"judul": string,"status": string,"tanggal": string,"tempat": string | null,"updated_at": string,"waktu": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"judul": string,"status"?: string,"tanggal": string,"tempat"?: string | null,"updated_at"?: string,"waktu"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"judul"?: string,"status"?: string,"tanggal"?: string,"tempat"?: string | null,"updated_at"?: string,"waktu"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"keluarga": {
                   Row: {
                     "created_at": string,"id": string,"nama": string
@@ -122,6 +135,32 @@ isOneToOne: false
                   }
                   Update: {
                     "active"?: boolean,"deskripsi"?: string | null,"id"?: string,"name"?: string,"sort_order"?: number,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"majelis": {
+                  Row: {
+                    "aktif": boolean,"created_at": string,"foto_alt": string | null,"foto_path": string | null,"id": string,"jabatan": string,"nama": string,"sort_order": number
+                  }
+                  Insert: {
+                    "aktif"?: boolean,"created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"jabatan": string,"nama": string,"sort_order"?: number
+                  }
+                  Update: {
+                    "aktif"?: boolean,"created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"jabatan"?: string,"nama"?: string,"sort_order"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"pelayanan": {
+                  Row: {
+                    "aktif": boolean,"created_at": string,"deskripsi": string | null,"icon": string,"id": string,"jadwal": string | null,"nama": string,"sort_order": number
+                  }
+                  Insert: {
+                    "aktif"?: boolean,"created_at"?: string,"deskripsi"?: string | null,"icon": string,"id"?: string,"jadwal"?: string | null,"nama": string,"sort_order"?: number
+                  }
+                  Update: {
+                    "aktif"?: boolean,"created_at"?: string,"deskripsi"?: string | null,"icon"?: string,"id"?: string,"jadwal"?: string | null,"nama"?: string,"sort_order"?: number
                   }
                   Relationships: [
                     
@@ -522,6 +561,12 @@ isOneToOne: false
             }[]
                            },
 "reorder_litbang_categories":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
+"reorder_majelis":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
+"reorder_pelayanan":
 { Args: { "p_ids": (string)[] }; Returns: undefined
                            },
 "reorder_profil_linimasa":

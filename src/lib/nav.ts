@@ -18,7 +18,10 @@ export type NavIcon =
   | "users"
   | "roles"
   | "log"
-  | "profil-gereja";
+  | "profil-gereja"
+  | "pelayanan"
+  | "majelis"
+  | "kegiatan";
 
 export type NavLink = { label: string; href: string };
 /** `group`: consecutive entries with the same group render under one heading. */
@@ -55,12 +58,32 @@ const ENTRIES: Entry[] = [
   { label: "Data Jemaat", href: "/admin/jemaat", icon: "jemaat", permission: ["warta", "read"] },
   { label: "Keluarga", href: "/admin/keluarga", icon: "keluarga", permission: ["warta", "read"] },
   { label: "Label Jemaat", href: "/admin/label-jemaat", icon: "label-jemaat", permission: ["warta", "read"] },
-  // Brief §14: the "Konten Situs" group, after Label Jemaat. Stage 11b adds
-  // Pelayanan, Majelis, and Kegiatan here.
+  // Brief §14: the "Konten Situs" group, after Label Jemaat.
   {
     label: "Profil Gereja",
     href: "/admin/profil-gereja",
     icon: "profil-gereja",
+    group: "Konten Situs",
+    permission: ["situs", "read"],
+  },
+  {
+    label: "Pelayanan",
+    href: "/admin/pelayanan",
+    icon: "pelayanan",
+    group: "Konten Situs",
+    permission: ["situs", "read"],
+  },
+  {
+    label: "Majelis",
+    href: "/admin/majelis",
+    icon: "majelis",
+    group: "Konten Situs",
+    permission: ["situs", "read"],
+  },
+  {
+    label: "Kegiatan",
+    href: "/admin/kegiatan",
+    icon: "kegiatan",
     group: "Konten Situs",
     permission: ["situs", "read"],
   },

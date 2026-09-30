@@ -1,18 +1,12 @@
-import { HeartHandshakeIcon, SparklesIcon, type LucideIcon } from "lucide-react";
-
+import { pelayananIcon } from "@/lib/pelayanan-icons";
 import type { PelayananItem } from "@/lib/public/site-content";
 
-/** The fixed icon list brief §14.2 mentions choosing from; grows as real icons are needed. */
-const ICONS: Record<string, LucideIcon> = {
-  HeartHandshake: HeartHandshakeIcon,
-};
-
-/** Beranda's "Pelayanan" grid (docs/design/beranda.html). Every item is a placeholder until stage 11b. */
+/** Beranda's "Pelayanan" grid (docs/design/beranda.html, brief §14.2). */
 export function MinistryGrid({ items }: { items: PelayananItem[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => {
-        const Icon = ICONS[item.icon] ?? SparklesIcon;
+        const Icon = pelayananIcon(item.icon);
         return (
           <div key={item.id} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
             <span className="flex size-11 items-center justify-center rounded-xl bg-brand text-brand-foreground">

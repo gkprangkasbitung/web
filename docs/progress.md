@@ -13,7 +13,7 @@
 - [x] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
 - [x] 9c. Public UI sesuai docs/design/ (layout + placeholder, lapisan data terpisah)
 - [x] 11a. Upload foto + Profil Gereja (§14.1, §14.5)
-- [ ] 11b. Pelayanan, Majelis, Kegiatan + sambungkan halaman publik ke data (§14.2–14.4, §14.6)
+- [x] 11b. Pelayanan, Majelis, Kegiatan + sambungkan halaman publik ke data (§14.2–14.4, §14.6)
 ## Notes / decisions
 
 ### Stage 1 (Foundation), 2026-09-28
@@ -1054,3 +1054,54 @@ Visual-only stage on top of stage 9b's data layer: no migration, no new route, n
   - the permission matrix with two more resources;
   - the hero with a real photo.
 - The local database was reset once (`supabase db reset --local`) while 0029 was being written. It is now at 0029 with the seed.
+
+### Stage 11b (Pelayanan, Majelis, Kegiatan + public loaders), 2026-09-30
+
+**Before deploying to production**
+- Push migration `0030_situs_pelayanan_majelis_kegiatan.sql` together with 0018–0029.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Every write in this stage's three modules — including "Tambah" and reorder — needs `situs:update`, not `situs:create`.** Only "Hapus" needs `situs:delete`; "read" needs `situs:read`. This was the plan's explicit instruction and departs from Linimasa (stage 11a), which used `situs:create` for its insert. No `situs:create` grant is exercised anywhere in this stage's routes. Functionally identical for the seeded roles (editor has create+read+update either way), but a custom role with `situs:update` alone can now add/reorder Pelayanan, Majelis, and Kegiatan without `situs:create`.
+- **Pelayanan icon list**: a fixed 10-key set in `lib/pelayanan-icons.ts` (HeartHandshake, Users, GraduationCap, BookOpen, Music2, Baby, HandHeart, Mic2, Coffee, UsersRound), kept in sync by hand with the `pelayanan_icon_check` constraint in 0030. The admin stores the key only; `MinistryGrid` (public) and the admin's icon `Select` both render from the same list.
+- **Kegiatan's status is never a field in the add/edit dialog.** It only changes through the row's "Terbitkan" / "Tarik ke Draft" action (own PATCH endpoint, `{ status }` body), same idiom as Warta's header buttons — approved before starting.
+
+**0030 migration**
+- Three new tables, `pelayanan`, `majelis`, `kegiatan`, RLS keyed to `situs:{read,update,delete}` for authenticated (see permission mapping above) and a row-filtered anon `select` (`aktif = true` / `status = 'published'`), same shape as stage 4/8's `sort_order` convention (new rows: `max(sort_order) + 1`) for the two reorderable ones.
+- `reorder_pelayanan(p_ids)` / `reorder_majelis(p_ids)`: identical contract to `reorder_profil_linimasa` (0029) — rejects an `ids` array that isn't exactly the current set, with the same "sudah berubah" message text per module.
+- `enforce_situs_photo_paths` (0029) is reused on `majelis.foto_path` and `kegiatan.foto_path`; `touch_updated_at` is added to `kegiatan` only (Pelayanan/Majelis have no concurrency control, same as Litbang).
+- `situs_referenced_photo_paths()` (0029) is `create or replace`d to `union` in `majelis.foto_path` and `kegiatan.foto_path`, so the photo-delete/sweep pipeline (`lib/situs-photos.ts`, stage 11a) covers all five photo-bearing tables without any change to that pipeline's own code.
+- No new permission rows: `situs`/`situs_rekening` (0029) already cover this stage per the mapping above.
+
+**Photo pipeline reuse**
+- `lib/situs-photos.ts`: `SITUS_FOLDERS` gains `majelis` and `kegiatan`. New export `deletePhotoObject(path)`: unlike `savePhotoSlot`'s replace/remove flow (which checks `situs_referenced_photo_paths` before deleting the *old* object, because the row being saved might still need it), a row **delete** has no surviving row that could reference that exact random path, so it deletes the object immediately, no referenced-paths check, and never throws (errors are logged and left for the next sweep).
+- Majelis and Kegiatan photos go through the existing `savePhotoSlot` for add/edit (multipart, `withPhotoSlot`), and `deletePhotoObject` only on row delete.
+
+**Routes (`lib/pelayanan-routes.ts`, `lib/majelis-routes.ts`, `lib/kegiatan-routes.ts`)**
+- Pelayanan: `POST`, `PATCH /[id]` (two field-groups in one endpoint, same convention as Litbang: `{nama,deskripsi,jadwal,icon}` from "Simpan" or `{aktif}` alone from the checkbox), `DELETE /[id]`, `POST /reorder`. All JSON (no photo).
+- Majelis: `POST` and `PATCH /[id]` are multipart (`nama`, `jabatan`, `foto`) via `savePhotoSlot`. **The Aktif toggle is its own endpoint, `PATCH /[id]/aktif` (JSON, `{aktif}`)** — a deliberate split from Litbang/Pelayanan's single-endpoint convention, because a photo-bearing PATCH must be multipart end-to-end, and forcing the checkbox's own one-field toggle through multipart (re-sending the current photo's alt text just to keep it unchanged) would be fragile on the client. `DELETE /[id]` removes the photo object too (`deletePhotoObject`). `POST /reorder`.
+- Kegiatan: `POST` and `PATCH /[id]` are multipart (`judul`, `tanggal`, `waktu`, `tempat`, `deskripsi`, `foto`); new rows always start `draft`. `PATCH /[id]/status` (JSON, `{status}`) is Terbitkan/Tarik ke Draft. `DELETE /[id]` removes the photo object too. No reorder (brief §9.2 table pattern, not cards); the admin list loads whole and sorts/filters on the client like other bounded lists (brief §9.2), server-ordered newest-tanggal-first only as the unsorted default.
+- **`waktu`'s Zod schema is not the JSON `timeSchema` peribadahan-routes.ts uses.** A multipart field is always a string (never `null`), so treating an empty string as "no time" must happen in a `.transform` *before* the regex `.refine` runs, not via `.nullish()` on top of a regex-validated string (which still requires empty string to match the regex and 400s on "Waktu tidak valid."). Found by the integration test failing 400 on a blank waktu field; peribadahan-routes.ts's `timeSchema` doesn't have this bug because its JSON client always sends `jam: jam || null` explicitly, never `""`.
+- Activity sentences, module `situs`: `Menambah/Mengubah/Menghapus pelayanan "…"`, `Mengaktifkan/Menonaktifkan pelayanan "…"`, `Mengubah urutan pelayanan`; same three for majelis; `Menambah/Mengubah/Menghapus kegiatan "…" (YYYY-MM-DD)` and `Mempublikasikan/Menarik kegiatan "…" (YYYY-MM-DD) ke draft` — the date is the **raw ISO date** in the sentence, matching Warta's own convention (`Membuat warta "…" (2025-11-30)`), not `formatDateLong`.
+- Revalidation: each module's own `/admin/...` page, plus `/` (layout) for Pelayanan and Kegiatan (Beranda) and `/tentang-kami` (page) for Majelis — kept even though the public pages are already per-request dynamic (stage 9b/11a precedent).
+
+**UI**
+- `components/pelayanan/`: `pelayanan-manager` + `pelayanan-card` (drag-reorder cards, same dnd-kit pattern as Litbang) with a Jadwal text input and an icon `Select` added to the card; `add-pelayanan-dialog`.
+- `components/majelis/`: same card-list shape, `majelis-card` embeds `PhotoField` (reused from 11a) inside the "Simpan" form, with its own `Aktif` checkbox wired to the `/aktif` endpoint; `add-majelis-dialog`.
+- `components/kegiatan/`: `kegiatan-manager` (`DataTable`, Status facet, date-range filter on tanggal, sorting — mirrors `WartaListManager`), `kegiatan-dialog` (one dialog for both add and edit, keyed by `row?.id ?? "new"`, same remount convention as `MasterDataFormDialog`; DatePicker + time input + `PhotoField`), `kegiatan-status-badge` (mirrors `WartaStatusBadge`).
+- **Both modules that gate Hapus on `situs:delete` separately from `situs:update`-gated Simpan/Tambah/reorder** (Pelayanan, Majelis, Kegiatan) show Simpan/Tambah without Hapus for an editor, and would show Hapus without Simpan for a hypothetical role with only `situs:delete` — this asymmetry doesn't exist in Litbang (single `warta:update` gate for both).
+- **`components/data-table/row-actions.tsx`**: `RowAction.label` now accepts `string | ((row) => string)`, a small backward-compatible addition needed for Kegiatan's "Terbitkan" / "Tarik ke Draft" extra action, whose label depends on the row's own status (every other module's row actions use a fixed label).
+- **Sidebar**: `nav.ts` adds Pelayanan, Majelis, Kegiatan to the "Konten Situs" group after Profil Gereja, each gated on `situs:read`; `sidebar-nav.tsx` maps their icons (HeartHandshake, UsersRound, Calendar).
+
+**Public site (`lib/public-site.ts`, `lib/public/site-content.ts`)**
+- Three new loaders, same `connection()` + row-filtered-again-in-the-query pattern as every stage 9b/11a public loader: `loadPublicPelayanan` (aktif, sort_order), `loadPublicMajelis` (aktif, sort_order), `loadPublicKegiatanMendatang` (status published, `tanggal >= today()` in WIB, order tanggal asc, `limit(3)`).
+- `site-content.ts`'s `loadBerandaContent`/`loadTentangKamiContent` now call these instead of `placeholder-content.ts`, which is **deleted** (no callers left). A failed Pelayanan/Majelis/Kegiatan load falls back to an empty list (already logged by `public-site.ts`'s `failure()`), same stance as every other public loader failure.
+- `(public)/page.tsx` and `(public)/tentang-kami/page.tsx`: the Pelayanan, Kegiatan, and Majelis sections are now wrapped in an empty-list check (`content.pelayanan.length > 0 && (...)`), matching brief §14.6 "section yang kosong disembunyikan" — they weren't before, because the placeholder data was never empty.
+
+**Verification (stage 11b)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/pelayanan`, `/admin/majelis`, `/admin/kegiatan`, and the eleven new API routes are in the build's route list.
+- `pnpm test`: 235 tests, 36 files. New: `pelayanan-manager.test.tsx` (4: keyboard reorder, Aktif toast, read-only, Hapus-without-Simpan), `majelis-manager.test.tsx` (4: the `/aktif` endpoint gets only `{aktif}`, multipart add with no photo, read-only, canWrite-without-canDelete), `kegiatan-manager.test.tsx` (4: multipart add starts draft, the row menu's label depends on status, Terbitkan calls the status endpoint, read-only). `site-content.test.ts` gained 3 tests for the Pelayanan/Majelis/Kegiatan mapping and its empty-load fallback.
+- `pnpm test:db`: 16 files, 482 tests. New `pelayanan_majelis_kegiatan.test.sql` (37): the icon/status/foto-pairing constraints, a path with no storage object refused, anon sees only aktif/published rows and can't write, viewer reads but can't write, editor writes and reorders but can't delete, admin deletes, `situs_referenced_photo_paths` includes the surviving majelis/kegiatan photos.
+- `pnpm test:integration`: 10 files, 132 tests. New `pelayanan-majelis-kegiatan.test.ts` (9): 401/403 on every route including reorder/aktif/status (delete specifically checked against editor, who lacks `situs:delete`); add/toggle/reorder/delete each log exactly one activity row; a bad icon key → 400; reorder rejects a stale list; Majelis and Kegiatan photo objects are deleted from storage on row delete; anon's REST read of a draft kegiatan returns `[]`.
+  - Found and fixed during this pass: the multipart `waktu` field 400'd on blank input (see "waktu's Zod schema" above) — caught by the "adds as draft" test before any component code shipped with the same bug (`KegiatanDialog` always sends `waktu: ""` when the field is empty).
+- Mutation checks were not run as a separate pass this stage (time budget); the pgTAP and integration suites above were written to fail without their matching route/RPC behavior (e.g. the reorder staleness checks, the delete-permission split, the photo-cleanup-on-delete assertions), consistent with the project's usual mutation-check intent.
+- **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only, pointer/touch drag on the two new card lists). No browser tool was available in this session, consistent with every prior stage's note. `next dev` was not started; `pnpm build` (production mode) was used instead to confirm the route tree and no compile-time regressions.

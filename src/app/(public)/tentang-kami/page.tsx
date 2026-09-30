@@ -81,9 +81,11 @@ export default async function TentangKamiPage() {
           </>
         )}
 
-        <PublicSection id="pelayan" title="Majelis Jemaat">
-          <MajelisGrid items={majelis} />
-        </PublicSection>
+        {majelis.length > 0 && (
+          <PublicSection id="pelayan" title="Majelis Jemaat">
+            <MajelisGrid items={majelis} />
+          </PublicSection>
+        )}
       </PublicContainer>
     </>
   );

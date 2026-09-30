@@ -2,8 +2,10 @@
 
 import {
   BookOpenIcon,
-  ChurchIcon,
   CalendarDaysIcon,
+  CalendarIcon,
+  ChurchIcon,
+  HeartHandshakeIcon,
   HistoryIcon,
   HouseIcon,
   LayoutDashboardIcon,
@@ -14,6 +16,7 @@ import {
   TagsIcon,
   UserCogIcon,
   UsersIcon,
+  UsersRoundIcon,
   WalletIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -39,6 +42,9 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   roles: ShieldCheckIcon,
   log: HistoryIcon,
   "profil-gereja": ChurchIcon,
+  pelayanan: HeartHandshakeIcon,
+  majelis: UsersRoundIcon,
+  kegiatan: CalendarIcon,
 };
 
 function matches(pathname: string, href: string): boolean {

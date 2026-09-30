@@ -12,9 +12,19 @@ vi.mock("@/lib/public-site", () => ({
   loadJadwalPekanIni: vi.fn(),
   loadLatestPublicWarta: vi.fn(),
   loadPublicProfil: vi.fn(),
+  loadPublicPelayanan: vi.fn(),
+  loadPublicMajelis: vi.fn(),
+  loadPublicKegiatanMendatang: vi.fn(),
 }));
 
-const { loadJadwalPekanIni, loadLatestPublicWarta, loadPublicProfil } = await import("@/lib/public-site");
+const {
+  loadJadwalPekanIni,
+  loadLatestPublicWarta,
+  loadPublicProfil,
+  loadPublicPelayanan,
+  loadPublicMajelis,
+  loadPublicKegiatanMendatang,
+} = await import("@/lib/public-site");
 const { kebaktianMingguTimes, loadBerandaContent, loadKontakContent, loadSosialMedia, loadTentangKamiContent } =
   await import("./site-content");
 
@@ -79,6 +89,9 @@ beforeEach(() => {
   vi.mocked(loadJadwalPekanIni).mockResolvedValue({ data: [], error: null });
   vi.mocked(loadLatestPublicWarta).mockResolvedValue({ data: null, error: null });
   vi.mocked(loadPublicProfil).mockResolvedValue({ data: EMPTY, error: null });
+  vi.mocked(loadPublicPelayanan).mockResolvedValue({ data: [], error: null });
+  vi.mocked(loadPublicMajelis).mockResolvedValue({ data: [], error: null });
+  vi.mocked(loadPublicKegiatanMendatang).mockResolvedValue({ data: [], error: null });
 });
 
 describe("kebaktianMingguTimes", () => {
@@ -158,5 +171,58 @@ describe("empty Profil Gereja fields hide their sections (brief §14.6)", () => 
     expect(await loadSosialMedia()).toBeNull();
     const tentang = await loadTentangKamiContent();
     expect(tentang.profil.error).toBe("profil gereja");
+  });
+});
+
+describe("Pelayanan, Majelis, Kegiatan (brief §14.2-14.4)", () => {
+  it("Beranda: pelayanan and kegiatan rows are mapped, kegiatan waktu/tanggal formatted", async () => {
+    vi.mocked(loadPublicPelayanan).mockResolvedValue({
+      data: [{ id: "p1", nama: "Sekolah Minggu", deskripsi: null, jadwal: null, icon: "Baby" }],
+      error: null,
+    });
+    vi.mocked(loadPublicKegiatanMendatang).mockResolvedValue({
+      data: [
+        {
+          id: "k1",
+          judul: "Retret Pemuda",
+          tanggal: "2026-10-04",
+          waktu: "09:00:00",
+          tempat: "Aula",
+          foto_path: PHOTO,
+          foto_alt: "Retret",
+        },
+      ],
+      error: null,
+    });
+
+    const content = await loadBerandaContent();
+    expect(content.pelayanan).toEqual([{ id: "p1", nama: "Sekolah Minggu", deskripsi: null, jadwal: null, icon: "Baby" }]);
+    expect(content.kegiatan).toEqual([
+      {
+        id: "k1",
+        judul: "Retret Pemuda",
+        tanggal: expect.stringContaining("2026"),
+        waktu: "09.00",
+        tempat: "Aula",
+        photo: { url: `https://contoh.supabase.co/storage/v1/object/public/situs/${PHOTO}`, alt: "Retret" },
+      },
+    ]);
+  });
+
+  it("a failed Pelayanan/Kegiatan load falls back to an empty list, not an error", async () => {
+    vi.mocked(loadPublicPelayanan).mockResolvedValue({ data: null, error: "pelayanan" });
+    vi.mocked(loadPublicKegiatanMendatang).mockResolvedValue({ data: null, error: "kegiatan" });
+    const content = await loadBerandaContent();
+    expect(content.pelayanan).toEqual([]);
+    expect(content.kegiatan).toEqual([]);
+  });
+
+  it("Tentang Kami: majelis rows are mapped, photo hidden without alt text", async () => {
+    vi.mocked(loadPublicMajelis).mockResolvedValue({
+      data: [{ id: "m1", nama: "Pdt. Contoh", jabatan: "Pendeta Jemaat", foto_path: PHOTO, foto_alt: null }],
+      error: null,
+    });
+    const tentang = await loadTentangKamiContent();
+    expect(tentang.majelis).toEqual([{ id: "m1", nama: "Pdt. Contoh", jabatan: "Pendeta Jemaat", photo: null }]);
   });
 });

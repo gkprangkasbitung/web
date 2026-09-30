@@ -108,6 +108,16 @@ export async function call(
   return { status: response.status, body: (await response.json()) as { data?: never; error?: string } };
 }
 
+/** Like `call`, with a multipart body (photo uploads). */
+export async function callForm(
+  handler: Handler,
+  { method, form, params = {} }: { method: string; form: FormData; params?: Record<string, string> },
+) {
+  const request = new Request("http://localhost/api/test", { method, body: form });
+  const response = await handler(request, { params: Promise.resolve(params) });
+  return { status: response.status, body: (await response.json()) as { data?: never; error?: string } };
+}
+
 /** Service-role client for the local stack only: throwaway users and fixtures. */
 export function serviceClient() {
   return createClient<Database>(env.url, env.serviceKey, {

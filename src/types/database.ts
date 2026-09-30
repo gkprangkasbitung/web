@@ -226,6 +226,45 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"profil_gereja": {
+                  Row: {
+                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"sambutan_foto_alt": string | null,"sambutan_foto_path": string | null,"sambutan_jabatan": string | null,"sambutan_nama": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"updated_at": string,"visi": string | null,"youtube_url": string | null
+                  }
+                  Insert: {
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_foto_alt"?: string | null,"sambutan_foto_path"?: string | null,"sambutan_jabatan"?: string | null,"sambutan_nama"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
+                  }
+                  Update: {
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_foto_alt"?: string | null,"sambutan_foto_path"?: string | null,"sambutan_jabatan"?: string | null,"sambutan_nama"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"profil_gereja_linimasa": {
+                  Row: {
+                    "created_at": string,"id": string,"sort_order": number,"tahun": string,"teks": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"sort_order"?: number,"tahun": string,"teks": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"sort_order"?: number,"tahun"?: string,"teks"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"profil_gereja_rekening": {
+                  Row: {
+                    "atas_nama": string | null,"id": number,"nama_bank": string | null,"nomor_rekening": string | null,"qris_foto_alt": string | null,"qris_foto_path": string | null,"updated_at": string
+                  }
+                  Insert: {
+                    "atas_nama"?: string | null,"id"?: number,"nama_bank"?: string | null,"nomor_rekening"?: string | null,"qris_foto_alt"?: string | null,"qris_foto_path"?: string | null,"updated_at"?: string
+                  }
+                  Update: {
+                    "atas_nama"?: string | null,"id"?: number,"nama_bank"?: string | null,"nomor_rekening"?: string | null,"qris_foto_alt"?: string | null,"qris_foto_path"?: string | null,"updated_at"?: string
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"profiles": {
                   Row: {
                     "avatar_url": string | null,"created_at": string,"email": string | null,"full_name": string | null,"id": string,"jemaat_id": string | null
@@ -469,6 +508,9 @@ isOneToOne: false
               "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
             }[]
                            },
+"public_profil_gereja":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "public_warta_finance":
 { Args: { "p_slug": string }; Returns: {
               "key": string,"name": string,"pemasukan": number,"pengeluaran": number,"saldo_akhir": number,"saldo_awal": number
@@ -480,6 +522,9 @@ isOneToOne: false
             }[]
                            },
 "reorder_litbang_categories":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
+"reorder_profil_linimasa":
 { Args: { "p_ids": (string)[] }; Returns: undefined
                            },
 "replace_jemaat_labels":
@@ -529,8 +574,14 @@ isOneToOne: false
 "set_user_role":
 { Args: { "p_role_id"?: string,"p_user_id": string }; Returns: undefined
                            },
+"situs_referenced_photo_paths":
+{ Args: Record<PropertyKey, never>; Returns: string[]
+                           },
 "update_peribadahan_item":
 { Args: { "p_bahan_alkitab"?: string,"p_catatan"?: string,"p_dpa"?: string,"p_id": string,"p_jam"?: string,"p_kehadiran_anak"?: number,"p_kehadiran_laki_laki"?: number,"p_kehadiran_perempuan"?: number,"p_liturgos_id"?: string,"p_pelayan_firman_id"?: string,"p_pemusik_id"?: string,"p_smka_kelompok"?: Json,"p_tema"?: string,"p_tempat_id"?: string,"p_wilayah_id"?: string }; Returns: undefined
+                           },
+"update_profil_gereja_rekening":
+{ Args: { "p_atas_nama"?: string,"p_nama_bank"?: string,"p_nomor_rekening"?: string,"p_qris_foto_alt"?: string,"p_qris_foto_path"?: string }; Returns: Json
                            }
           }
           Enums: {

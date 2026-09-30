@@ -17,12 +17,19 @@ export type NavIcon =
   | "label-jemaat"
   | "users"
   | "roles"
-  | "log";
+  | "log"
+  | "profil-gereja";
 
 export type NavLink = { label: string; href: string };
-export type NavItem = NavLink & { icon: NavIcon; children?: NavLink[] };
+/** `group`: consecutive entries with the same group render under one heading. */
+export type NavItem = NavLink & { icon: NavIcon; group?: string; children?: NavLink[] };
 
-type Entry = NavLink & { icon: NavIcon; permission?: [Resource, Action]; children?: "peribadahan" | "sarana-dana" };
+type Entry = NavLink & {
+  icon: NavIcon;
+  group?: string;
+  permission?: [Resource, Action];
+  children?: "peribadahan" | "sarana-dana";
+};
 
 // Sidebar order and guards (brief §9.1). Dashboard is open to every signed-in user.
 const ENTRIES: Entry[] = [
@@ -48,6 +55,15 @@ const ENTRIES: Entry[] = [
   { label: "Data Jemaat", href: "/admin/jemaat", icon: "jemaat", permission: ["warta", "read"] },
   { label: "Keluarga", href: "/admin/keluarga", icon: "keluarga", permission: ["warta", "read"] },
   { label: "Label Jemaat", href: "/admin/label-jemaat", icon: "label-jemaat", permission: ["warta", "read"] },
+  // Brief §14: the "Konten Situs" group, after Label Jemaat. Stage 11b adds
+  // Pelayanan, Majelis, and Kegiatan here.
+  {
+    label: "Profil Gereja",
+    href: "/admin/profil-gereja",
+    icon: "profil-gereja",
+    group: "Konten Situs",
+    permission: ["situs", "read"],
+  },
   { label: "Pengguna", href: "/admin/users", icon: "users", permission: ["users", "read"] },
   { label: "Roles & Permissions", href: "/admin/roles", icon: "roles", permission: ["roles", "read"] },
   { label: "Log Aktivitas", href: "/admin/log-aktivitas", icon: "log", permission: ["activity_log", "read"] },
@@ -68,8 +84,8 @@ export async function getAdminNav(user: AuthUser, supabase: ServerSupabase): Pro
   if (categories?.error) console.error("[nav] peribadahan_categories:", categories.error.message);
   if (items?.error) console.error("[nav] sarana_dana_items:", items.error.message);
 
-  return visible.map(({ label, href, icon, children }) => {
-    const item = { label, href, icon };
+  return visible.map(({ label, href, icon, group, children }) => {
+    const item = group ? { label, href, icon, group } : { label, href, icon };
     if (children === "peribadahan") {
       return {
         ...item,

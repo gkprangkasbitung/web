@@ -13,12 +13,11 @@ const RATIO_CLASS = {
 } as const;
 
 /**
- * A photo with a required, informative fallback (brief §9c instruction B):
- * every module that would supply a real photo (Profil Gereja, Pelayanan
- * icons excluded, Majelis, Kegiatan) returns `null` until stage 11a/11b/14,
- * so this always renders the placeholder box for now. Never loads an
- * external domain — `photo.url` is only ever same-origin Supabase Storage,
- * wired up in stage 14 alongside `next.config.ts`'s `images.remotePatterns`.
+ * A photo with a required, informative fallback (brief §9c instruction B).
+ * Profil Gereja photos are real since stage 11a (sections without a photo
+ * don't render this at all); Majelis and Kegiatan still pass `null` until
+ * stage 11b, which shows the placeholder box. `photo.url` is only ever the
+ * public `situs` bucket, the one host `next.config.ts` allows.
  */
 export function PublicImage({
   photo,

@@ -12,6 +12,7 @@ export const MODULE_LABELS = {
   label_jemaat: "Label Jemaat",
   users: "Pengguna",
   roles: "Roles & Permissions",
+  situs: "Konten Situs",
 } as const;
 
 export type ActivityModule = keyof typeof MODULE_LABELS;

@@ -1,14 +1,19 @@
 import { today } from "@/lib/dates";
+import type { SosialMedia } from "@/lib/public/site-content";
 
 import { PublicHeader } from "./public-header";
 
 /**
  * The public site's shell (brief §8, docs/design/*.html): a header, a
- * footer "© {year} GKP Rangkasbitung.", `lang="id"` (root layout). The
+ * footer "© {year} GKP Rangkasbitung." with the social links from Profil
+ * Gereja (docs/design/beranda.html "Ikuti kami"; hidden when none is set),
+ * `lang="id"` (root layout). The
  * header itself is a client component (see `public-header.tsx`); everything
  * else here stays a plain Server Component, since none of it is interactive.
  */
-export function PublicShell({ children }: { children: React.ReactNode }) {
+const SOCIAL_LABELS = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" } as const;
+
+export function PublicShell({ sosialMedia, children }: { sosialMedia: SosialMedia | null; children: React.ReactNode }) {
   // The year in WIB, not UTC: on 1 January before 07:00 WIB UTC is still last year.
   const year = today().slice(0, 4);
 
@@ -28,8 +33,30 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       </main>
 
       <footer className="bg-brand text-brand-muted">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-8 text-sm md:flex-row md:items-center md:justify-between md:px-8">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8 text-sm md:flex-row md:items-center md:justify-between md:px-8">
           <span className="font-semibold text-brand-foreground">GKP Rangkasbitung</span>
+          {sosialMedia && (
+            <nav aria-label="Sosial media" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <span className="font-semibold text-brand-foreground">Ikuti kami</span>
+              {(Object.keys(SOCIAL_LABELS) as (keyof SosialMedia)[]).map((platform) => {
+                const url = sosialMedia[platform];
+                return (
+                  url && (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-sm underline-offset-4 outline-none hover:text-brand-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+                    >
+                      {SOCIAL_LABELS[platform]}
+                      <span className="sr-only"> (tab baru)</span>
+                    </a>
+                  )
+                );
+              })}
+            </nav>
+          )}
           <span>© {year} GKP Rangkasbitung.</span>
         </div>
       </footer>

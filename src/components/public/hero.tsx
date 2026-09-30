@@ -2,7 +2,7 @@ import { CalendarIcon, MapPinIcon, NewspaperIcon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 
-import type { KontakInfo, PublicPhoto } from "@/lib/public/site-content";
+import type { PublicPhoto } from "@/lib/public/site-content";
 
 function InfoCard({ icon: Icon, label, value }: { icon: typeof MapPinIcon; label: string; value: string }) {
   return (
@@ -18,24 +18,41 @@ function InfoCard({ icon: Icon, label, value }: { icon: typeof MapPinIcon; label
   );
 }
 
-/** Beranda's hero (docs/design/beranda.html, beranda-mobile.html): church name + a 3-card info strip. */
+// Static class names so Tailwind sees them.
+const STRIP_COLUMNS = ["sm:grid-cols-1", "sm:grid-cols-1", "sm:grid-cols-2", "sm:grid-cols-3"] as const;
+
+/**
+ * Beranda's hero (docs/design/beranda.html, beranda-mobile.html): church
+ * name, subtitle, optional photo, and an info strip. The strip's Kebaktian
+ * Minggu times come from this week's schedule and Lokasi from Profil
+ * Gereja; a card with no value is left out (brief §14.6).
+ */
 export function Hero({
   title,
   subtitle,
   photo,
-  kontak,
+  kebaktianMinggu,
+  alamat,
 }: {
   title: string;
-  subtitle: string;
+  subtitle: string | null;
   photo: PublicPhoto;
-  kontak: KontakInfo;
+  kebaktianMinggu: string | null;
+  alamat: string | null;
 }) {
+  const cards = [
+    kebaktianMinggu && { icon: CalendarIcon, label: "Kebaktian Minggu", value: kebaktianMinggu },
+    alamat && { icon: MapPinIcon, label: "Lokasi", value: alamat },
+    { icon: NewspaperIcon, label: "Warta mingguan", value: "Jadwal, renungan & laporan" },
+  ].filter((card) => !!card);
+
   return (
     <div className="flex flex-col">
-      <section className="relative flex min-h-105 flex-col justify-end overflow-hidden bg-brand text-brand-foreground md:min-h-130 md:items-center md:text-center">
+      {/* `isolate`: the photo and its tint (negative z) stay above the band's own background. */}
+      <section className="relative isolate flex min-h-105 flex-col justify-end overflow-hidden bg-brand text-brand-foreground md:min-h-130 md:items-center md:text-center">
         {photo && (
           <>
-            <Image src={photo.url} alt={photo.alt} fill sizes="100vw" className="absolute inset-0 -z-20 object-cover" />
+            <Image src={photo.url} alt={photo.alt} fill preload sizes="100vw" className="absolute inset-0 -z-20 object-cover" />
             <div className="absolute inset-0 -z-10 bg-brand/75" />
           </>
         )}
@@ -46,7 +63,7 @@ export function Hero({
           <h1 className="font-serif text-4xl leading-[1.05] font-normal tracking-tight text-balance md:text-6xl">
             {title}
           </h1>
-          <p className="max-w-lg text-base text-brand-muted md:text-lg">{subtitle}</p>
+          {subtitle && <p className="max-w-lg text-base text-brand-muted md:text-lg">{subtitle}</p>}
           <div className="mt-2 flex flex-wrap gap-3">
             <Link
               href="/jadwal-ibadah"
@@ -64,14 +81,12 @@ export function Hero({
         </div>
       </section>
 
-      <div className="mx-auto -mt-8 grid w-full max-w-5xl grid-cols-1 gap-px rounded-2xl border border-border bg-card px-4 shadow-lg shadow-black/5 sm:grid-cols-3 sm:px-8 md:-mt-10">
-        <InfoCard
-          icon={CalendarIcon}
-          label="Kebaktian Minggu"
-          value={kontak.jamSekretariat ? kontak.jamSekretariat : "TODO: jam kebaktian"}
-        />
-        <InfoCard icon={MapPinIcon} label="Lokasi" value={kontak.alamat ?? "TODO: alamat gereja"} />
-        <InfoCard icon={NewspaperIcon} label="Warta mingguan" value="Jadwal, renungan & laporan" />
+      <div
+        className={`mx-auto -mt-8 grid w-full max-w-5xl grid-cols-1 gap-px rounded-2xl border border-border bg-card px-4 shadow-lg shadow-black/5 sm:px-8 md:-mt-10 ${STRIP_COLUMNS[cards.length]}`}
+      >
+        {cards.map((card) => (
+          <InfoCard key={card.label} icon={card.icon} label={card.label} value={card.value} />
+        ))}
       </div>
     </div>
   );

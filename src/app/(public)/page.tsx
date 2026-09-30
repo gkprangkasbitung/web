@@ -5,8 +5,9 @@ import Link from "next/link";
 import { ActivityGrid } from "@/components/public/activity-grid";
 import { ContactCards } from "@/components/public/contact-cards";
 import { Hero } from "@/components/public/hero";
-import { MapPlaceholder } from "@/components/public/map-placeholder";
+import { MapLink } from "@/components/public/map-link";
 import { MinistryGrid } from "@/components/public/ministry-grid";
+import { PublicImage } from "@/components/public/public-image";
 import { PublicContainer, PublicSection } from "@/components/public/public-shell";
 import { RekeningBanner } from "@/components/public/rekening-banner";
 import { CompactScheduleList } from "@/components/public/schedule-list";
@@ -32,9 +33,11 @@ function LoadError() {
 
 /**
  * Brief §2/§8, docs/design/beranda.html + beranda-mobile.html: a hero with
- * this week's schedule and the latest warta (real data), then Sambutan,
- * Pelayanan, Kegiatan, Persembahan, and Kunjungi Kami (placeholders until
- * stage 11a/11b/14). A failed section shows an inline message instead of
+ * this week's schedule and the latest warta, then Sambutan, Pelayanan,
+ * Kegiatan, Persembahan, and Kunjungi Kami. Hero, Sambutan, Persembahan, and
+ * Kunjungi Kami come from Profil Gereja, and each is hidden when empty
+ * (brief §14.6); Pelayanan and Kegiatan are placeholders until stage 11b.
+ * A failed schedule or warta load shows an inline message instead of
  * failing the page.
  */
 export default async function HomePage() {
@@ -42,7 +45,13 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero title={content.heroTitle} subtitle={content.heroSubtitle} photo={content.heroPhoto} kontak={content.kontak} />
+      <Hero
+        title={content.heroTitle}
+        subtitle={content.heroSubtitle}
+        photo={content.heroPhoto}
+        kebaktianMinggu={content.kebaktianMinggu}
+        alamat={content.kontak?.alamat ?? null}
+      />
 
       <PublicContainer>
         <section aria-labelledby="jadwal-pekan-ini" className="flex flex-col gap-4">
@@ -89,15 +98,33 @@ export default async function HomePage() {
           )}
         </PublicSection>
 
-        <PublicSection id="sambutan" title="Sambutan">
-          <div className="grid gap-8 md:grid-cols-2 md:items-center">
-            <p className="font-serif text-xl leading-relaxed text-muted-foreground italic">{content.sambutan.text}</p>
-            <div className="flex flex-col gap-0.5">
-              <span className="font-semibold">{content.sambutan.pastorName}</span>
-              <span className="text-sm text-muted-foreground">{content.sambutan.pastorTitle}</span>
+        {content.sambutan && (
+          <PublicSection id="sambutan" title="Sambutan">
+            <div className="grid gap-8 md:grid-cols-2 md:items-center">
+              {content.sambutan.photo && (
+                <PublicImage
+                  photo={content.sambutan.photo}
+                  ratio="portrait"
+                  fallbackLabel="Foto pendeta"
+                  className="w-full max-w-sm"
+                />
+              )}
+              <figure className="flex flex-col gap-4">
+                <blockquote className="font-serif text-xl leading-relaxed whitespace-pre-line text-muted-foreground italic">
+                  {content.sambutan.teks}
+                </blockquote>
+                {(content.sambutan.nama || content.sambutan.jabatan) && (
+                  <figcaption className="flex flex-col gap-0.5">
+                    {content.sambutan.nama && <span className="font-semibold">{content.sambutan.nama}</span>}
+                    {content.sambutan.jabatan && (
+                      <span className="text-sm text-muted-foreground">{content.sambutan.jabatan}</span>
+                    )}
+                  </figcaption>
+                )}
+              </figure>
             </div>
-          </div>
-        </PublicSection>
+          </PublicSection>
+        )}
 
         <PublicSection id="pelayanan" title="Ada tempat untuk setiap usia">
           <MinistryGrid items={content.pelayanan} />
@@ -107,14 +134,16 @@ export default async function HomePage() {
           <ActivityGrid items={content.kegiatan} />
         </PublicSection>
 
-        <RekeningBanner rekening={content.rekening} />
+        {content.rekening && <RekeningBanner rekening={content.rekening} />}
 
-        <PublicSection id="kunjungi-kami" title="Kami menantikan kehadiran Anda">
-          <div className="grid gap-6 lg:grid-cols-2">
-            <ContactCards kontak={content.kontak} />
-            <MapPlaceholder />
-          </div>
-        </PublicSection>
+        {content.kontak && (
+          <PublicSection id="kunjungi-kami" title="Kami menantikan kehadiran Anda">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <ContactCards kontak={content.kontak} />
+              {content.kontak.mapsUrl && <MapLink mapsUrl={content.kontak.mapsUrl} />}
+            </div>
+          </PublicSection>
+        )}
       </PublicContainer>
     </>
   );

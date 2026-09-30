@@ -11,6 +11,7 @@ export class ApiClientError extends Error {
   }
 }
 
+/** `body`: sent as JSON, or as multipart when it is a FormData (photo uploads). */
 type FetchOptions = { method: "POST" | "PATCH" | "DELETE"; body?: unknown };
 
 /** Calls an admin route handler and returns `data`, or throws `ApiClientError` with the server's message. */
@@ -28,10 +29,12 @@ export async function apiFetchWithWarning<T>(
 ): Promise<{ data: T; warning: string | null }> {
   let response: Response;
   try {
+    // For FormData the browser sets the multipart Content-Type with its boundary.
+    const isForm = body instanceof FormData;
     response = await fetch(url, {
       method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined || isForm ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiClientError("Tidak dapat terhubung ke server. Periksa koneksi internet, lalu coba lagi.", 0);
@@ -39,7 +42,12 @@ export async function apiFetchWithWarning<T>(
 
   const payload = (await response.json().catch(() => null)) as { data?: T; error?: string } | null;
   if (!response.ok) {
-    throw new ApiClientError(payload?.error ?? "Terjadi kesalahan di server. Coba lagi.", response.status);
+    // 413 comes from the hosting platform's body limit, before the route runs, without our JSON.
+    const fallback =
+      response.status === 413
+        ? "File terlalu besar untuk diunggah. Perkecil fotonya lalu coba lagi."
+        : "Terjadi kesalahan di server. Coba lagi.";
+    throw new ApiClientError(payload?.error ?? fallback, response.status);
   }
   return { data: payload?.data as T, warning: response.status === 207 ? (payload?.error ?? null) : null };
 }

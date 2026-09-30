@@ -1,10 +1,10 @@
-import type { KegiatanItem, KontakInfo, MajelisItem, PelayananItem, RekeningInfo } from "./site-content";
+import type { KegiatanItem, MajelisItem, PelayananItem } from "./site-content";
 
 /**
  * Content the church hasn't supplied yet, for the modules that don't exist
- * until stage 11a (Profil Gereja) / 11b (Pelayanan, Majelis, Kegiatan) / 14
- * (photo uploads, Persembahan). Never invent church facts (brief §12.4):
- * every string here is a placeholder, not a guess.
+ * until stage 11b (Pelayanan, Majelis, Kegiatan). Never invent church facts
+ * (brief §12.4): every string here is a placeholder, not a guess. Profil
+ * Gereja (stage 11a) is real data now and hides what's empty instead.
  *
  * The counts match `hint-placeholder-count` in the matching docs/design/*.html
  * mockup, so the layout looks complete (brief §9c instruction B) instead of
@@ -13,54 +13,6 @@ import type { KegiatanItem, KontakInfo, MajelisItem, PelayananItem, RekeningInfo
  * nothing else in this file or its callers needs to change shape-wise beyond
  * that function's body.
  */
-
-export function placeholderHero() {
-  return {
-    heroTitle: "Mari beribadah bersama kami",
-    // TODO(konten): a short welcome line or motto from the church. Don't invent one.
-    heroSubtitle: "TODO: kalimat sambutan singkat untuk beranda.",
-    heroPhoto: null,
-  };
-}
-
-export function placeholderSambutan() {
-  return {
-    // TODO(konten): a welcome message from the pastor or majelis, 3-4 sentences.
-    text: "TODO: sambutan singkat dari pendeta jemaat, 3–4 kalimat.",
-    pastorName: "TODO: nama pendeta jemaat",
-    pastorTitle: "Pendeta Jemaat",
-    photo: null,
-  };
-}
-
-export function placeholderSejarah() {
-  return {
-    // TODO(konten): the congregation's history (founding, milestones), 1-2 paragraphs.
-    title: "TODO: judul singkat tentang perjalanan jemaat",
-    text: "TODO: sejarah singkat jemaat, 1–2 paragraf.",
-    photo: null,
-  };
-}
-
-export function placeholderVisi(): string {
-  // TODO(konten): the official vision statement.
-  return "TODO: rumusan visi jemaat.";
-}
-
-export function placeholderMisi(): string[] {
-  // TODO(konten): the official mission statements, in order.
-  return ["TODO: misi pertama.", "TODO: misi kedua.", "TODO: misi ketiga."];
-}
-
-export function placeholderLinimasa(): { tahun: string; teks: string }[] {
-  // TODO(konten): the congregation's timeline (year + short event), 4 milestones.
-  return [
-    { tahun: "TODO", teks: "TODO: peristiwa penting, mis. awal persekutuan." },
-    { tahun: "TODO", teks: "TODO: peristiwa penting, mis. pendewasaan jemaat." },
-    { tahun: "TODO", teks: "TODO: peristiwa penting, mis. pembangunan gedung." },
-    { tahun: "TODO", teks: "TODO: peristiwa penting terbaru." },
-  ];
-}
 
 export function placeholderPelayanan(): PelayananItem[] {
   // TODO(konten): the church's regular ministries (§14.2), name + short description + schedule.
@@ -101,14 +53,4 @@ export function placeholderKegiatan(): KegiatanItem[] {
     tempat: "TODO: tempat",
     photo: null,
   }));
-}
-
-export function placeholderKontak(): KontakInfo {
-  // TODO(konten): the church's address, secretariat phone/WhatsApp, email, and office hours (§14.1 Kontak).
-  return { alamat: null, telepon: null, email: null, jamSekretariat: null, mapsUrl: null };
-}
-
-export function placeholderRekening(): RekeningInfo | null {
-  // TODO(konten): bank account details for offerings (§14.1 Persembahan), supplied by the church.
-  return null;
 }

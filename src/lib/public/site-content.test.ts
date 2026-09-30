@@ -1,0 +1,162 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { PublicProfilRow } from "@/lib/public-site";
+import type { PublicScheduleRow } from "@/lib/public-schedule";
+
+vi.hoisted(() => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://contoh.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
+});
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/public-site", () => ({
+  loadJadwalPekanIni: vi.fn(),
+  loadLatestPublicWarta: vi.fn(),
+  loadPublicProfil: vi.fn(),
+}));
+
+const { loadJadwalPekanIni, loadLatestPublicWarta, loadPublicProfil } = await import("@/lib/public-site");
+const { kebaktianMingguTimes, loadBerandaContent, loadKontakContent, loadSosialMedia, loadTentangKamiContent } =
+  await import("./site-content");
+
+const EMPTY: PublicProfilRow = {
+  hero_judul: null,
+  hero_subjudul: null,
+  hero_foto_path: null,
+  hero_foto_alt: null,
+  sambutan_teks: null,
+  sambutan_nama: null,
+  sambutan_jabatan: null,
+  sambutan_foto_path: null,
+  sambutan_foto_alt: null,
+  sejarah: null,
+  visi: null,
+  misi: [],
+  sejarah_foto_path: null,
+  sejarah_foto_alt: null,
+  alamat: null,
+  telepon: null,
+  email: null,
+  jam_sekretariat: null,
+  maps_url: null,
+  instagram_url: null,
+  youtube_url: null,
+  facebook_url: null,
+  nama_bank: null,
+  nomor_rekening: null,
+  atas_nama: null,
+  qris_foto_path: null,
+  qris_foto_alt: null,
+  linimasa: [],
+};
+
+const PHOTO = "profil/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1.jpg";
+
+function row(overrides: Partial<PublicScheduleRow>): PublicScheduleRow {
+  return {
+    id: "r",
+    tanggal: "2026-10-04",
+    jam: null,
+    categoryKey: "umum",
+    categoryName: "Kebaktian Minggu",
+    tempatNama: null,
+    wilayahNama: null,
+    dpa: null,
+    tema: null,
+    pelayanFirmanNama: null,
+    liturgosNama: null,
+    pemusikNama: null,
+    bahanAlkitab: null,
+    kehadiranLakiLaki: null,
+    kehadiranPerempuan: null,
+    kehadiranAnak: null,
+    catatan: null,
+    smkaKelompok: [],
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.mocked(loadJadwalPekanIni).mockResolvedValue({ data: [], error: null });
+  vi.mocked(loadLatestPublicWarta).mockResolvedValue({ data: null, error: null });
+  vi.mocked(loadPublicProfil).mockResolvedValue({ data: EMPTY, error: null });
+});
+
+describe("kebaktianMingguTimes", () => {
+  it("lists this week's Kebaktian Minggu times, distinct and in order", () => {
+    expect(
+      kebaktianMingguTimes([
+        row({ jam: "09:30:00" }),
+        row({ jam: "07:00:00" }),
+        row({ jam: "07:00:00" }),
+        row({ jam: "18:00:00", categoryKey: "krt" }),
+        row({ jam: null }),
+      ]),
+    ).toBe("07.00 & 09.30 WIB");
+    expect(kebaktianMingguTimes([row({ categoryKey: "pa", jam: "19:00:00" })])).toBeNull();
+  });
+});
+
+describe("empty Profil Gereja fields hide their sections (brief §14.6)", () => {
+  it("Beranda: default hero title, no subtitle/photo/sambutan/kontak/rekening", async () => {
+    const content = await loadBerandaContent();
+    expect(content).toMatchObject({
+      heroTitle: "GKP Rangkasbitung",
+      heroSubtitle: null,
+      heroPhoto: null,
+      kebaktianMinggu: null,
+      sambutan: null,
+      kontak: null,
+      rekening: null,
+    });
+  });
+
+  it("Beranda: filled fields come through, photos as public bucket URLs", async () => {
+    vi.mocked(loadPublicProfil).mockResolvedValue({
+      data: {
+        ...EMPTY,
+        hero_judul: "Judul",
+        hero_foto_path: PHOTO,
+        hero_foto_alt: "Gedung",
+        sambutan_teks: "Sambutan",
+        alamat: "Alamat",
+        nama_bank: "Bank",
+        nomor_rekening: "123",
+        atas_nama: "Nama",
+      },
+      error: null,
+    });
+    const content = await loadBerandaContent();
+    expect(content.heroTitle).toBe("Judul");
+    expect(content.heroPhoto).toEqual({
+      url: `https://contoh.supabase.co/storage/v1/object/public/situs/${PHOTO}`,
+      alt: "Gedung",
+    });
+    expect(content.sambutan).toEqual({ teks: "Sambutan", nama: null, jabatan: null, photo: null });
+    expect(content.kontak?.alamat).toBe("Alamat");
+    expect(content.rekening).toEqual({ namaBank: "Bank", nomorRekening: "123", atasNama: "Nama", qris: null });
+  });
+
+  it("a photo path the server wouldn't generate is never turned into a URL", async () => {
+    vi.mocked(loadPublicProfil).mockResolvedValue({
+      data: { ...EMPTY, hero_foto_path: "../../rahasia.jpg", hero_foto_alt: "x" },
+      error: null,
+    });
+    expect((await loadBerandaContent()).heroPhoto).toBeNull();
+  });
+
+  it("Kontak: no fields → kontak null and no WhatsApp link; a number → a wa.me link", async () => {
+    expect(await loadKontakContent()).toEqual({ data: { kontak: null, waLink: null }, error: null });
+
+    vi.mocked(loadPublicProfil).mockResolvedValue({ data: { ...EMPTY, telepon: "081234567890" }, error: null });
+    const content = await loadKontakContent();
+    expect(content.data?.waLink).toBe("https://wa.me/6281234567890");
+  });
+
+  it("footer: no social links → null; a failed load → null, not an error", async () => {
+    expect(await loadSosialMedia()).toBeNull();
+    vi.mocked(loadPublicProfil).mockResolvedValue({ data: null, error: "profil gereja" });
+    expect(await loadSosialMedia()).toBeNull();
+    const tentang = await loadTentangKamiContent();
+    expect(tentang.profil.error).toBe("profil gereja");
+  });
+});

@@ -12,7 +12,7 @@
 - [x] 9b. Public site (§8)
 - [x] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
 - [x] 9c. Public UI sesuai docs/design/ (layout + placeholder, lapisan data terpisah)
-- [ ] 11a. Upload foto + Profil Gereja (§14.1, §14.5)
+- [x] 11a. Upload foto + Profil Gereja (§14.1, §14.5)
 - [ ] 11b. Pelayanan, Majelis, Kegiatan + sambungkan halaman publik ke data (§14.2–14.4, §14.6)
 ## Notes / decisions
 
@@ -858,3 +858,199 @@ Visual-only stage on top of stage 9b's data layer: no migration, no new route, n
   - `/jadwal-ibadah` → 7 `role="tab"` elements.
   - Anon REST `jemaat` and `sarana_dana_transactions` → 401, unchanged from stage 2/9b.
 - **Not verified yet**: an actual browser (dark theme, 360px layout, and pointer/keyboard use beyond what the component tests exercise — the mobile slide-over menu's focus return, the brand-vs-plain header's visual seam at the `md` breakpoint, and the schedule tabs' wrapping at 360px). No browser tool was available in this session.
+
+### Stage 11a (Upload foto + Profil Gereja), 2026-09-30
+
+**Before deploying to production**
+- Push migration `0029_situs_profil_gereja.sql` together with 0018–0028. It creates the `situs` bucket itself (public, 5 MB, JPEG/PNG/WebP).
+- After pushing, upload one photo in production. `private.enforce_situs_photo_paths` is a definer function owned by `postgres` that reads `storage.objects`. If a photo that was just uploaded gets "Foto tidak ditemukan di penyimpanan.", the hosted `postgres` role doesn't bypass RLS on `storage.objects`, and the check needs another way to read it.
+- Vercel caps a request body at 4.5 MB before the route runs. The browser shrinks a file over 4 MB first (see below), so a 4.5–5 MB photo still works.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Service role for storage** (an approved addition to brief §3): `lib/supabase/storage-admin.ts` (`server-only`) exports only `uploadSitusObject`, `removeSitusObjects`, and `listSitusObjects`, all limited to the `situs` bucket.
+  - The client is never exported.
+  - The bucket has **no** storage policy, so anon and authenticated can't insert, update, delete, or list (pgTAP and integration tested). Public read works by URL only.
+- **Body limit / Vercel**: the server accepts up to 5 MB (brief).
+  - `PhotoField` shrinks a file over 4 MB in the browser (canvas, long edge 2000 px). A PNG that is still too big becomes a JPEG.
+  - The server still validates and re-encodes whatever arrives.
+  - A 413 from the platform shows "File terlalu besar untuk diunggah…".
+- **Output format** follows the input: JPEG → JPEG q85 (mozjpeg), PNG → PNG lossless (so QRIS stays sharp), WebP → WebP q85.
+- **Public pages render per request.**
+  - Tentang Kami and Kontak lost `revalidate = 86400` and now read through `connection()`, like 9b's data pages.
+  - The public layout loads the footer's social links, so every public page is dynamic.
+  - Why not static: a static page would read the production DB at `next build`, and an edit made through REST would show up to a day late.
+  - Every `situs` mutation still calls `revalidatePath("/", "layout")` and revalidates `/admin/profil-gereja`.
+- **Hero "Kebaktian Minggu" card**: 9c filled it with jam sekretariat, which is wrong for that label. It now lists this week's Kebaktian Minggu (`umum`) times from `public_jadwal_pekan_ini`, for example "07.00 & 09.30 WIB", and is hidden when there are none. The Lokasi card uses alamat and is hidden when empty.
+- **Social links** go in the footer on every public page ("Ikuti kami", as in the beranda mockup). They are text links, because lucide 1.x has no brand icons, and are hidden when none is set.
+- **Sidebar**: only Profil Gereja for now, under the heading "Konten Situs" after Label Jemaat.
+  - `NavItem.group`: consecutive entries with the same group render in a `role="group"` block with a heading.
+  - Stage 11b adds Pelayanan, Majelis, and Kegiatan to the same group.
+- **Linimasa `tahun`** is free text, at most 20 characters (e.g. "1950-an").
+
+**0029 migration**
+- **Permissions**: `situs:{create,read,update,delete}` and `situs_rekening:update`, seeded per §14.
+  - `set_role_ui_permissions` (0028, `create or replace`) now covers both resources.
+  - `VISIBLE_RESOURCES` and the `Resource` type include both, so they appear in the permission matrix. `situs_rekening` shows "—" for create, read, and delete.
+- **`profil_gereja`** is a singleton: `id smallint primary key default 1` with `check (id = 1)`, seeded with one row. Authenticated has no insert, delete, or truncate on it. Checks:
+  - every text column: not blank (blank is stored as null) and a length cap;
+  - `telepon` `^[0-9]{8,15}$`; email format;
+  - `maps_url`: https with host `google.com`, `www.google.com`, or `maps.google.com` and a `/maps` path, or `maps.app.goo.gl/…`;
+  - social URLs: https with the platform's own host (`instagram.com`; `youtube.com` incl. `m.`; `facebook.com` incl. `m.`/`web.`). The host must be followed by "/", so lookalike hosts, `@` userinfo, and ports fail;
+  - `misi text[]`: at most 20 lines, each non-blank and at most 500 characters (`private.is_valid_misi`);
+  - photos: path and alt both set or both null, alt required, and the path must match `{folder}/{uuid v4}.{jpg|png|webp}` (`private.is_situs_photo_path`).
+- **`profil_gereja_rekening`** is a separate singleton, so RLS alone limits writes to `situs_rekening:update`.
+  - Nama bank, nomor rekening, and atas nama are all set or all empty.
+  - `nomor_rekening` is digits, optionally grouped with spaces or dashes.
+  - It also holds the QRIS photo pair.
+- **`update_profil_gereja_rekening(...)`** (invoker, checks `situs_rekening:update`) locks the row, updates it, and returns `{old, new}` for the activity log. Every argument defaults to null.
+- **`profil_gereja_linimasa`**: insert needs `situs:create`, update needs `situs:update`, and delete needs `situs:delete` (so editor can't delete). `reorder_profil_linimasa(ids)` has the same contract as `reorder_litbang_categories`.
+- **`private.enforce_situs_photo_paths`** (trigger, definer): a photo path that changes must exist in `storage.objects` in the `situs` bucket (22023 "Foto tidak ditemukan di penyimpanan.").
+  - A malformed path is left to the CHECK (23514).
+  - So no write path, REST included, can store a broken reference.
+- **`public_profil_gereja()`** (definer, anon and authenticated) returns jsonb with exactly the public fields plus `linimasa`, and no `updated_at`. anon has no privileges on the three tables.
+- **`situs_referenced_photo_paths()`** (definer, needs `situs:update`) returns every path a row refers to. Stage 11b adds its tables here and its folders to `SITUS_FOLDERS` in `lib/situs-photos.ts`.
+
+**Photo pipeline (reusable for 11b)**
+- **`lib/image-processing.ts`**:
+  1. Check the magic bytes (JPEG `FFD8FF`, the PNG signature, or `RIFF….WEBP`). SVG, GIF, scripts, and everything else are refused before sharp sees them.
+  2. sharp's own `format` must agree with the magic bytes. Decoding uses `limitInputPixels` 60 MP and reads the first frame only.
+  3. `.autoOrient()`, then resize to fit inside 2000 px (`withoutEnlargement`).
+  4. Re-encode with no `keepMetadata`, so EXIF/GPS, XMP, ICC, and appended bytes are all gone.
+
+  `sharp` is pinned to 0.35.4, the version Next already ships.
+- **`lib/situs-photos.ts`**:
+  - `withPhotoSlot(shape)`: a multipart schema whose `foto_file` / `foto_alt` / `foto_hapus` fields become `input.foto`.
+  - `savePhotoSlot({ folder, slot, current, write })`:
+    1. Validate and re-encode the photo.
+    2. Upload it as `{folder}/{randomUUID}.{ext}`.
+    3. Call `write(next)`.
+    4. If `write` fails, delete the new object.
+    5. On success, delete the old object only if `situs_referenced_photo_paths` no longer lists it.
+    6. Sweep: delete unreferenced objects older than 15 minutes.
+
+    Steps 4–6 never fail the request; a leftover object waits for the next sweep.
+  - Accepted risk: a REST write that re-points a row at the old path between step 5's check and the delete would break that reference. It needs a deliberate REST call timed into that gap.
+- **`mutation({ multipart: { maxBytes, tooLarge } })`** uses `parseMultipart` / `readLimitedBody` in `lib/api.ts`.
+  - It refuses early on Content-Length and also counts bytes while streaming.
+  - The limit is 5 MB + 64 KB. Over it: 400 "Ukuran foto maksimal 5 MB." (§10 lists no 413).
+- **`apiFetch`** sends a `FormData` body as multipart.
+- **Client**:
+  - `lib/photo-upload-client.ts`: `prepareUpload` and `appendPhotoFields`.
+  - `components/shared/photo-field.tsx`: preview, "Pilih Foto" / "Ganti Foto" / "Hapus Foto", and alt text that is required whenever a photo will exist.
+- **`next.config.ts`**:
+  - `images.remotePatterns` allows only `{NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/situs/**`.
+  - `dangerouslyAllowLocalIP` is on only when that URL is 127.0.0.1 or localhost.
+
+**Routes (`lib/profil-gereja-routes.ts`)**
+- PATCH, multipart:
+  - `/api/admin/profil-gereja/beranda`, `/sambutan`, and `/tentang` need `situs:update`.
+  - `/persembahan` needs `situs_rekening:update`. Uploading or removing the QRIS file also needs `situs:update`.
+- PATCH, JSON: `/kontak` and `/sosial-media`. URLs are normalized through `new URL()` (scheme and host lowercased), then checked against the same patterns as the DB.
+- Linimasa:
+  - `POST /linimasa` (`situs:create`; appends at max + 1);
+  - `PATCH /linimasa/[id]` (`situs:update`);
+  - `DELETE /linimasa/[id]` (`situs:delete`);
+  - `POST /linimasa/reorder` (`situs:update`).
+- Activity log, module `situs` (label "Konten Situs"):
+  - `Mengubah profil gereja bagian {Beranda|Sambutan|Tentang|Kontak|Sosial Media}`, plus " (foto ditambahkan|diganti|dihapus)" or " (teks alternatif foto diubah)" when the photo changed;
+  - `Mengubah rekening persembahan: nama bank (kosong) → "…"; nomor rekening "…" → "…"; QRIS diganti`, built from the RPC's old and new values;
+  - `Menambah|Mengubah|Menghapus linimasa "{tahun} · {teks…}"`;
+  - `Mengubah urutan linimasa`.
+
+**UI**
+- `/admin/profil-gereja` (`situs:read`) is built from one generic `ProfilFormSection`: field configs, an optional photo, and one "Simpan". After a save, the form takes its values back from the response.
+- Linimasa follows the Litbang pattern:
+  - dnd-kit with keyboard support and Indonesian announcements;
+  - optimistic order with rollback;
+  - Simpan per item;
+  - Hapus only with `situs:delete`.
+- Persembahan is read-only without `situs_rekening:update` and says so. The QRIS picker is locked without `situs:update`.
+- **Public site**:
+  - Profil placeholders are gone. Pelayanan, Majelis, and Kegiatan stay placeholders until 11b.
+  - Hidden when empty (§14.6):
+    - on Beranda: the hero subtitle and photo, each hero info card, Sambutan, and the Persembahan band (shown only when all three account fields are set; the QRIS image only when present);
+    - on Tentang Kami: Sejarah, Linimasa, Visi, and Misi;
+    - on Kontak (and Beranda's Kunjungi Kami): each contact card, the WhatsApp button, and the Maps link;
+    - in the footer: the social links.
+  - The hero always shows. Its title falls back to "GKP Rangkasbitung".
+  - Kontak with no data at all says "Informasi kontak belum tersedia."
+  - `MapPlaceholder` is replaced by `MapLink`, a card that opens Google Maps in a new tab.
+    - There is no iframe, because a share link can't be embedded and an embed loads Google tracking.
+  - The hero section got `isolate`. Without it, the photo (negative z-index) would sit behind the band's own background.
+  - Multi-line text uses `whitespace-pre-line`, never HTML.
+
+**Verification (stage 11a)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/profil-gereja` and the nine API routes are in the route list, and `/tentang-kami` and `/kontak` are now ƒ.
+- `pnpm test`: 220 tests, 33 files. New:
+  - `image-processing.test.ts` (10):
+    - sniffing by magic bytes;
+    - PHP renamed to `.jpg`, SVG with `<script>`, over 5 MB, and a JPEG header glued onto garbage are refused;
+    - EXIF, GPS, and Make are gone (no "Exif" bytes left);
+    - an appended `<?php` payload is dropped;
+    - 3000×1500 becomes 2000×1000, and small images aren't enlarged;
+    - the EXIF orientation is applied, then stripped.
+  - `profil-gereja.test.ts` (8): URL, phone, misi, and rekening validators, including lookalike hosts.
+  - `api.test.ts` (6): the Content-Length and streamed body limits, and multipart parsing.
+  - `site-content.test.ts` (6): empty fields hide their sections, the default hero title, the photo path guard, the wa.me link, and the Kebaktian Minggu times.
+  - `profil-gereja-editor.test.tsx` (5):
+    - read-only mode;
+    - an editor without rekening access;
+    - alt text required before any request;
+    - one multipart request per section;
+    - the all-or-none rekening check.
+- `pnpm test:db`: 15 files, 445 tests. New `situs_profil_gereja.test.sql` (56):
+  - the permission seed; the bucket settings, with no storage policy for `situs`;
+  - the singletons;
+  - every CHECK, including lookalike, userinfo, http, and `javascript:` URLs;
+  - a path with no object is refused;
+  - anon: no table access, exactly the public keys, and no bucket write;
+  - viewer: read-only;
+  - editor: may edit content; rekening refused both directly and through the RPC; no bucket write or list; no linimasa delete;
+  - reorder, stale and valid;
+  - the referenced-paths function;
+  - admin's RPC returning old and new values;
+  - the permission editor accepting `situs`.
+- `pnpm test:integration`: 9 files, 123 tests. New `profil-gereja.test.ts` (18) covers every item on the stage's test list:
+  - **Access**: 401 without a session; viewer 403 on every write, with nothing written.
+  - **Upload validation**: PHP-as-.jpg, SVG, and over 5 MB → 400 with nothing uploaded; alt text required.
+  - **Stored file**: a GPS JPEG is stored without metadata, under a random name, and is publicly readable; an appended payload is dropped.
+  - **Replace and remove**:
+    - replacing deletes the old object, while an alt-only change keeps it;
+    - a simulated DB failure deletes the new object and leaves the row unchanged;
+    - removing the photo deletes its object.
+  - **Sweep**: respects the grace period and keeps referenced objects.
+  - **Direct storage and REST**: anon and editor uploads and removes are refused; a REST path to a missing object is refused.
+  - **Kontak / Sosial Media**: validation and normalization.
+  - **Persembahan**:
+    - editor through the route, REST, and the RPC: all refused;
+    - admin saves, with old and new values in the log, and a QRIS PNG;
+    - a partly filled account → 400.
+  - **Linimasa**: add, edit, and reorder; a stale reorder is refused; editor delete → 403; admin delete works.
+  - **Public read**: anon gets only the public fields.
+- **Mutation checks**:
+  - removing the rollback delete fails the DB-failure test;
+  - removing the old-object delete fails 2 tests;
+  - `.keepMetadata()` fails 2 unit tests and 1 integration test;
+  - skipping the magic-byte gate fails the PHP/SVG test;
+  - loosening the rekening RLS policy to `situs:update` fails 2 pgTAP tests. The policy was restored and the suite passes.
+- **HTTP**, with `next build` + `next start` on :3107, using env overrides for the local stack only:
+  - All public pages → 200.
+  - An empty profile shows the default hero title and hides Sambutan, Persembahan, Kunjungi Kami, and the footer links.
+  - Real cookie sessions through the proxy:
+    - viewer multipart → 403, editor → 200;
+    - a 6 MB body → 400 "Ukuran foto maksimal 5 MB.";
+    - editor Persembahan → 403, admin → 200;
+    - `/admin/profil-gereja` → 200 for viewer and editor.
+  - Every filled field showed on Beranda, Tentang Kami, and Kontak: the wa.me link, the maps link, and Instagram only (YouTube was empty and hidden).
+  - `/_next/image` for the hero → 200 image/jpeg.
+  - A 2600×1400 JPEG with GPS was stored as 2000×1077 with no EXIF/XMP.
+
+  The fixtures and objects were removed afterwards, and the normal build was rerun; no local URL is left in `.next`.
+- **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only). It matters most for:
+  - `PhotoField` (a hidden file input behind a button, and the preview);
+  - the canvas shrink for files over 4 MB, which jsdom can't run;
+  - Linimasa pointer and touch dragging;
+  - the new sidebar group heading;
+  - the permission matrix with two more resources;
+  - the hero with a real photo.
+- The local database was reset once (`supabase db reset --local`) while 0029 was being written. It is now at 0029 with the seed.

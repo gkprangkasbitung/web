@@ -214,3 +214,52 @@ export async function loadJadwalMendatang(): Promise<Result<PublicScheduleRow[]>
     return failure("jadwal mendatang", parseError);
   }
 }
+
+const nullableText = z.string().nullable();
+const profilSchema = z.object({
+  hero_judul: nullableText,
+  hero_subjudul: nullableText,
+  hero_foto_path: nullableText,
+  hero_foto_alt: nullableText,
+  sambutan_teks: nullableText,
+  sambutan_nama: nullableText,
+  sambutan_jabatan: nullableText,
+  sambutan_foto_path: nullableText,
+  sambutan_foto_alt: nullableText,
+  sejarah: nullableText,
+  visi: nullableText,
+  misi: z.array(z.string()),
+  sejarah_foto_path: nullableText,
+  sejarah_foto_alt: nullableText,
+  alamat: nullableText,
+  telepon: nullableText,
+  email: nullableText,
+  jam_sekretariat: nullableText,
+  maps_url: nullableText,
+  instagram_url: nullableText,
+  youtube_url: nullableText,
+  facebook_url: nullableText,
+  nama_bank: nullableText,
+  nomor_rekening: nullableText,
+  atas_nama: nullableText,
+  qris_foto_path: nullableText,
+  qris_foto_alt: nullableText,
+  linimasa: z.array(z.object({ tahun: z.string(), teks: z.string() })),
+});
+
+export type PublicProfilRow = z.infer<typeof profilSchema>;
+
+/**
+ * Profil Gereja for Beranda, Tentang Kami, Kontak, and the footer (brief
+ * §14.6), through `public_profil_gereja()` (0029), which returns only the
+ * fields the site shows. Wrapped in React `cache` so the layout (footer)
+ * and the page share one load per request.
+ */
+export const loadPublicProfil = cache(async (): Promise<Result<PublicProfilRow>> => {
+  await connection();
+  const { data, error } = await createPublicClient().rpc("public_profil_gereja");
+  if (error) return failure("profil gereja", error);
+  const parsed = profilSchema.safeParse(data);
+  if (!parsed.success) return failure("profil gereja", parsed.error);
+  return { data: parsed.data, error: null };
+});

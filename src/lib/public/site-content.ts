@@ -1,8 +1,17 @@
 import "server-only";
 
 import { weekContaining, type DateRange } from "@/lib/dates";
-import { loadJadwalPekanIni, loadLatestPublicWarta, type PublicWartaListItem, type Result } from "@/lib/public-site";
+import { formatJam } from "@/lib/peribadahan";
+import {
+  loadJadwalPekanIni,
+  loadLatestPublicWarta,
+  loadPublicProfil,
+  type PublicProfilRow,
+  type PublicWartaListItem,
+  type Result,
+} from "@/lib/public-site";
 import type { PublicScheduleRow } from "@/lib/public-schedule";
+import { situsPhotoUrl } from "@/lib/situs-photo";
 
 import * as placeholder from "./placeholder-content";
 import { buildWaLink } from "./whatsapp";
@@ -12,15 +21,13 @@ import { buildWaLink } from "./whatsapp";
  * one function per page, each returning everything that page's components
  * need as typed props. Components never fetch on their own.
  *
- * Two kinds of fields:
- * - real, database-backed data (`Result<T>`, from `lib/public-site.ts`
- *   /`lib/public-schedule.ts`, stage 9b) — can fail, the page shows an
- *   inline error for just that piece;
- * - placeholder data (`./placeholder-content.ts`) for modules that don't
- *   exist yet (Profil Gereja, Pelayanan, Majelis, Kegiatan, Kontak,
- *   Rekening) — always present, never fails, clearly marked TODO. Stage
- *   11a/11b/14 replace only the functions in that file; this module and
- *   every component stay as they are.
+ * Three kinds of fields:
+ * - schedule and warta (`lib/public-site.ts`, stage 9b) — can fail, the page
+ *   shows an inline error for just that piece;
+ * - Profil Gereja (`public_profil_gereja()`, stage 11a) — an empty field is
+ *   `null` and its section is hidden (brief §14.6), never a placeholder;
+ * - placeholder data (`./placeholder-content.ts`) for Pelayanan, Majelis, and
+ *   Kegiatan until stage 11b — always present, clearly marked TODO.
  */
 
 export type PublicPhoto = { url: string; alt: string } | null;
@@ -52,51 +59,122 @@ export type KontakInfo = {
   mapsUrl: string | null;
 };
 
-export type RekeningInfo = { namaBank: string; nomorRekening: string; atasNama: string; qrisUrl: string | null };
+export type SosialMedia = { instagram: string | null; youtube: string | null; facebook: string | null };
 
-export type BerandaContent = {
-  heroTitle: string;
-  heroSubtitle: string;
-  heroPhoto: PublicPhoto;
-  jadwalMingguIni: Result<PublicScheduleRow[]>;
-  jadwalMingguIniRange: DateRange;
-  wartaTerbaru: Result<PublicWartaListItem | null>;
-  sambutan: { text: string; pastorName: string; pastorTitle: string; photo: PublicPhoto };
-  pelayanan: PelayananItem[];
-  kegiatan: KegiatanItem[];
-  kontak: KontakInfo;
-  rekening: RekeningInfo | null;
-};
+export type RekeningInfo = { namaBank: string; nomorRekening: string; atasNama: string; qris: PublicPhoto };
 
-export async function loadBerandaContent(): Promise<BerandaContent> {
-  const [jadwalMingguIni, wartaTerbaru] = await Promise.all([loadJadwalPekanIni(), loadLatestPublicWarta()]);
+export type SambutanInfo = { teks: string; nama: string | null; jabatan: string | null; photo: PublicPhoto };
+
+// Only names the server generates (0029's private.is_situs_photo_path).
+const PHOTO_PATH = /^[a-z]+\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+
+function toPhoto(path: string | null, alt: string | null): PublicPhoto {
+  return path && alt && PHOTO_PATH.test(path) ? { url: situsPhotoUrl(path), alt } : null;
+}
+
+function toKontak(row: PublicProfilRow): KontakInfo | null {
+  const kontak = {
+    alamat: row.alamat,
+    telepon: row.telepon,
+    email: row.email,
+    jamSekretariat: row.jam_sekretariat,
+    mapsUrl: row.maps_url,
+  };
+  return Object.values(kontak).some((value) => value !== null) ? kontak : null;
+}
+
+function toRekening(row: PublicProfilRow): RekeningInfo | null {
+  if (!row.nama_bank || !row.nomor_rekening || !row.atas_nama) return null;
   return {
-    ...placeholder.placeholderHero(),
-    jadwalMingguIni,
-    jadwalMingguIniRange: weekContaining(),
-    wartaTerbaru,
-    sambutan: placeholder.placeholderSambutan(),
-    pelayanan: placeholder.placeholderPelayanan(),
-    kegiatan: placeholder.placeholderKegiatan(),
-    kontak: placeholder.placeholderKontak(),
-    rekening: placeholder.placeholderRekening(),
+    namaBank: row.nama_bank,
+    nomorRekening: row.nomor_rekening,
+    atasNama: row.atas_nama,
+    qris: toPhoto(row.qris_foto_path, row.qris_foto_alt),
   };
 }
 
-export type TentangKamiContent = {
-  sejarah: { title: string; text: string; photo: PublicPhoto };
-  visi: string;
-  misi: string[];
-  linimasa: { tahun: string; teks: string }[];
-  majelis: MajelisItem[];
+/** Beranda's "Kebaktian Minggu" card: this week's Kebaktian Minggu times, e.g. "07.00 & 09.30 WIB". */
+export function kebaktianMingguTimes(rows: PublicScheduleRow[]): string | null {
+  const times = [...new Set(rows.filter((row) => row.categoryKey === "umum" && row.jam).map((row) => formatJam(row.jam)))];
+  times.sort();
+  return times.length > 0 ? `${times.join(" & ")} WIB` : null;
+}
+
+export type BerandaContent = {
+  heroTitle: string;
+  heroSubtitle: string | null;
+  heroPhoto: PublicPhoto;
+  kebaktianMinggu: string | null;
+  jadwalMingguIni: Result<PublicScheduleRow[]>;
+  jadwalMingguIniRange: DateRange;
+  wartaTerbaru: Result<PublicWartaListItem | null>;
+  sambutan: SambutanInfo | null;
+  pelayanan: PelayananItem[];
+  kegiatan: KegiatanItem[];
+  kontak: KontakInfo | null;
+  rekening: RekeningInfo | null;
 };
 
-export function loadTentangKamiContent(): TentangKamiContent {
+/** The church's name, when Profil Gereja has no hero title (the hero always shows, brief §2). */
+export const DEFAULT_HERO_TITLE = "GKP Rangkasbitung";
+
+export async function loadBerandaContent(): Promise<BerandaContent> {
+  const [jadwalMingguIni, wartaTerbaru, profilResult] = await Promise.all([
+    loadJadwalPekanIni(),
+    loadLatestPublicWarta(),
+    loadPublicProfil(),
+  ]);
+  // A failed Profil load hides its sections (already logged), like an empty profile.
+  const profil = profilResult.data;
+
   return {
-    sejarah: placeholder.placeholderSejarah(),
-    visi: placeholder.placeholderVisi(),
-    misi: placeholder.placeholderMisi(),
-    linimasa: placeholder.placeholderLinimasa(),
+    heroTitle: profil?.hero_judul ?? DEFAULT_HERO_TITLE,
+    heroSubtitle: profil?.hero_subjudul ?? null,
+    heroPhoto: profil ? toPhoto(profil.hero_foto_path, profil.hero_foto_alt) : null,
+    kebaktianMinggu: jadwalMingguIni.data ? kebaktianMingguTimes(jadwalMingguIni.data) : null,
+    jadwalMingguIni,
+    jadwalMingguIniRange: weekContaining(),
+    wartaTerbaru,
+    sambutan: profil?.sambutan_teks
+      ? {
+          teks: profil.sambutan_teks,
+          nama: profil.sambutan_nama,
+          jabatan: profil.sambutan_jabatan,
+          photo: toPhoto(profil.sambutan_foto_path, profil.sambutan_foto_alt),
+        }
+      : null,
+    pelayanan: placeholder.placeholderPelayanan(),
+    kegiatan: placeholder.placeholderKegiatan(),
+    kontak: profil ? toKontak(profil) : null,
+    rekening: profil ? toRekening(profil) : null,
+  };
+}
+
+export type TentangKamiProfil = {
+  sejarah: string | null;
+  sejarahPhoto: PublicPhoto;
+  visi: string | null;
+  misi: string[];
+  linimasa: { tahun: string; teks: string }[];
+};
+
+export type TentangKamiContent = { profil: Result<TentangKamiProfil>; majelis: MajelisItem[] };
+
+export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
+  const result = await loadPublicProfil();
+  return {
+    profil: result.data
+      ? {
+          data: {
+            sejarah: result.data.sejarah,
+            sejarahPhoto: toPhoto(result.data.sejarah_foto_path, result.data.sejarah_foto_alt),
+            visi: result.data.visi,
+            misi: result.data.misi,
+            linimasa: result.data.linimasa,
+          },
+          error: null,
+        }
+      : { data: null, error: result.error },
     majelis: placeholder.placeholderMajelis(),
   };
 }
@@ -114,9 +192,19 @@ export async function loadJadwalIbadahContent(): Promise<JadwalIbadahContent> {
   return { week: weekContaining(), rows };
 }
 
-export type KontakContent = { kontak: KontakInfo; waLink: string | null };
+export type KontakContent = Result<{ kontak: KontakInfo | null; waLink: string | null }>;
 
-export function loadKontakContent(): KontakContent {
-  const kontak = placeholder.placeholderKontak();
-  return { kontak, waLink: kontak.telepon ? buildWaLink(kontak.telepon) : null };
+export async function loadKontakContent(): Promise<KontakContent> {
+  const result = await loadPublicProfil();
+  if (!result.data) return { data: null, error: result.error };
+  const kontak = toKontak(result.data);
+  return { data: { kontak, waLink: kontak?.telepon ? buildWaLink(kontak.telepon) : null }, error: null };
+}
+
+/** The footer's social links (every public page); null when none is set or the load failed. */
+export async function loadSosialMedia(): Promise<SosialMedia | null> {
+  const { data } = await loadPublicProfil();
+  if (!data) return null;
+  const links = { instagram: data.instagram_url, youtube: data.youtube_url, facebook: data.facebook_url };
+  return Object.values(links).some((value) => value !== null) ? links : null;
 }

@@ -2,8 +2,8 @@ import "server-only";
 
 import { z } from "zod";
 
-import { ApiError, dbError, escapeLike, mutation, rpcError } from "@/lib/api-mutation";
-import { isoDateSchema } from "@/lib/dates";
+import { ApiError, dbError, escapeLike, mutation, rpcError, type RevalidateTarget } from "@/lib/api-mutation";
+import { isoDateSchema, type DateRange } from "@/lib/dates";
 import { listPeopleForPicker, type PersonOptionRow } from "@/lib/jemaat-routes";
 import {
   hasAttendance,
@@ -244,6 +244,42 @@ export async function loadPeribadahanCategoryOverview(
   return { data: { category: categoryRes.data, rows, smkaGroups: groupsRes.data }, error: null };
 }
 
+/**
+ * Every schedule row dated inside `range` (inclusive), ordered by date then
+ * `sort_order` — a warta's Bidang Peribadahan (brief §9.4: the same rows as
+ * the Peribadahan module, read by date range, never copied) and the
+ * dashboard's "jadwal minggu ini".
+ */
+export async function loadPeribadahanRange(
+  supabase: ServerSupabase,
+  range: DateRange,
+): Promise<{ data: PeribadahanOverview | null; error: string | null }> {
+  const refs = await loadReferenceData(supabase);
+  if (!refs.data) return { data: null, error: refs.error };
+  const { categories, tempatOptions, wilayahOptions, jemaatMap } = refs.data;
+
+  const { data: items, error } = await supabase
+    .from("peribadahan_items")
+    .select("*")
+    .gte("tanggal", range.start)
+    .lte("tanggal", range.end)
+    .order("tanggal", { ascending: true })
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (error || !items) return { data: null, error: error?.message ?? "unknown" };
+
+  const categoriesById = new Map(categories.map((c) => [c.id, c]));
+  const tempatMap = new Map(tempatOptions.map((t) => [t.id, t.nama]));
+  const wilayahMap = new Map(wilayahOptions.map((w) => [w.id, w.nama]));
+  const rows = items.map((item) => toItemRow(item, categoriesById, tempatMap, wilayahMap, jemaatMap));
+
+  const smkaItemIds = rows.filter((row) => row.categoryKey === SMKA_KEY).map((row) => row.id);
+  const groupsRes = await loadSmkaGroups(supabase, smkaItemIds, jemaatMap);
+  if (!groupsRes.data) return { data: null, error: groupsRes.error };
+
+  return { data: { rows, categories, tempatOptions, wilayahOptions, smkaGroups: groupsRes.data }, error: null };
+}
+
 /** The dropdown/combobox options the add/edit dialogs need. */
 export async function loadPeribadahanFormOptions(
   supabase: ServerSupabase,
@@ -258,6 +294,9 @@ export async function loadPeribadahanFormOptions(
   }
   return { data: { tempatOptions: tempatRes.data, wilayahOptions: wilayahRes.data, peopleOptions }, error: null };
 }
+
+/** Every warta editor (its schedule and finance sections read these rows) and the dashboard summaries. */
+const WARTA_VIEWS: readonly RevalidateTarget[] = [{ path: "/admin/warta", type: "layout" }, "/admin"];
 
 const NOT_FOUND = "Jadwal tidak ditemukan.";
 
@@ -354,7 +393,7 @@ export const createPeribadahanItem = mutation({
     return {
       data: { id: data.id },
       log: { module: "peribadahan", activity: `Menambah jadwal ${category.data.name} tanggal ${input.tanggal}` },
-      revalidate: ["/admin/peribadahan", `/admin/peribadahan/${category.data.key}`, "/admin/warta"],
+      revalidate: ["/admin/peribadahan", `/admin/peribadahan/${category.data.key}`, ...WARTA_VIEWS],
     };
   },
 });
@@ -403,7 +442,7 @@ export const updatePeribadahanItem = mutation({
     return {
       data: { id: params.id },
       log: { module: "peribadahan", activity: `Mengubah jadwal ${categoryName} tanggal ${current.data.tanggal}` },
-      revalidate: ["/admin/peribadahan", `/admin/peribadahan/${key}`, "/admin/warta"],
+      revalidate: ["/admin/peribadahan", `/admin/peribadahan/${key}`, ...WARTA_VIEWS],
     };
   },
 });
@@ -432,7 +471,7 @@ export const deletePeribadahanItem = mutation({
     return {
       data: { id: params.id },
       log: { module: "peribadahan", activity: `Menghapus jadwal ${categoryName} tanggal ${current.data.tanggal}` },
-      revalidate: ["/admin/peribadahan", `/admin/peribadahan/${key}`, "/admin/warta"],
+      revalidate: ["/admin/peribadahan", `/admin/peribadahan/${key}`, ...WARTA_VIEWS],
     };
   },
 });

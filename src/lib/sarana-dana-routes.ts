@@ -2,13 +2,14 @@ import "server-only";
 
 import { z } from "zod";
 
-import { ApiError, dbError, mutation } from "@/lib/api-mutation";
-import { isoDateSchema } from "@/lib/dates";
+import { ApiError, dbError, mutation, type RevalidateTarget } from "@/lib/api-mutation";
+import { isoDateSchema, type DateRange } from "@/lib/dates";
 import { formatRupiah } from "@/lib/format";
 import { listPeopleForPicker, type PersonOptionRow } from "@/lib/jemaat-routes";
 import { TRANSACTION_TIPE, type TransactionTipe } from "@/lib/sarana-dana";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { optionalText } from "@/lib/validation";
+import type { Database } from "@/types/database";
 
 export type SaranaDanaItemRow = {
   id: string;
@@ -83,13 +84,6 @@ export async function loadSaranaDanaLedger(
   const { data: transactions, error } = await query;
   if (error || !transactions) return { data: null, error: error?.message ?? "unknown" };
 
-  const jemaatIds = [...new Set(transactions.map((t) => t.jemaat_id).filter((id): id is string => Boolean(id)))];
-  const jemaatMap = new Map<string, string>();
-  if (jemaatIds.length > 0) {
-    const { data: jemaatRows } = await supabase.from("jemaat").select("id, nama").in("id", jemaatIds);
-    for (const j of jemaatRows ?? []) jemaatMap.set(j.id, j.nama);
-  }
-
   return {
     data: {
       item: {
@@ -100,17 +94,89 @@ export async function loadSaranaDanaLedger(
         saldoAwal: itemRes.data.saldo_awal,
         saldo: balanceRes.data?.saldo ?? 0,
       },
-      rows: transactions.map((t) => ({
-        id: t.id,
-        itemId: t.item_id,
-        tanggal: t.tanggal,
-        tipe: t.tipe as TransactionTipe,
-        jumlah: t.jumlah,
-        jemaatId: t.jemaat_id,
-        jemaatNama: t.jemaat_id ? (jemaatMap.get(t.jemaat_id) ?? null) : null,
-        keterangan: t.keterangan,
-      })),
+      rows: await toTransactionRows(supabase, transactions),
     },
+    error: null,
+  };
+}
+
+type RawTransaction = Database["public"]["Tables"]["sarana_dana_transactions"]["Row"];
+
+/** Maps raw transactions to table rows, resolving the jemaat names in one query. */
+async function toTransactionRows(supabase: ServerSupabase, transactions: RawTransaction[]): Promise<TransactionRow[]> {
+  const jemaatIds = [...new Set(transactions.map((t) => t.jemaat_id).filter((id): id is string => Boolean(id)))];
+  const jemaatMap = new Map<string, string>();
+  if (jemaatIds.length > 0) {
+    const { data: jemaatRows } = await supabase.from("jemaat").select("id, nama").in("id", jemaatIds);
+    for (const j of jemaatRows ?? []) jemaatMap.set(j.id, j.nama);
+  }
+  return transactions.map((t) => ({
+    id: t.id,
+    itemId: t.item_id,
+    tanggal: t.tanggal,
+    tipe: t.tipe as TransactionTipe,
+    jumlah: t.jumlah,
+    jemaatId: t.jemaat_id,
+    jemaatNama: t.jemaat_id ? (jemaatMap.get(t.jemaat_id) ?? null) : null,
+    keterangan: t.keterangan,
+  }));
+}
+
+export type WartaFinanceItem = {
+  id: string;
+  key: string;
+  name: string;
+  /** The four figures, exactly as `sarana_dana_report` computed them (brief §9.7). */
+  report: { saldoAwal: number; pemasukan: number; pengeluaran: number; saldoAkhir: number };
+  rows: TransactionRow[];
+};
+
+/**
+ * A warta's Bidang Sarana dan Dana (brief §9.4): per item, the report for
+ * `range` from the one core formula (`public.sarana_dana_report`, which
+ * wraps the same `private.sarana_dana_report` the public page uses) — never
+ * recomputed here — plus that item's transactions dated inside `range`.
+ * Items come in the report's own order (name, key).
+ */
+export async function loadWartaFinance(
+  supabase: ServerSupabase,
+  range: DateRange,
+): Promise<{ data: WartaFinanceItem[] | null; error: string | null }> {
+  const [reportRes, itemsRes, transactionsRes] = await Promise.all([
+    supabase.rpc("sarana_dana_report", { p_start: range.start, p_end: range.end }),
+    supabase.from("sarana_dana_items").select("id, key"),
+    supabase
+      .from("sarana_dana_transactions")
+      .select("*")
+      .gte("tanggal", range.start)
+      .lte("tanggal", range.end)
+      .order("tanggal", { ascending: false })
+      .order("created_at", { ascending: false }),
+  ]);
+  const error = reportRes.error ?? itemsRes.error ?? transactionsRes.error;
+  if (error || !reportRes.data || !itemsRes.data || !transactionsRes.data) {
+    return { data: null, error: error?.message ?? "unknown" };
+  }
+
+  const idByKey = new Map(itemsRes.data.map((item) => [item.key, item.id]));
+  const rows = await toTransactionRows(supabase, transactionsRes.data);
+
+  return {
+    data: reportRes.data.map((report) => {
+      const id = idByKey.get(report.key) ?? "";
+      return {
+        id,
+        key: report.key,
+        name: report.name,
+        report: {
+          saldoAwal: report.saldo_awal,
+          pemasukan: report.pemasukan,
+          pengeluaran: report.pengeluaran,
+          saldoAkhir: report.saldo_akhir,
+        },
+        rows: rows.filter((row) => row.itemId === id),
+      };
+    }),
     error: null,
   };
 }
@@ -119,6 +185,9 @@ export async function loadSaranaDanaLedger(
 export async function loadSaranaDanaFormOptions(supabase: ServerSupabase): Promise<PersonOptionRow[]> {
   return listPeopleForPicker(supabase);
 }
+
+/** Every warta editor (its schedule and finance sections read these rows) and the dashboard summaries. */
+const WARTA_VIEWS: readonly RevalidateTarget[] = [{ path: "/admin/warta", type: "layout" }, "/admin"];
 
 const itemIdParams = z.object({ id: z.uuid() });
 const transactionParams = z.object({ id: z.uuid(), transactionId: z.uuid() });
@@ -185,7 +254,7 @@ export const updateSaranaDanaItem = mutation({
     return {
       data,
       log: { module: "sarana_dana", activity },
-      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${data.key}`, "/admin/warta"],
+      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${data.key}`, ...WARTA_VIEWS],
     };
   },
 });
@@ -225,7 +294,7 @@ export const createTransaction = mutation({
         module: "sarana_dana",
         activity: `Menambah transaksi ${formatRupiah(data.jumlah)} untuk ${item.data.name} tanggal ${data.tanggal}`,
       },
-      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${item.data.key}`, "/admin/warta"],
+      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${item.data.key}`, ...WARTA_VIEWS],
     };
   },
 });
@@ -263,7 +332,7 @@ export const updateTransaction = mutation({
         module: "sarana_dana",
         activity: `Mengubah transaksi ${formatRupiah(data.jumlah)} untuk ${item.data.name} tanggal ${data.tanggal}`,
       },
-      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${item.data.key}`, "/admin/warta"],
+      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${item.data.key}`, ...WARTA_VIEWS],
     };
   },
 });
@@ -294,7 +363,7 @@ export const deleteTransaction = mutation({
         module: "sarana_dana",
         activity: `Menghapus transaksi ${formatRupiah(data.jumlah)} untuk ${item.data.name} tanggal ${data.tanggal}`,
       },
-      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${item.data.key}`, "/admin/warta"],
+      revalidate: ["/admin/sarana-dana", `/admin/sarana-dana/${item.data.key}`, ...WARTA_VIEWS],
     };
   },
 });

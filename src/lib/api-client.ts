@@ -11,11 +11,21 @@ export class ApiClientError extends Error {
   }
 }
 
+type FetchOptions = { method: "POST" | "PATCH" | "DELETE"; body?: unknown };
+
 /** Calls an admin route handler and returns `data`, or throws `ApiClientError` with the server's message. */
-export async function apiFetch<T>(
+export async function apiFetch<T>(url: string, options: FetchOptions): Promise<T> {
+  return (await apiFetchWithWarning<T>(url, options)).data;
+}
+
+/**
+ * Like `apiFetch`, but also returns the `error` of a 207 (brief §10: the main
+ * write succeeded, a follow-up write failed) so the caller can show it.
+ */
+export async function apiFetchWithWarning<T>(
   url: string,
-  { method, body }: { method: "POST" | "PATCH" | "DELETE"; body?: unknown },
-): Promise<T> {
+  { method, body }: FetchOptions,
+): Promise<{ data: T; warning: string | null }> {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -31,7 +41,7 @@ export async function apiFetch<T>(
   if (!response.ok) {
     throw new ApiClientError(payload?.error ?? "Terjadi kesalahan di server. Coba lagi.", response.status);
   }
-  return payload?.data as T;
+  return { data: payload?.data as T, warning: response.status === 207 ? (payload?.error ?? null) : null };
 }
 
 export function errorMessage(error: unknown): string {

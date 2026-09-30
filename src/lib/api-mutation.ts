@@ -7,9 +7,9 @@ import type { z } from "zod";
 
 import { logActivity } from "@/lib/activity-log";
 import type { ActivityModule } from "@/lib/activity-modules";
-import { fail, ok, parseBody } from "@/lib/api";
+import { fail, ok, parseBody, partial } from "@/lib/api";
 import type { Action, Resource } from "@/lib/auth/permissions";
-import { requirePermissionApi, type AuthUser } from "@/lib/auth/session";
+import { requirePermissionApi, requireUserApi, type AuthUser } from "@/lib/auth/session";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 const GENERIC_ERROR = "Terjadi kesalahan di server. Coba lagi.";
@@ -61,6 +61,26 @@ export function dbError(error: Pick<PostgrestError, "code" | "message">, message
 }
 
 /**
+ * 42501 refusals raised by our own access guards (0021, 0022, 0028), with
+ * hand-written text worth showing. Other 42501s (RLS, missing privileges)
+ * carry raw Postgres text and get the generic message instead.
+ */
+const ACCESS_GUARD_MESSAGES = new Set([
+  "Tidak bisa mencabut akses roles atau users milik akun sendiri.",
+  "Tidak bisa mengubah role akun sendiri.",
+  "Harus ada minimal satu super_admin.",
+  "Role super_admin tidak bisa dihapus.",
+  "Nama role super_admin tidak bisa diubah.",
+  "Permission roles dan users milik super_admin tidak bisa dicabut.",
+]);
+
+/** For plain table writes that can hit an access-guard trigger (roles, role_permissions). */
+export function guardError(error: Pick<PostgrestError, "code" | "message">, messages: DbErrorMessages = {}): Error {
+  if (error.code === "42501" && ACCESS_GUARD_MESSAGES.has(error.message)) return new ApiError(403, error.message);
+  return dbError(error, messages);
+}
+
+/**
  * Translates an error from one of our own atomic RPCs (`supabase.rpc(...)`).
  * Unlike `dbError`, the message is forwarded as-is: every RPC in this
  * codebase raises hand-written Indonesian text for these codes (never a raw
@@ -70,7 +90,9 @@ export function dbError(error: Pick<PostgrestError, "code" | "message">, message
 export function rpcError(error: Pick<PostgrestError, "code" | "message">): Error {
   switch (error.code) {
     case "42501":
-      return new ApiError(403, "Kamu tidak punya akses untuk tindakan ini.");
+      return ACCESS_GUARD_MESSAGES.has(error.message)
+        ? new ApiError(403, error.message)
+        : new ApiError(403, "Kamu tidak punya akses untuk tindakan ini.");
     case "P0002":
     case "PGRST116":
     case "22P02":
@@ -100,6 +122,11 @@ export type MutationSuccess<TData> = {
   log: { module: ActivityModule; activity: string };
   /** Data that changed, so every open view shows it (brief §11). */
   revalidate?: readonly RevalidateTarget[];
+  /**
+   * The main write succeeded but a follow-up write failed (brief §10): the
+   * response is 207 with `{ data, error: partial }`. The activity is still logged.
+   */
+  partial?: string;
 };
 
 type RouteContext = { params: Promise<Record<string, string | string[] | undefined>> };
@@ -113,7 +140,8 @@ type RouteContext = { params: Promise<Record<string, string | string[] | undefin
  * see; anything else is logged and answered with a generic 500.
  */
 export function mutation<TInput = undefined, TParams = Record<string, never>, TData = unknown>(config: {
-  permission: readonly [Resource, Action];
+  /** `"signed-in"`: any signed-in user (Profil Saya); otherwise `[resource, action]`. */
+  permission: readonly [Resource, Action] | "signed-in";
   /** Validates `{ id }` and friends; a mismatch is a 404. */
   params?: z.ZodType<TParams>;
   /** Validates the JSON body. Omit for body-less requests (DELETE). */
@@ -125,7 +153,8 @@ export function mutation<TInput = undefined, TParams = Record<string, never>, TD
   run: (ctx: MutationContext<TInput, TParams>) => Promise<MutationSuccess<TData>>;
 }): (request: Request, context: RouteContext) => Promise<NextResponse> {
   return async (request, context) => {
-    const auth = await requirePermissionApi(...config.permission);
+    const auth =
+      config.permission === "signed-in" ? await requireUserApi() : await requirePermissionApi(...config.permission);
     if (!auth.ok) return auth.response;
 
     let params = {} as TParams;
@@ -162,6 +191,7 @@ export function mutation<TInput = undefined, TParams = Record<string, never>, TD
       }
     }
 
+    if (result.partial) return partial(result.data, result.partial);
     return ok(result.data, config.status ?? 200);
   };
 }

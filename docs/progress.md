@@ -8,8 +8,9 @@
 - [x] 6. Peribadahan (§9.5)
 - [x] 7. Sarana & Dana (§9.7)
 - [x] 8. Litbang template (§9.6)
-- [ ] 9. Warta admin (§9.4) + public site (§8)
-- [ ] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
+- [x] 9a. Warta admin (§9.4) + Dashboard summaries (§9.3, §12.8)
+- [x] 9b. Public site (§8)
+- [x] 10. Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya (§9.11–9.14, §12.3)
 
 ## Notes / decisions
 
@@ -438,3 +439,386 @@
 - `pnpm test:db`: 10 files, 291 tests (17 new, `litbang.test.sql`): viewer reads but can't write; editor writes; editing or deleting a card already copied into a warta leaves that warta's `warta_litbang_items` row untouched (only `litbang_category_id` goes null on delete); deactivating a card doesn't touch the warta's copy; reorder rejects a list with a foreign id even at the right count (the one branch of the existing RPC the stage-2 tests hadn't exercised).
 - `pnpm test:integration`: 5 files, 66 tests. New file `litbang.test.ts` (7 tests): 401/403 on every route including reorder, with nothing written; add/rename/toggle-off/toggle-on/delete each log exactly one activity row with the right sentence; 400 for a blank name and a no-op PATCH body; 404 for a missing/malformed id; reorder saves atomically and rejects a stale (incomplete) list with the RPC's own message; editing then deleting a card already copied into a real `warta_litbang_items` row leaves that row's `name`/`deskripsi` untouched and only nulls `litbang_category_id`.
 - **Not verified yet**: an actual browser (light/dark, 360px, and specifically pointer/touch dragging, which the component tests don't cover — only the keyboard path was exercised, since mouse/touch drag-and-drop can't be driven through Testing Library's `userEvent` the way keyboard activation can). No `next dev` was running at the end of this session; `.env.development.local` still points at the `*.supabase.co` project rather than the local stack (the same pre-existing mismatch noted since stage 3).
+
+### Stage 9a (Warta admin + Dashboard), 2026-09-29
+
+**Before deploying to production**
+- Push migration `0026_warta_rules.sql` together with 0018–0025.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Creating a warta needs no 207 path.** `create_warta` (0022, stage 2) already inserts the draft (`created_by = auth.uid()`) and snapshots the active Litbang cards in one transaction, so "Warta dibuat, tapi gagal menyalin Litbang" can't happen. It was not changed.
+- **Slug**: `slugify("{tanggal}-{judul}")` in `lib/warta.ts` (NFD, strip marks, lowercase, runs of other characters become `-`, trim). One plain attempt, then up to **5 retries** with `-xxxx` (4 base-36 characters from `crypto.getRandomValues`). A retry happens only on `23505` for `warta_slug_key`; there is no check-then-insert. After that, 400 "Gagal membuat alamat unik untuk warta ini. Coba simpan lagi."
+- **`warta_litbang_items` is update-only at the RLS layer.** `warta_litbang_items_write` (`for all`, 0003) is replaced by `warta_litbang_items_update`, the same accepted pattern as 0025's `sarana_dana_items_update`.
+  - Cards come only from `create_warta` (definer, bypasses RLS) and leave only through the FK cascade.
+  - A direct REST insert is refused (`42501`), and a direct delete affects 0 rows.
+- **Tanggal Kebaktian is not restricted to Sunday.** Other services in the week (KRT, PA, Doa Pagi, …) fall on other days anyway. The create form defaults to `nextSunday()`.
+- **Changing Tanggal Kebaktian later keeps the old slug** (§9.4 "never changes"). The service and finance weeks follow the new date.
+- **Transactions in the warta finance tab** use the stage-7 `TransactionDialog` defaults as they are: Tanggal defaults to today, and there are **no** min/max bounds. The brief doesn't restrict transactions to the finance week (unlike "Tambah Jadwal", §12.5). A transaction dated outside the week is saved to the ledger but doesn't show in that tab.
+- **Optimistic concurrency, for Section 1 (Informasi & Renungan) only.**
+  - The PATCH body carries `expectedUpdatedAt`, and the update is `… where id = $1 and updated_at = $2`: compare-and-swap in one statement, with no gap between reading and writing.
+  - 0 rows on a warta that still exists → 400 "Warta ini sudah diubah orang lain sejak kamu membukanya. Muat ulang halaman …". It's 400 rather than 409 because §10 lists only 400/401/403/404. The typed text stays in the form.
+  - The form keeps its base `updated_at` in local state (not the prop), so a refresh from another section can't silently move it forward under unsaved edits. It advances only from its own save's response.
+  - Not applied to:
+    - status: the body is the *target* status, so it's idempotent;
+    - Litbang deskripsi and Kesaksian items: small per-row edits, and those tables have no `updated_at` (same stance as stage 8);
+    - schedule rows and transactions: their own modules.
+
+**0026 migration**
+- `warta_slug_format_check`: `slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'`.
+- `private.enforce_warta_rules()`, `before insert or update` on `warta`:
+  - **Insert** by a signed-in user: `created_by := auth.uid()` and `status := 'draft'`, since publishing needs `warta:update`, not `warta:create`. It stands aside when `auth.uid()` is null (seed, SQL Editor), like 0021.
+  - `published_at` is set on insert from the status; `created_at` / `updated_at` = `now()`.
+  - **Update**: a changed slug raises `22023` "Slug warta tidak bisa diubah." `created_by` and `created_at` revert to the old values.
+  - `published_at`: `now()` when the status becomes published, `null` when it returns to draft, otherwise the old value. A client value is always ignored.
+  - `updated_at` moves **only when an Informasi/Renungan column changes**, so Terbitkan doesn't cause a false concurrency conflict.
+- `private.enforce_warta_litbang_item_rules()`, `before update` on `warta_litbang_items`:
+  - `name` and `warta_id` are fixed (`22023`).
+  - `litbang_category_id` may only become null, which the FK set-null from a deleted template card still needs; the pgTAP test proves it passes.
+
+**Routes and data loading**
+- `lib/warta-routes.ts` uses the `mutation()` pattern:
+  - `POST /api/admin/warta` (`warta:create`);
+  - `PATCH /[id]` (`warta:update`; either `{ status }` or the fields + `expectedUpdatedAt`, with the branch picked by the presence of `status` so Zod reports the field's own message instead of a generic union error);
+  - `DELETE /[id]` (`warta:delete`);
+  - `PATCH /[id]/litbang/[itemId]` (`{ deskripsi }` only);
+  - `POST /[id]/kesaksian`, `PATCH` / `DELETE /[id]/kesaksian/[itemId]`.
+
+  No GET routes (same as stage 8); pages load on the server. Child rows are always filtered by `warta_id` too, so an item addressed under the wrong warta is a 404.
+- Kesaksian appends at `max(sort_order) + 1` within the warta (stage 4's convention).
+- Activity sentences (module `warta`):
+  - `Membuat warta "…" (YYYY-MM-DD)`, `Mengubah warta …`, `Mempublikasikan warta …`, `Menarik warta … ke draft`, `Menghapus warta …`;
+  - `Mengubah litbang "…" pada warta …`;
+  - `Menambah/Mengubah kesaksian "…" pada warta …`, `Menghapus kesaksian "…" dari warta …`.
+- New loaders:
+  - `loadPeribadahanRange(supabase, range)` (peribadahan-routes, reusing `loadReferenceData`/`toItemRow`/`loadSmkaGroups`; ordered by date then `sort_order`).
+  - `loadWartaFinance(supabase, range)` (sarana-dana-routes). The four figures come **only** from `rpc('sarana_dana_report')`, never recomputed in TS. The transactions go through `toTransactionRows`, extracted from `loadSaranaDanaLedger` so both share it.
+  - `loadWartaList` / `loadLatestWarta` / `loadWartaEditor`.
+- Peribadahan and Sarana & Dana mutations now revalidate `/admin/warta` as a **layout** (it was the page only, so `/admin/warta/[id]` was missed) plus `/admin` for the dashboard (`WARTA_VIEWS` in each file).
+- `weekContaining(date)` in `lib/dates.ts`: the Minggu–Sabtu week around a date, for the dashboard, with the same definition as `public_jadwal_pekan_ini`.
+
+**UI**
+- **Peribadahan reuse without a copy.** `PeribadahanManager` was split:
+  - column builders moved to `peribadahan-columns.tsx`, with a new `buildWeekColumns` (Tanggal, Waktu, Jenis, Ringkasan, no sorting, per §9.4);
+  - the add/edit/delete wiring (button, row actions, both dialogs) moved to the `usePeribadahanActions` hook.
+
+  The Peribadahan pages behave as before; the warta section composes the same hook with `defaultDate`/`minDate`/`maxDate` = the service week.
+- `components/warta/`:
+  - `warta-list-manager` (Status facet, date range on tanggal, "Hapus" hidden without `warta:delete`);
+  - `warta-create-form`;
+  - `warta-info-fields` (shared by create and Section 1);
+  - `warta-editor` (back link, judul + status badge + date + slug, Terbitkan/Tarik ke Draft, Hapus Warta);
+  - one file per section;
+  - `warta-status-badge` (Published = accent, Draft = neutral; server-safe, so the dashboard can use it).
+- Each section is a `<section aria-labelledby>` with an `h2`.
+- Litbang cards show the name as fixed text (not an input). Kesaksian items are edited in place, with "Tambah Item Baru" closing the list.
+- The page renders `<WartaEditor key={warta.id}>`, so moving between two warta remounts every form instead of keeping stale local state.
+- **shadcn `tabs`** added (only `tabs.tsx`). Two changes from the generated file:
+  - list height `h-8` → `h-9` (36px controls);
+  - inactive tab text `text-foreground/60` → `text-muted-foreground`, because 60% foreground on `--muted` is about 4.4:1 (under AA), while muted-foreground is about 6.8:1 light / 6.1:1 dark.
+- **Dashboard**:
+  - The existing greeting, roles, permission count, and forbidden notice (stage 1) stay.
+  - With `warta:read` it adds read-only cards: Warta terbaru (status badge + link), Jadwal minggu ini (Minggu–Sabtu containing today in WIB), and Saldo Sarana & Dana (from `sarana_dana_balances`).
+  - A failed summary shows an inline message instead of failing the page.
+
+**Verification (stage 9a)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/warta`, `/admin/warta/new`, `/admin/warta/[id]`, and the five API routes are in the build's route list.
+- `next dev`: a dev server for this folder was already running on :3000 and was left alone. Its log shows clean recompiles after the new route files were added (no route-tree conflict; the only dynamic segment names under `warta` are `[id]` and `[itemId]`).
+- `pnpm test`: 133 tests, 20 files.
+  - `lib/warta.test.ts`: slugify, diacritics, runs/trim, a non-latin judul, and every output matching the DB check; the suffix format.
+  - `weekContaining` tests.
+  - `warta-editor.test.tsx`:
+    - read-only mode: all 5 sections, every textbox disabled, no action buttons or add form;
+    - an editor without delete;
+    - the figures rendered exactly as passed;
+    - publish sends only `{ status }`;
+    - Section 1 sends its starting `updated_at`, then the one the server returned, and keeps the typed text on a conflict;
+    - a blank judul is caught client-side.
+- `pnpm test:db`: 11 files, 323 tests (32 new, `warta.test.sql`):
+  - create_warta snapshot (active only);
+  - a direct insert forced to draft, the caller as author, and no published_at;
+  - slug format; slug update rejected; created_by kept;
+  - published_at set, kept, and cleared;
+  - updated_at moves on content only and can't be set directly;
+  - Litbang copy: deskripsi editable, template untouched; name, warta_id, and category repoint rejected; direct insert and delete refused;
+  - the FK set-null still works;
+  - viewer can't update; editor can't delete; admin deletes;
+  - after a delete, only Litbang and Kesaksian go, while schedule rows, transactions, other warta, and the template stay.
+- `pnpm test:integration`: 6 files, 79 tests. New `warta.test.ts` (13 tests):
+  - 401 and 403 on every route, with nothing written;
+  - the whole lifecycle for §13 #2 (editor creates, edits, publishes, unpublishes; editor delete → 403; admin delete → 200), with exact activity rows (email, IP) and `created_by`/`status`/`published_at`/slug from the body ignored;
+  - validation, and 404 for missing or malformed ids;
+  - a second identical tanggal + judul gets `base-xxxx`;
+  - a REST slug update is refused even for super_admin;
+  - a stale `expectedUpdatedAt` → 400 with nothing written, and a status change doesn't cause a false conflict;
+  - §13 #3: only the active card is copied, and editing warta A's copy changes neither the template nor warta B (a client-sent `name` is ignored);
+  - Kesaksian appends in order;
+  - §13 #4: a row added through the warta's "Tambah Jadwal" path shows on the overview and category loaders, and an edit made there shows in the warta's service-week loader, while a row outside the week doesn't;
+  - the finance tab's figures deep-equal `rpc('sarana_dana_report')` for the finance week, and the tab holds exactly that item's in-range transactions;
+  - deleting a warta leaves its schedule row and transaction.
+
+  `litbang.test.ts` now builds its snapshot with `create_warta` instead of a direct insert, which 0026 refuses.
+- Mutation checks:
+  - dropping both 0026 triggers fails 5 pgTAP tests before the file aborts (it can't disable a trigger that no longer exists);
+  - removing the `updated_at` condition from the UPDATE fails the concurrency integration test;
+  - showing the Kesaksian add form without `warta:update` fails the read-only component test.
+- **Not verified yet**: an actual browser (light and dark, 360px, keyboard-only; in particular the tabs on a narrow screen, the DatePicker inside the Informasi fieldset, and the editor's long page). The running dev server points at the `*.supabase.co` project (`.env.development.local`, the same mismatch noted since stage 3), so no request was made to it.
+- The local database was **not** reset; 0026 was applied with `migration up --local`. The seed inserts warta as `postgres` (where `auth.uid()` is null), so the new trigger stands aside for it, the same way the pgTAP fixtures run.
+
+### Stage 9b (Public site), 2026-09-29
+
+**Before deploying to production**
+- Push migration `0027_public_jadwal_mendatang.sql` together with 0018–0026.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **Reading the warta tables directly as anon.** Stage 2 has no function for the warta header, renungan, Litbang, Kesaksian, or the `/warta` list. They are read straight from `warta`, `warta_litbang_items`, and `warta_kesaksian_items`, which RLS (0019) already limits to published warta. Every query also filters `status = 'published'` and names its columns. The schedule and finance still come **only** from the public functions. No query touches `jemaat`, `keluarga`, or transactions, and no service-role key is used.
+- **Cookie-less public client** (`lib/supabase/public.ts`): anon key, no session, `cache: "no-store"` on every fetch. With the cookie client, a signed-in admin would get `warta:read` through RLS and see drafts on public pages.
+- **Jadwal Ibadah uses a new function, `public_jadwal_mendatang()` (0027).** It returns today through today + 6 in WIB. `public_jadwal_pekan_ini` returns the Minggu–Sabtu week around today, which on a Saturday is mostly past.
+  - The function takes no parameters, so anon can't page through history.
+  - It reuses `private.schedule_rows`.
+  - It returns schedule columns and names only: no attendance, no catatan, no SMKA grid.
+  - Beranda keeps `public_jadwal_pekan_ini` ("this week", brief §2).
+- **Caching: every data page renders per request.** Each loader in `lib/public-site.ts` calls `connection()`. There is no ISR and no `revalidateTag`. Reasons:
+  - "Tarik ke Draft" must take effect immediately, including for writes made outside the app (SQL Editor, or direct REST by a signed-in user).
+  - Too many mutations would otherwise need invalidating, and missing one silently leaves the page stale:
+    - warta status, fields, delete, Litbang deskripsi, and Kesaksian;
+    - every peribadahan write;
+    - every transaction write and `saldo_awal` (they change Saldo Awal of every later week);
+    - tempat and wilayah renames and deletes;
+    - jemaat renames and deletes (names appear in the schedule).
+  - "This week" and "7 days" roll over at midnight WIB.
+  - The load is 3–4 small parallel queries per request.
+  - Without `connection()`, cookie-less fetches would be prerendered at `next build` against the production DB and never refreshed.
+  - So **no mutation needs to revalidate the public site.** The existing admin `revalidatePath` calls stay as they are.
+  - Tentang Kami and Kontak have no data. They are static with `revalidate = 86400`, so the footer's year rolls over.
+- **Placeholders**: visitors see a dashed "Konten sedang disiapkan." block (`PlaceholderBlock`), not a raw "TODO:". Each call site has a `TODO(konten)` comment saying what the church must supply. No church facts were invented, apart from one generic welcome line on Beranda, which is also marked `TODO(konten)`.
+
+**Routes and data loading**
+- Route group `src/app/(public)/`: `/`, `/tentang-kami`, `/jadwal-ibadah`, `/warta`, `/warta/[slug]`, `/kontak`, plus `not-found.tsx` and `error.tsx` (Next 16's `retry()` prop). The old `src/app/page.tsx` placeholder moved in here.
+- **No `loading.tsx` anywhere in the group.** A Suspense boundary starts streaming with status 200, and `notFound()` on `/warta/[slug]` must answer a real 404 (Next 16 docs, loading.md "Status codes").
+- `loadPublicWarta(slug)` is wrapped in React `cache()`, so `generateMetadata` and the page share one load per request.
+  - A malformed slug (the 0026 format) returns null before any query.
+  - A draft or unknown slug returns null → `notFound()`.
+  - A database error throws, and `error.tsx` shows the message.
+- `generateMetadata`: title = judul kebaktian, description = tema (the long date when tema is empty).
+- RPC results are parsed with Zod (`lib/public-schedule.ts`), since the generated types call nullable columns non-null. `numeric` is coerced.
+- `scheduleFields(row)` shows a field only when the row's category layout has it (`layoutFor`, stage 6) **and** it's filled, in §8's order.
+  - An attendance count of 0 counts as filled.
+  - SMKA uses `liturgosLabel` "Pelayan Liturgi". The group table lists exactly the groups `public_warta_schedule` returns, which are only the groups with data.
+- The four finance figures come straight from `public_warta_finance`, never recomputed.
+
+**UI** (`components/public/`)
+- Shell: skip link, sticky header (brand, links with `aria-current`, `ThemeSwitcher`), footer "© {year} GKP Rangkasbitung." with the year in WIB. Below `md`, the links move into a Sheet menu ("Buka menu"), because five links don't fit at 360px.
+- `/warta/[slug]` is one `<article>`: h1 judul, h2 per section, h3 day, h4 service. Renungan, Litbang, and Kesaksian are hidden when empty, per §8. Multi-line text is plain text with `whitespace-pre-line`, with no `dangerouslySetInnerHTML`.
+- The finance figures are a `dl` per item: one column under 400px, then 2, then 4, with tabular figures.
+- Beranda: a hero with the name and this week's services (compact list), the latest warta card, and placeholder sections. A failed section shows an inline message instead of failing the page.
+
+**Verification (stage 9b)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/`, `/jadwal-ibadah`, `/warta`, and `/warta/[slug]` build as ƒ (dynamic). `/kontak` and `/tentang-kami` are ○ with a 1-day revalidate.
+- `pnpm test`: 152 tests, 23 files.
+  - `lib/public-schedule.test.ts`: field order and labels, hidden empty fields, 0 kept, "Pelayan Liturgi", a field outside the layout never shown, the umum fallback, Zod parsing, grouping.
+  - `warta-public-view.test.tsx`: section order and both ranges; a renungan holding `<script>`/`<b>` renders no element and keeps its text; the SMKA table lists only the given groups; the four figures; empty sections hidden.
+  - `public-nav.test.tsx`: five links in order, `aria-current`, and the mobile menu opened by keyboard and closed after a link.
+- `pnpm test:db`: 12 files, 334 tests. New `public_jadwal_mendatang.test.sql` (11 tests): definer, empty search_path, no parameters, anon/authenticated only, the column set, today..+6 in WIB only, and no phone, address, birth date, occupation, or catatan in the output.
+- `pnpm test:integration`: 7 files, 87 tests. New `public-site.test.ts` (8 tests), all through the cookie-less client:
+  - §13 #17: anon `select` on `jemaat`, `keluarga`, `sarana_dana_transactions`, `sarana_dana_balances`, and the schedule tables → `42501`. A published warta loads all sections, with the Pelayan Firman by name and none of their other data.
+  - §13 #5: the public figures deep-equal both the editor's `loadWartaFinance` and `rpc('sarana_dana_report')` for the finance week.
+  - Drafts, unknown slugs, and malformed slugs return null. "Tarik ke Draft" through the real PATCH route makes the next load null and removes the warta from the list; republishing brings it back.
+  - `<script>` in a renungan comes back as the literal text.
+  - `loadJadwalMendatang` returns today..+6 only, without attendance or catatan.
+  - `connection()` is mocked to a no-op there, because it throws outside a Next request.
+- Mutation checks: rendering the renungan with `dangerouslySetInnerHTML` fails the `<script>` test, and dropping the layout filter in `scheduleFields` fails 2 tests.
+- **HTTP**, with `next build` + `next start` on :3107. Both used process-env overrides pointing at the local stack only; the built server bundle was checked to contain no project `*.supabase.co` URL.
+  - All five pages → 200, with titles "{page} | GKP Rangkasbitung", `lang="id"`, and the warta description = tema.
+  - Seeded draft, test draft, unknown slug, `Huruf-Besar`, and an encoded `../` slug → 404.
+  - A renungan with `<script>` and `<img onerror>` appears only HTML-escaped.
+  - Setting the warta to draft in the DB → the very next request is 404, and it's gone from `/warta` and Beranda.
+  - A schedule edit shows on the next request.
+  - Warta pages are sent `Cache-Control: private, no-cache, no-store`.
+  - The fixtures were deleted afterwards, and `pnpm build` was rerun with the normal env.
+- **Not verified yet**: an actual browser (light, dark, and system themes; 360px; keyboard-only use, especially the Sheet menu's focus return and the SMKA table's horizontal scroll on a narrow screen). No browser tool was available in this session.
+- Follow-up outside this stage: an unmatched URL (for example `/halaman-acak`) still gets Next's default English 404, because there is no root `app/not-found.tsx`. A root one would also replace the admin's 404 pages, so it was left alone.
+
+### Stage 10 (Pengguna, Roles & Permissions, Log Aktivitas, Profil Saya), 2026-09-30
+
+**Before deploying to production**
+- Push migration `0028_users_roles_audit.sql` together with 0018–0027.
+- Set `SITE_URL` (server-only) in the hosting environment, and configure Supabase Auth: Site URL, the Redirect URL `https://<domain>/auth/callback**`, and the "Invite user" template. Step by step in `docs/bootstrap-super-admin.md` → "Invites". Without `SITE_URL`, invites fail closed with a 500.
+- Configure custom SMTP in Supabase before inviting in earnest. The built-in sender allows only a few emails per hour.
+- This settles the stage 1 note on the invite template: the link uses `{{ .SiteURL }}`, not `{{ .RedirectTo }}`.
+
+**Decisions approved before starting (plan and questions asked, not decided alone)**
+- **`SITE_URL` is server-only** (`lib/site-url.ts`). It must be an origin only, on https (http only for localhost).
+  - The invite's `redirectTo` is `${SITE_URL}/auth/callback?next=/auth/set-password`. It is never built from Host / Origin / X-Forwarded-Host.
+  - The invite template builds its link from the Supabase Site URL, so a request can't steer the link's domain at all.
+  - Added to `.env.local.example`. Approved despite the `.env*` rule, because the file holds no secret.
+- **The password change asks for the current password.** This is an addition to §9.14. The server:
+  1. checks the password with a throwaway, cookie-less `signInWithPassword` (the email comes from the session, not the request);
+  2. revokes that throwaway session;
+  3. calls `updateUser`;
+  4. calls `signOut({ scope: "others" })`.
+
+  The invite's `/auth/set-password` is unchanged; it has no old password.
+- **The super_admin guards apply on every path**: the service role, the Supabase dashboard, and the SQL Editor. 0021, by contrast, stands aside when `auth.uid()` is null. Manual repair means disabling the trigger inside a transaction (documented).
+- **Role edit dialog** (Nama + Deskripsi) exists; the super_admin name is fixed. `PATCH /api/admin/roles/[id]` takes either `{ permissionIds }` or `{ name, description }`, branched the same way as warta's PATCH.
+- **One user PATCH**: `PATCH /api/admin/users/[id]` `{ roleId?, jemaatId }` goes through `set_user_access`, so it is atomic. It replaces §10's separate `/role` and `/jemaat` endpoints.
+  - Leaving out `roleId` keeps the roles and calls `link_user_jemaat` only.
+  - The dialog does this on your own row, where the role can't change.
+- **`activity_logs` hardening**: every item approved (see 0028 below).
+- **Skipped** (suggested and approved):
+  - an "undangan belum diterima" badge, which would need a definer function over `auth.users`;
+  - user counts in the delete-role dialog.
+
+**0028 migration**
+- **super_admin guards.** The triggers are named `guard_super_admin`, which sorts after 0021's `guard_own_admin_access`, so acting on your own access still reports 0021's message.
+  - `user_roles`: the last super_admin assignment can't be deleted (including the cascade from deleting the auth user), switched, or moved.
+    - The check is serialized with `select … for update` on the super_admin role row, so two super_admins demoting each other at once can't both succeed.
+    - No automated test covers this, because pgTAP runs in one session.
+  - `roles`: super_admin can't be deleted or renamed. Its description can change.
+  - `role_permissions`: super_admin's `roles:*` / `users:*` grants can't be removed. Its other grants (`warta:*`, `activity_log:read`) can.
+  - Messages (42501):
+    - "Harus ada minimal satu super_admin."
+    - "Role super_admin tidak bisa dihapus."
+    - "Nama role super_admin tidak bisa diubah."
+    - "Permission roles dan users milik super_admin tidak bisa dicabut."
+- **`set_role_ui_permissions(p_role_id, p_permission_ids)`**: invoker, needs `roles:update`.
+  - It replaces the set only within `warta`, `users`, `roles`, and `activity_log`. `announcements`/`content` grants stay.
+  - Ids outside those four resources → 22023 "Permission tidak dikenal."
+  - `set_role_permissions` (0022) is kept, but the app no longer uses it.
+- **Role names**: `roles_name_lower_idx` (unique `lower(name)`) and `roles_name_not_blank_check`.
+- **`activity_logs` is append-only for everyone.**
+  - `revoke update, delete, truncate` from anon, authenticated, and service_role.
+  - A `before update or delete` trigger refuses everything except the FK's own set-null of `user_id`, with every other column unchanged.
+  - A `before truncate` trigger refuses truncation.
+  - On a signed-in user's insert, `user_email` comes from `auth.users` and `created_at` is `now()`, whatever the client sent. Without `auth.uid()` (seed, tests), the given values are kept.
+- **`search_activity_logs(p_search)`**: invoker, returns `setof activity_logs`, and matches activity or email with ILIKE.
+  - Same pattern as stage 6: `escapeLike` in TS, then a bound parameter, never a `.or()` string.
+  - Module, date range, order, and range are PostgREST filters on the RPC result.
+- **Bug fix found this stage: deleting an account that had created a warta failed.**
+  - 0026's `enforce_warta_rules` reverted every change to `created_by`, including the FK's `on delete set null`. The delete therefore raised a foreign-key violation (reproduced on the local DB before the fix).
+  - The replaced function lets `created_by` become null only when that user no longer exists. Any other rewrite is still reverted.
+  - It is now `security definer`, so it can read `auth.users`; otherwise it is identical.
+
+**Routes and data loading**
+- `lib/supabase/admin.ts` (`server-only`) exports only `inviteUser` and `deleteAuthUser`. The service-role client is never exported (brief §3).
+- `mutation()` gained two options:
+  - `permission: "signed-in"` (with `requireUserApi`), for `/api/account/*`;
+  - `partial` in `run`'s result → 207 `{ data, error }`, still logging the main write.
+- `apiFetchWithWarning` returns the 207's `error`. `apiFetch` is unchanged for callers.
+- `rpcError` and the new `guardError` forward a 42501 only when its message is one of the hand-written access-guard messages (0021, 0022, 0028). Any other 42501 (RLS, privileges) still gets the generic text.
+- **Invite** (`POST /api/admin/users`, `users:create`):
+  1. Pre-checks run before the email goes out: the role exists, and the jemaat exists and isn't linked. Failing them gives a 400, not a 207.
+  2. `inviteUserByEmail` with `full_name`.
+     - `email_exists` → "Email ini sudah terdaftar sebagai pengguna."
+     - An email rate limit → a friendly 400.
+  3. `set_user_access`. On failure → 207 "Pengguna diundang, tapi gagal set role/jemaat: …".
+
+  GoTrue sends the invite again to an address that was invited but never accepted.
+- **Delete** (`DELETE /api/admin/users/[id]`, `users:delete`):
+  1. Your own id → 403 "Tidak bisa menghapus akun sendiri."
+  2. The last super_admin → 403. This is a friendly pre-check; the trigger is the real guard.
+  3. `deleteAuthUser`.
+- **One jemaat per account**:
+  - The RPC's pre-check plus the unique index enforce it. A race's raw 23505 is mapped to "Jemaat ini sudah terhubung ke akun lain."
+  - In the picker, a jemaat linked to another account is shown disabled with "Terhubung ke {email}" (`PersonPicker` gained `disabledReason`).
+- **Log Aktivitas** (`lib/activity-log-routes.ts`):
+  - The URL is parsed with stage 3's `parseTableSearchParams`: size 10/20/50/100, sort only on `created_at`/`module`. Only a known module key is applied.
+  - The date range uses `jakartaTimestampBounds`: the end date counts through 23:59:59 WIB, sent as `lt` 00:00 WIB the next day.
+  - A page past the end (PostgREST 416 or an empty page) falls back to the last page, and the page redirects so the URL matches.
+  - Sorting by Modul uses the key, so "Pengguna" (`users`) sorts near the end rather than by its label.
+- Activity sentences:
+
+  | Module | Sentences |
+  |---|---|
+  | `users` | `Mengundang pengguna "…"`, `Mengubah role pengguna "…" menjadi "…"`, `Menautkan pengguna "…" ke jemaat "…"`, `Melepas tautan jemaat dari pengguna "…"`, `Mengubah akses pengguna "…": role "…", jemaat "…"`, `Menghapus pengguna "…"` |
+  | `roles` | `Menambah role "…"`, `Mengubah role "…"` / `Mengubah nama role "…" menjadi "…"`, `Mengubah permission role "…" (+warta:update, −warta:delete)`, `Menghapus role "…"` |
+  | `akun` | `Mengubah nama lengkap menjadi "…"`, `Mengosongkan nama lengkap`, `Mengganti password` |
+
+**Revoking access (E)**
+- Permissions are re-read on every request:
+  - `getAuthenticatedUser` calls `getUser()` (the Auth server) and `get_my_access`, and React `cache()` lasts only one request.
+  - RLS uses `has_permission` on live tables.
+  - A role change applies on the next request with the same cookie (integration-tested both ways).
+- A deleted user:
+  - `getUser()` fails, so pages redirect to `/login` and APIs answer 401.
+  - Their access token still passes PostgREST's signature check until it expires (1 h). But `user_roles` cascaded, so the token has no permissions, and log inserts fail the FK (tested over REST).
+- Open browser tabs keep their already-rendered sidebar until the next navigation. Every page and API still checks on the server.
+
+**Client IP (brief §7) and hosting**
+- `getClientIp` takes the first `x-forwarded-for` entry, else `x-real-ip`. The client can put anything in `x-forwarded-for`, so the value can only be trusted when a proxy you trust overwrites it.
+- **Vercel (current)**: Vercel overwrites `x-forwarded-for` with the real client IP, so the logged IP is reliable.
+- **Domainesia (possible later)**: on cPanel Node.js hosting (Apache/LiteSpeed in front) or a VPS behind nginx, the proxy usually *appends* to `x-forwarded-for`. Its first entry is then whatever the client sent.
+  - Before moving, change `getClientIp` to trust only what that proxy sets. Options:
+    - `x-real-ip` set by nginx (`proxy_set_header X-Real-IP $remote_addr;`);
+    - the last `x-forwarded-for` entry, added by the trusted proxy;
+    - `cf-connecting-ip` behind Cloudflare.
+  - Not changed now, as agreed.
+
+**UI**
+- **Pengguna**:
+  - The shared table: Nama (avatar and a "Kamu" badge), Email, Role (facet, with "Tanpa role"), Jemaat.
+  - Edit/Lihat dialog: Role + Jemaat, one "Simpan".
+  - On your own row, the Role select is disabled with a note, and "Hapus" isn't offered.
+  - A user holding several roles (possible only through SQL) is shown with all of them. Saving replaces them with one, and the dialog says so.
+  - A 207 invite shows a warning toast (10 s), not a success.
+- **Roles & Permissions**:
+  - Role cards, sorted by name: description, and one mono badge per visible permission. announcements/content are never shown.
+  - Icon buttons on each card: Edit (`roles:update`) and Hapus (`roles:delete`, not on super_admin).
+  - The permission editor appears only with `roles:update`. It is a real `<table>`:
+    - rows are roles, columns are resource/action, and the role column is sticky, with horizontal scroll on narrow screens;
+    - "—" marks a permission that doesn't exist (activity_log has only read);
+    - each row has its own "Simpan"/"Batal", enabled only after a change;
+    - super_admin's roles/users boxes are disabled, with "(terkunci)" in their label.
+  - A standing warning says roles:*/users:* equal super admin access. A save that newly grants one of them asks for confirmation first.
+  - The matrix is an editor, not a list, so it doesn't use the shared DataTable.
+- **Log Aktivitas**: stage 3's server-mode table (search, Modul single-select with the §7 labels, date range, Waktu in WIB, IP in mono).
+- **Profil Saya**:
+  - Informasi Akun: email, role badges or "Tanpa role", and Nama Lengkap + Simpan.
+  - Ganti Password: Password saat ini, Password baru, Konfirmasi.
+- **Streamed redirects**: `/admin` has a `loading.tsx` (stage 1). Once streaming has started, a forbidden page can answer 200 with `<meta http-equiv="refresh" content="1;url=/admin?error=forbidden">` instead of a 307, which is Next's documented behavior.
+  - The HTTP check confirmed that such a response carries no other account's data.
+  - It applies to every admin page, not only this stage's.
+- **To check in a browser**: Peribadahan's `Select`s (stage 6) don't pass `items`. Base UI uses `items` to show the selected label before the popup has opened. This stage's selects do pass it.
+
+**Local development**
+- `supabase/config.toml` now loads `supabase/templates/invite.html`. That needed a `supabase stop` + `start`, which restored from the local backup with nothing lost. Invite emails land in Mailpit (`http://127.0.0.1:54324`).
+- The integration harness now also sets `SUPABASE_SERVICE_ROLE_KEY` and `SITE_URL`, from the local stack only. It gained `serviceClient`, `createTestUser`, `latestMail`, `setRequestHeaders`, and a `password` argument for `signIn`.
+
+**Verification (stage 10)**
+- `pnpm typecheck`, `pnpm lint`, and `pnpm build` pass. `/admin/users`, `/admin/roles`, `/admin/log-aktivitas`, `/admin/akun`, and the six new API routes are in the build's route list.
+- `pnpm test`: 180 tests, 26 files. New:
+  - `site-url.test.ts`: accepted and rejected origins; it fails closed.
+  - `mutation`: "signed-in", the 207, and guard-message forwarding.
+  - `users-manager.test.tsx`: no Hapus on your own row; your own role locked and not sent; a 207 shown as a warning; no invite/delete controls without the permission.
+  - `permission-matrix.test.tsx`: the warning, hidden resources, locked super_admin boxes, per-row save, and the confirmation before granting users:*.
+- `pnpm test:db`: 14 files, 389 tests.
+  - New: `users_roles.test.sql` (29) and `activity_logs.test.sql` (26).
+  - `access_guard.test.sql`'s "postgres can still change role permissions" now uses the backup role, because super_admin's own grants are locked by design since 0028.
+- `pnpm test:integration`: 8 files, 105 tests. The new `users-roles.test.ts` (18) covers every item on the stage's test list:
+  - viewer 403s and the forbidden redirects (§13 #1);
+  - the invite with a forged Host/X-Forwarded-Host/Origin: the `redirectTo` passed to Supabase and the emailed link both use the configured origin;
+  - the exists / linked-jemaat / invalid-email errors, with no email sent;
+  - the 207;
+  - one jemaat per account;
+  - your own role change refused, while your own jemaat link can change;
+  - deleting your own account refused (§13 #12);
+  - the last super_admin can't be demoted or deleted;
+  - a role change applying on the next request, both ways;
+  - a deleted user's cookie → 401 and `/login`, and their token can't write or log over REST;
+  - roles CRUD with hidden grants preserved, and the super_admin role protections;
+  - update/delete on `activity_logs` over REST → 42501, for both super_admin and viewer;
+  - the log filter: an entry at 23:30 WIB on the end date included and one at 00:30 the next day excluded; a literal `%`; the module filter; an injection-shaped search; page clamping;
+  - the profile name, including an empty name saved as null;
+  - the password change: wrong current password, too short, mismatch, and unchanged password each give their message; a successful change signs out the other session.
+- **HTTP**: `next build` + `next start` on :3107 against the local stack. It used env overrides, the server output contains no project URL, and the normal build was rerun afterwards.
+  - `/login?next=https://example.com` → `/admin` (§13 #15).
+  - Viewer on the three pages → `/admin?error=forbidden`; the notice shows, the sidebar hides them, and the API → 403.
+  - An invite sent with a forged Host / X-Forwarded-Host / Origin → the email link uses the Site URL.
+  - Invite end to end locally (§13 #13): following the link → `/auth/set-password` → a no-JS password form post → `/admin` showing role editor; signing in with the new password works.
+  - The callback ignores a forged Host.
+  - `?page=9999&size=1000` on the log → the last page, with size dropped from the URL.
+- Mutation checks:
+  - dropping the three super_admin triggers fails 14 pgTAP tests;
+  - dropping the two log triggers fails 5;
+  - showing "Hapus" on your own row fails the component test;
+  - removing the server's own-account check fails the integration test. It was run alone, so the last-super_admin guard kept the seed account safe.
+- **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only). This matters most for the permission matrix's horizontal scroll and sticky column, the Base UI Select/Combobox dialogs, and the disabled "Terhubung ke …" options. No browser tool was available. The dev server already running on :3000 (pointed at the `*.supabase.co` project) was left alone.

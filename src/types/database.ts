@@ -459,6 +459,11 @@ isOneToOne: false
 "link_user_jemaat":
 { Args: { "p_jemaat_id"?: string,"p_user_id": string }; Returns: undefined
                            },
+"public_jadwal_mendatang":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "bahan_alkitab": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
+            }[]
+                           },
 "public_jadwal_pekan_ini":
 { Args: Record<PropertyKey, never>; Returns: {
               "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
@@ -488,6 +493,22 @@ isOneToOne: false
 "save_jemaat":
 { Args: { "p_alamat"?: string,"p_hubungan_keluarga"?: string,"p_id"?: string,"p_jenis_kelamin"?: string,"p_keluarga_nama"?: string,"p_label_ids"?: (string)[],"p_nama": string,"p_no_hp"?: string,"p_nomor_anggota"?: string,"p_pekerjaan"?: string,"p_status_keanggotaan"?: string,"p_tanggal_lahir"?: string,"p_tanggal_masuk"?: string,"p_wilayah_id"?: string }; Returns: string
                            },
+"search_activity_logs":
+{ Args: { "p_search"?: string }; Returns: {
+              "activity": string,
+"created_at": string,
+"id": string,
+"ip_address": string | null,
+"module": string,
+"user_email": string | null,
+"user_id": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "activity_logs"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "search_peribadahan_item_ids":
 { Args: { "p_search": string }; Returns: {
               "id": string
@@ -497,6 +518,9 @@ isOneToOne: false
 { Args: { "p_hubungan_keluarga"?: string,"p_jemaat_id": string,"p_keluarga_id"?: string }; Returns: undefined
                            },
 "set_role_permissions":
+{ Args: { "p_permission_ids": (string)[],"p_role_id": string }; Returns: undefined
+                           },
+"set_role_ui_permissions":
 { Args: { "p_permission_ids": (string)[],"p_role_id": string }; Returns: undefined
                            },
 "set_user_access":

@@ -123,6 +123,12 @@ export function financeWeek(tanggalKebaktian: IsoDate): DateRange {
   return { start: addDays(tanggalKebaktian, -7), end: addDays(tanggalKebaktian, -1) };
 }
 
+/** The Minggu–Sabtu week that contains `date` (the dashboard's "jadwal minggu ini", like `public_jadwal_pekan_ini`). */
+export function weekContaining(date: IsoDate = today()): DateRange {
+  const start = addDays(date, -weekday(date));
+  return { start, end: addDays(start, 6) };
+}
+
 /** "Minggu, 14 September 2025" */
 export function formatDateLong(date: IsoDate): string {
   const { year, month, day } = parse(date);

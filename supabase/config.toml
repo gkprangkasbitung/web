@@ -242,10 +242,11 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Invite email (stage 10). Keep it in sync with the production template in the
+# Supabase Dashboard (Authentication > Emails > Invite user).
+[auth.email.template.invite]
+subject = "Undangan ke admin GKP Rangkasbitung"
+content_path = "./supabase/templates/invite.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

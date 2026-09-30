@@ -130,17 +130,20 @@ select results_eq(
 reset role;
 set local request.jwt.claims = '';
 
+-- The backup role, not super_admin: since 0028 the super_admin role's own
+-- roles:* / users:* grants are locked on every path (users_roles.test.sql).
 select lives_ok(
   $$ delete from public.role_permissions
-     where role_id = (select id from public.roles where name = 'super_admin')
+     where role_id = '14000000-0000-4000-8000-0000000000e1'
        and permission_id = (select id from public.permissions where resource = 'users' and action = 'update') $$,
   'postgres without a user identity can still change role permissions'
 );
 
--- Restore: super_admin 1 holds super_admin (again full) and the backup role.
+-- Restore: the backup role grants every roles:* / users:* again, and
+-- super_admin 1 holds super_admin and the backup role.
 insert into public.role_permissions (role_id, permission_id)
-select r.id, p.id from public.roles r, public.permissions p
-where r.name = 'super_admin' and p.resource = 'users' and p.action = 'update';
+select '14000000-0000-4000-8000-0000000000e1', p.id from public.permissions p
+where p.resource = 'users' and p.action = 'update';
 delete from public.user_roles where user_id = '14000000-0000-4000-8000-000000000001';
 insert into public.user_roles (user_id, role_id)
 select '14000000-0000-4000-8000-000000000001', id from public.roles where name in ('super_admin', 'uji_cadangan');

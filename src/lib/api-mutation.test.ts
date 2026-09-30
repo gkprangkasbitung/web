@@ -4,13 +4,13 @@ import { z } from "zod";
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/activity-log", () => ({ logActivity: vi.fn() }));
-vi.mock("@/lib/auth/session", () => ({ requirePermissionApi: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermissionApi: vi.fn(), requireUserApi: vi.fn() }));
 
 const { revalidatePath } = await import("next/cache");
 const { logActivity } = await import("@/lib/activity-log");
-const { requirePermissionApi } = await import("@/lib/auth/session");
+const { requirePermissionApi, requireUserApi } = await import("@/lib/auth/session");
 const { fail } = await import("@/lib/api");
-const { ApiError, dbError, escapeLike, mutation } = await import("./api-mutation");
+const { ApiError, dbError, escapeLike, guardError, mutation, rpcError } = await import("./api-mutation");
 
 const USER = { id: "u1", email: "editor@gkp.test", fullName: null, jemaatId: null, roles: [], permissions: [] };
 const SUPABASE = { marker: "session-client" };
@@ -164,6 +164,69 @@ describe("mutation", () => {
     expect(response.status).toBe(500);
     expect(JSON.stringify(body)).not.toContain("secret");
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe("mutation extras (stage 10)", () => {
+  it('"signed-in" needs only a session, not a permission', async () => {
+    vi.mocked(requireUserApi).mockResolvedValue({ ok: true, user: USER, supabase: SUPABASE } as never);
+    const updateProfile = mutation({
+      permission: "signed-in",
+      schema: z.object({ fullName: z.string() }),
+      run: async ({ input }) => ({ data: input, log: { module: "akun" as const, activity: "Mengubah nama lengkap" } }),
+    });
+    const response = await updateProfile(request({ fullName: "Uji" }, "PATCH"), context());
+    expect(response.status).toBe(200);
+    expect(requireUserApi).toHaveBeenCalledOnce();
+    expect(requirePermissionApi).not.toHaveBeenCalled();
+  });
+
+  it('"signed-in" still answers 401 without a session', async () => {
+    vi.mocked(requireUserApi).mockResolvedValue({ ok: false, response: fail("Sesi kamu sudah berakhir.", 401) });
+    const updateProfile = mutation({
+      permission: "signed-in",
+      run: async () => ({ data: null, log: { module: "akun" as const, activity: "x" } }),
+    });
+    expect((await updateProfile(request(undefined, "PATCH"), context())).status).toBe(401);
+    expect(logActivity).not.toHaveBeenCalled();
+  });
+
+  it("answers 207 with data and the follow-up error, and still logs the main write", async () => {
+    signedIn();
+    const invite = mutation({
+      permission: ["users", "create"],
+      status: 201,
+      run: async () => ({
+        data: { id: ID },
+        log: { module: "users" as const, activity: 'Mengundang pengguna "a@test.local"' },
+        partial: "Pengguna diundang, tapi gagal set role/jemaat: Role tidak ditemukan.",
+      }),
+    });
+    const response = await invite(request({}), context());
+    expect(response.status).toBe(207);
+    expect(await response.json()).toEqual({
+      data: { id: ID },
+      error: "Pengguna diundang, tapi gagal set role/jemaat: Role tidak ditemukan.",
+    });
+    expect(logActivity).toHaveBeenCalledOnce();
+  });
+});
+
+describe("access guard messages", () => {
+  it("forwards the guards' own 42501 text and hides any other 42501", () => {
+    const guard = { code: "42501", message: "Harus ada minimal satu super_admin." };
+    const raw = { code: "42501", message: 'new row violates row-level security policy for table "roles"' };
+    expect(rpcError(guard)).toMatchObject({ status: 403, message: guard.message });
+    expect(guardError(guard)).toMatchObject({ status: 403, message: guard.message });
+    expect(rpcError(raw)).toMatchObject({ status: 403, message: "Kamu tidak punya akses untuk tindakan ini." });
+    expect(guardError(raw)).toMatchObject({ status: 403, message: "Kamu tidak punya akses untuk tindakan ini." });
+  });
+
+  it("guardError falls back to dbError's mapping", () => {
+    expect(guardError({ code: "23505", message: "duplicate key" }, { unique: "Nama role sudah digunakan." })).toMatchObject({
+      status: 400,
+      message: "Nama role sudah digunakan.",
+    });
   });
 });
 

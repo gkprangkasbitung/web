@@ -30,7 +30,7 @@ import { listSitusObjects, removeSitusObjects, uploadSitusObject } from "@/lib/s
  */
 
 /** Top-level folders in the bucket, one per module. */
-const SITUS_FOLDERS = ["profil", "majelis", "kegiatan", "pendeta"] as const;
+const SITUS_FOLDERS = ["profil", "majelis", "kegiatan", "pendeta", "komisi"] as const;
 export type SitusFolder = (typeof SITUS_FOLDERS)[number];
 
 /** In-flight uploads (step 2 done, step 3 not yet) are younger than this. */

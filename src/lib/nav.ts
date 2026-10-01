@@ -22,7 +22,8 @@ export type NavIcon =
   | "pelayanan"
   | "majelis"
   | "kegiatan"
-  | "pendeta";
+  | "pendeta"
+  | "komisi";
 
 export type NavLink = { label: string; href: string };
 /** `group`: consecutive entries with the same group render under one heading. */
@@ -92,6 +93,13 @@ const ENTRIES: Entry[] = [
     label: "Pendeta",
     href: "/admin/pendeta",
     icon: "pendeta",
+    group: "Konten Situs",
+    permission: ["situs", "read"],
+  },
+  {
+    label: "Komisi",
+    href: "/admin/komisi",
+    icon: "komisi",
     group: "Konten Situs",
     permission: ["situs", "read"],
   },

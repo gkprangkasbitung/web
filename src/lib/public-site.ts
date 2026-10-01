@@ -353,3 +353,86 @@ export async function loadPublicPendeta(): Promise<Result<PublicPendetaRow[]>> {
   if (!parsed.success) return failure("pendeta", parsed.error);
   return { data: parsed.data, error: null };
 }
+
+// ---------------------------------------------------------------------------
+// Komisi (brief §14.8, stage 11d)
+// ---------------------------------------------------------------------------
+
+const KOMISI_SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+export type PublicKomisiListRow = {
+  id: string;
+  nama: string;
+  slug: string;
+  deskripsi: string | null;
+  foto_path: string | null;
+  foto_alt: string | null;
+};
+
+const komisiListRowSchema = z.object({
+  id: z.string(),
+  nama: z.string(),
+  slug: z.string(),
+  deskripsi: nullableText,
+  foto_path: nullableText,
+  foto_alt: nullableText,
+});
+
+/** `/komisi`: tampil = true, in the admin's own sort order (`public_komisi_list`, 0032). */
+export async function loadPublicKomisiList(): Promise<Result<PublicKomisiListRow[]>> {
+  await connection();
+  const { data, error } = await createPublicClient().rpc("public_komisi_list");
+  if (error) return failure("komisi list", error);
+  const parsed = z.array(komisiListRowSchema).safeParse(data);
+  if (!parsed.success) return failure("komisi list", parsed.error);
+  return { data: parsed.data, error: null };
+}
+
+export type PublicKomisiDetail = {
+  id: string;
+  nama: string;
+  slug: string;
+  deskripsi: string | null;
+  periode: string | null;
+  foto_path: string | null;
+  foto_alt: string | null;
+  pembinaNama: string | null;
+  anggota: { nama: string; jabatan: string }[];
+};
+
+const komisiDetailSchema = z.object({
+  id: z.string(),
+  nama: z.string(),
+  slug: z.string(),
+  deskripsi: nullableText,
+  periode: nullableText,
+  foto_path: nullableText,
+  foto_alt: nullableText,
+  pembina_nama: nullableText,
+  anggota: z.array(z.object({ nama: z.string(), jabatan: z.string() })),
+});
+
+/**
+ * `/komisi/[slug]`: tampil = true only (404 otherwise, `public_komisi_detail`,
+ * 0032). Members are name + jabatan only, already ordered by jabatan
+ * sort_order then nama. Wrapped in React `cache`, same pattern as `loadPublicWarta`.
+ */
+export const loadPublicKomisi = cache(async (slug: string): Promise<PublicKomisiDetail | null> => {
+  await connection();
+  if (!KOMISI_SLUG.test(slug)) return null;
+  const { data, error } = await createPublicClient().rpc("public_komisi_detail", { p_slug: slug });
+  if (error) throw new Error(`[public] komisi ${slug}: ${error.message}`);
+  if (!data) return null;
+  const parsed = komisiDetailSchema.parse(data);
+  return {
+    id: parsed.id,
+    nama: parsed.nama,
+    slug: parsed.slug,
+    deskripsi: parsed.deskripsi,
+    periode: parsed.periode,
+    foto_path: parsed.foto_path,
+    foto_alt: parsed.foto_alt,
+    pembinaNama: parsed.pembina_nama,
+    anggota: parsed.anggota,
+  };
+});

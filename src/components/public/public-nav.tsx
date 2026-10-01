@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from 
 export const PUBLIC_NAV = [
   { href: "/", label: "Beranda" },
   { href: "/tentang-kami", label: "Tentang Kami" },
+  { href: "/komisi", label: "Komisi" },
   { href: "/jadwal-ibadah", label: "Jadwal Ibadah" },
   { href: "/warta", label: "Warta" },
   { href: "/kontak", label: "Kontak" },

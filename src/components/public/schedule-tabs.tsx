@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { addDays, formatDayShort, today, type DateRange } from "@/lib/dates";
 import { groupByDate, type PublicScheduleRow } from "@/lib/public-schedule";
 
-import { ScheduleEntry } from "./schedule-list";
+import { JadwalEntry } from "./schedule-list";
 
 /**
  * Jadwal Ibadah's day picker (brief §9c instruction C): one tab per day of
@@ -13,7 +13,11 @@ import { ScheduleEntry } from "./schedule-list";
  */
 export function ScheduleTabs({ week, rows }: { week: DateRange; rows: PublicScheduleRow[] }) {
   const days = Array.from({ length: 7 }, (_, index) => addDays(week.start, index));
-  const byDay = new Map(groupByDate(rows).map((day) => [day.tanggal, day.rows]));
+  // Sorted by Jam for display, not the functions' own date/sort_order arrival
+  // order (admin's manual entry order, which Warta's schedule list still uses).
+  const byDay = new Map(
+    groupByDate(rows).map((day) => [day.tanggal, [...day.rows].sort((a, b) => (a.jam ?? "").localeCompare(b.jam ?? ""))]),
+  );
   const current = today();
   const defaultValue = days.includes(current) ? current : days[0];
 
@@ -44,7 +48,7 @@ export function ScheduleTabs({ week, rows }: { week: DateRange; rows: PublicSche
           {(byDay.get(day) ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">Belum ada jadwal ibadah pada hari ini.</p>
           ) : (
-            byDay.get(day)!.map((row) => <ScheduleEntry key={row.id} row={row} />)
+            byDay.get(day)!.map((row) => <JadwalEntry key={row.id} row={row} />)
           )}
         </TabsContent>
       ))}

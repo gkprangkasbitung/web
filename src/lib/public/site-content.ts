@@ -6,11 +6,15 @@ import {
   loadJadwalPekanIni,
   loadLatestPublicWarta,
   loadPublicKegiatanMendatang,
+  loadPublicKomisi,
+  loadPublicKomisiList,
   loadPublicMajelis,
   loadPublicPelayanan,
+  loadPublicPendeta,
   loadPublicProfil,
   type PublicMajelisRow,
   type PublicPelayananRow,
+  type PublicPendetaRow,
   type PublicProfilRow,
   type PublicKegiatanRow,
   type PublicWartaListItem,
@@ -163,9 +167,9 @@ export async function loadBerandaContent(): Promise<BerandaContent> {
     sambutan: profil?.sambutan_teks
       ? {
           teks: profil.sambutan_teks,
-          nama: profil.sambutan_nama,
-          jabatan: profil.sambutan_jabatan,
-          photo: toPhoto(profil.sambutan_foto_path, profil.sambutan_foto_alt),
+          nama: profil.sambutan_pendeta_nama,
+          jabatan: profil.sambutan_pendeta_peran,
+          photo: toPhoto(profil.sambutan_pendeta_foto_path, profil.sambutan_pendeta_foto_alt),
         }
       : null,
     pelayanan: (pelayananResult.data ?? []).map(toPelayananItem),
@@ -183,10 +187,43 @@ export type TentangKamiProfil = {
   linimasa: { tahun: string; teks: string }[];
 };
 
-export type TentangKamiContent = { profil: Result<TentangKamiProfil>; majelis: MajelisItem[] };
+export type PendetaItem = {
+  id: string;
+  nama: string;
+  peran: string;
+  tahunMulai: number;
+  tahunSelesai: number | null;
+  keterangan: string | null;
+  photo: PublicPhoto;
+};
+
+export type TentangKamiContent = {
+  profil: Result<TentangKamiProfil>;
+  /** Currently serving (brief §14.7: usually one, but not assumed to be exactly one). */
+  pendetaMelayani: PendetaItem[];
+  pendetaPernahMelayani: PendetaItem[];
+  majelis: MajelisItem[];
+};
+
+function toPendetaItem(row: PublicPendetaRow): PendetaItem {
+  return {
+    id: row.id,
+    nama: row.nama,
+    peran: row.peran,
+    tahunMulai: row.tahun_mulai,
+    tahunSelesai: row.tahun_selesai,
+    keterangan: row.keterangan,
+    photo: toPhoto(row.foto_path, row.foto_alt),
+  };
+}
 
 export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
-  const [result, majelisResult] = await Promise.all([loadPublicProfil(), loadPublicMajelis()]);
+  const [result, majelisResult, pendetaResult] = await Promise.all([
+    loadPublicProfil(),
+    loadPublicMajelis(),
+    loadPublicPendeta(),
+  ]);
+  const pendeta = (pendetaResult.data ?? []).map(toPendetaItem);
   return {
     profil: result.data
       ? {
@@ -200,6 +237,10 @@ export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
           error: null,
         }
       : { data: null, error: result.error },
+    // public_pendeta() already orders "currently serving first"; splitting
+    // on tahunSelesai here keeps that same order within each group.
+    pendetaMelayani: pendeta.filter((p) => p.tahunSelesai === null),
+    pendetaPernahMelayani: pendeta.filter((p) => p.tahunSelesai !== null),
     majelis: (majelisResult.data ?? []).map(toMajelisItem),
   };
 }
@@ -232,4 +273,61 @@ export async function loadSosialMedia(): Promise<SosialMedia | null> {
   if (!data) return null;
   const links = { instagram: data.instagram_url, youtube: data.youtube_url, facebook: data.facebook_url };
   return Object.values(links).some((value) => value !== null) ? links : null;
+}
+
+// ---------------------------------------------------------------------------
+// Komisi (brief §14.8, stage 11d)
+// ---------------------------------------------------------------------------
+
+export type KomisiCardItem = { id: string; nama: string; slug: string; deskripsi: string | null; photo: PublicPhoto };
+
+/** `/komisi`: a grid of cards (brief §14.8), tampil = true in the admin's own order. */
+export async function loadKomisiListContent(): Promise<Result<KomisiCardItem[]>> {
+  const result = await loadPublicKomisiList();
+  if (!result.data) return { data: null, error: result.error };
+  return {
+    data: result.data.map((row) => ({
+      id: row.id,
+      nama: row.nama,
+      slug: row.slug,
+      deskripsi: row.deskripsi,
+      photo: toPhoto(row.foto_path, row.foto_alt),
+    })),
+    error: null,
+  };
+}
+
+export type KomisiDetailContent = {
+  nama: string;
+  deskripsi: string | null;
+  periode: string | null;
+  photo: PublicPhoto;
+  pembinaNama: string | null;
+  anggotaPerJabatan: { jabatan: string; anggota: string[] }[];
+};
+
+/**
+ * `/komisi/[slug]`: members grouped by jabatan (brief §14.8). `public_komisi_detail`
+ * (0032) already orders rows by jabatan sort_order then nama, so members sharing
+ * a jabatan are already contiguous — grouping here just folds them, keeping that order.
+ */
+export async function loadKomisiDetailContent(slug: string): Promise<KomisiDetailContent | null> {
+  const row = await loadPublicKomisi(slug);
+  if (!row) return null;
+
+  const anggotaPerJabatan: { jabatan: string; anggota: string[] }[] = [];
+  for (const member of row.anggota) {
+    const current = anggotaPerJabatan.at(-1);
+    if (current && current.jabatan === member.jabatan) current.anggota.push(member.nama);
+    else anggotaPerJabatan.push({ jabatan: member.jabatan, anggota: [member.nama] });
+  }
+
+  return {
+    nama: row.nama,
+    deskripsi: row.deskripsi,
+    periode: row.periode,
+    photo: toPhoto(row.foto_path, row.foto_alt),
+    pembinaNama: row.pembinaNama,
+    anggotaPerJabatan,
+  };
 }

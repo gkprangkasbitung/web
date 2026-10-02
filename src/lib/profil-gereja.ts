@@ -7,16 +7,18 @@
 import { z } from "zod";
 
 import type { Database } from "@/types/database";
+import type { PendetaRow } from "@/lib/pendeta";
 
 export type ProfilGerejaRow = Database["public"]["Tables"]["profil_gereja"]["Row"];
 export type RekeningRow = Database["public"]["Tables"]["profil_gereja_rekening"]["Row"];
 export type LinimasaRow = { id: string; tahun: string; teks: string; sort_order: number };
 
-/** What `/admin/profil-gereja` loads: both singletons and the timeline, in order. */
+/** What `/admin/profil-gereja` loads: both singletons, the timeline, and the Sambutan pastor picker's options. */
 export type ProfilGerejaAdminData = {
   profil: ProfilGerejaRow;
   rekening: RekeningRow;
   linimasa: LinimasaRow[];
+  pendeta: PendetaRow[];
 };
 
 // Characters allowed after the host: no whitespace, control characters,

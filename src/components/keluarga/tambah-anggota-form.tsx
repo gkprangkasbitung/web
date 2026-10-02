@@ -78,7 +78,12 @@ export function TambahAnggotaForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${id}-hubungan`}>Hubungan Keluarga</Label>
-          <Select value={hubungan} onValueChange={setHubungan} disabled={pending}>
+          <Select
+            items={[{ value: null, label: "Tidak ada" }, ...HUBUNGAN_KELUARGA.map((option) => ({ value: option, label: option }))]}
+            value={hubungan}
+            onValueChange={setHubungan}
+            disabled={pending}
+          >
             <SelectTrigger id={`${id}-hubungan`} className="w-full sm:w-44">
               <SelectValue placeholder="Tidak ada" />
             </SelectTrigger>

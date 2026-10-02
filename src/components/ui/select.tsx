@@ -5,7 +5,36 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "cn"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const Select = SelectPrimitive.Root
+/**
+ * Base UI's `Select.Value` only shows a selected item's label when
+ * `Select.Root` is given `items` (or `itemToStringLabel`) — otherwise it
+ * falls back to printing the raw value (a key, a UUID). `items` is required
+ * here so every call site is forced to supply one, and so `SelectValue`
+ * below can show a fallback (instead of the raw value) when the current
+ * value isn't among them, e.g. a deleted record.
+ */
+export type SelectOption<TValue = string | null> = {
+  value: TValue
+  label: React.ReactNode
+}
+
+const SelectItemsContext = React.createContext<ReadonlyArray<SelectOption<unknown>>>([])
+
+function Select<TValue = string | null, TMultiple extends boolean | undefined = false>({
+  items,
+  children,
+  ...props
+}: Omit<SelectPrimitive.Root.Props<TValue, TMultiple>, "items"> & {
+  items: ReadonlyArray<SelectOption<TValue>>
+}) {
+  return (
+    <SelectItemsContext.Provider value={items as ReadonlyArray<SelectOption<unknown>>}>
+      <SelectPrimitive.Root items={items} {...props}>
+        {children}
+      </SelectPrimitive.Root>
+    </SelectItemsContext.Provider>
+  )
+}
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   return (
@@ -17,13 +46,23 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
-function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
+function SelectValue({ className, placeholder, children, ...props }: SelectPrimitive.Value.Props) {
+  const items = React.useContext(SelectItemsContext)
   return (
     <SelectPrimitive.Value
       data-slot="select-value"
       className={cn("flex flex-1 text-left", className)}
+      placeholder={placeholder}
       {...props}
-    />
+    >
+      {children ??
+        ((value: unknown) => {
+          const match = items.find((item) => item.value === value)
+          if (match) return match.label
+          if (value == null) return placeholder ?? null
+          return <span className="text-muted-foreground italic">Tidak ditemukan</span>
+        })}
+    </SelectPrimitive.Value>
   )
 }
 

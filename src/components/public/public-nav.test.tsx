@@ -8,7 +8,7 @@ let pathname = "/";
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 
 describe("public navigation (brief §8)", () => {
-  it("lists the five links in order and marks the current page", () => {
+  it("lists the six links in order and marks the current page", () => {
     pathname = "/warta/2025-11-30-minggu-contoh";
     render(<PublicNav />);
     const nav = screen.getByRole("navigation", { name: "Navigasi utama" });
@@ -16,6 +16,7 @@ describe("public navigation (brief §8)", () => {
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["Beranda", "/"],
       ["Tentang Kami", "/tentang-kami"],
+      ["Komisi", "/komisi"],
       ["Jadwal Ibadah", "/jadwal-ibadah"],
       ["Warta", "/warta"],
       ["Kontak", "/kontak"],

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { PublicContainer, PublicPageHeader } from "@/components/public/public-shell";
+import { PublicContainer, PublicPageTitleBand } from "@/components/public/public-shell";
 import { formatDateLong } from "@/lib/dates";
 import { loadPublicWartaList } from "@/lib/public-site";
 
@@ -16,8 +16,14 @@ export default async function WartaListPage() {
   if (result.error !== null) throw new Error("Failed to load the warta list.");
 
   return (
-    <PublicContainer narrow>
-      <PublicPageHeader title="Warta" description="Warta jemaat mingguan GKP Rangkasbitung." />
+    <>
+      <PublicPageTitleBand
+        breadcrumb="Beranda / Warta"
+        title="Warta"
+        description="Warta jemaat mingguan GKP Rangkasbitung."
+      />
+
+      <PublicContainer narrow>
       {result.data.length === 0 ? (
         <p className="text-muted-foreground">Belum ada warta yang diterbitkan.</p>
       ) : (
@@ -40,6 +46,7 @@ export default async function WartaListPage() {
           ))}
         </ul>
       )}
-    </PublicContainer>
+      </PublicContainer>
+    </>
   );
 }

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { quote } from "@/lib/activity-log";
 import { ApiError, dbError, mutation, rpcError, type RevalidateTarget } from "@/lib/api-mutation";
 import { can } from "@/lib/auth/permissions";
+import { loadPendetaList } from "@/lib/pendeta-routes";
 import {
   mapsUrlField,
   misiField,
@@ -44,16 +45,20 @@ const REVALIDATE: readonly RevalidateTarget[] = ["/admin/profil-gereja", { path:
 export async function loadProfilGerejaAdmin(
   supabase: ServerSupabase,
 ): Promise<{ data: ProfilGerejaAdminData; error: null } | { data: null; error: unknown }> {
-  const [profil, rekening, linimasa] = await Promise.all([
+  const [profil, rekening, linimasa, pendeta] = await Promise.all([
     supabase.from("profil_gereja").select("*").eq("id", SINGLETON_ID).maybeSingle(),
     supabase.from("profil_gereja_rekening").select("*").eq("id", SINGLETON_ID).maybeSingle(),
     loadLinimasa(supabase),
+    loadPendetaList(supabase),
   ]);
-  const error = profil.error ?? rekening.error ?? linimasa.error;
-  if (error || !profil.data || !rekening.data || !linimasa.data) {
+  const error = profil.error ?? rekening.error ?? linimasa.error ?? pendeta.error;
+  if (error || !profil.data || !rekening.data || !linimasa.data || !pendeta.data) {
     return { data: null, error: error ?? "profil_gereja row missing" };
   }
-  return { data: { profil: profil.data, rekening: rekening.data, linimasa: linimasa.data }, error: null };
+  return {
+    data: { profil: profil.data, rekening: rekening.data, linimasa: linimasa.data, pendeta: pendeta.data },
+    error: null,
+  };
 }
 
 function loadLinimasa(supabase: ServerSupabase) {
@@ -84,22 +89,26 @@ async function currentProfil(supabase: ServerSupabase): Promise<ProfilGerejaRow>
   return data;
 }
 
-async function updateProfil(supabase: ServerSupabase, fields: ProfilUpdate): Promise<ProfilGerejaRow> {
+async function updateProfil(
+  supabase: ServerSupabase,
+  fields: ProfilUpdate,
+  messages: Parameters<typeof dbError>[1] = {},
+): Promise<ProfilGerejaRow> {
   const { data, error } = await supabase
     .from("profil_gereja")
     .update(fields)
     .eq("id", SINGLETON_ID)
     .select("*")
     .maybeSingle();
-  if (error) throw dbError(error);
+  if (error) throw dbError(error, messages);
   // RLS hides the row from a user without situs:update: nothing was written.
   if (!data) throw new ApiError(403, "Kamu tidak punya akses untuk tindakan ini.");
   return data;
 }
 
 type PhotoColumns = {
-  path: "hero_foto_path" | "sambutan_foto_path" | "sejarah_foto_path";
-  alt: "hero_foto_alt" | "sambutan_foto_alt" | "sejarah_foto_alt";
+  path: "hero_foto_path" | "sejarah_foto_path";
+  alt: "hero_foto_alt" | "sejarah_foto_alt";
 };
 
 /**
@@ -148,20 +157,28 @@ export const updateBeranda = photoSection({
   toFields: (input) => ({ hero_judul: input.heroJudul, hero_subjudul: input.heroSubjudul }),
 });
 
-/** PATCH /api/admin/profil-gereja/sambutan: text, pastor name and title, photo. */
-export const updateSambutan = photoSection({
-  label: "Sambutan",
-  schema: withPhotoSlot({
-    sambutanTeks: optionalText(2000),
-    sambutanNama: optionalText(120),
-    sambutanJabatan: optionalText(120),
-  }),
-  columns: { path: "sambutan_foto_path", alt: "sambutan_foto_alt" },
-  toFields: (input) => ({
-    sambutan_teks: input.sambutanTeks,
-    sambutan_nama: input.sambutanNama,
-    sambutan_jabatan: input.sambutanJabatan,
-  }),
+const sambutanSchema = z.object({
+  sambutanTeks: optionalText(2000),
+  // Picked from the pendeta table (brief §14.7), not typed in here anymore.
+  pendetaId: z.uuid().nullish().transform((value) => value ?? null),
+});
+
+/** PATCH /api/admin/profil-gereja/sambutan (JSON): text, and the picked pendeta. */
+export const updateSambutan = mutation({
+  permission: ["situs", "update"],
+  schema: sambutanSchema,
+  async run({ input, supabase }) {
+    const data = await updateProfil(
+      supabase,
+      { sambutan_teks: input.sambutanTeks, sambutan_pendeta_id: input.pendetaId },
+      { inUse: "Pendeta yang dipilih tidak ditemukan." },
+    );
+    return {
+      data,
+      log: { module: "situs", activity: "Mengubah profil gereja bagian Sambutan" },
+      revalidate: REVALIDATE,
+    };
+  },
 });
 
 /** PATCH /api/admin/profil-gereja/tentang: sejarah, visi, misi (one per line), photo. */

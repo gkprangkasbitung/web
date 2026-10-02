@@ -121,7 +121,12 @@ export function JadwalDialog({
                   *
                 </span>
               </Label>
-              <Select value={categoryKey} onValueChange={setCategoryKey} disabled={pending}>
+              <Select
+                items={categories.map((category) => ({ value: category.key, label: category.name }))}
+                value={categoryKey}
+                onValueChange={setCategoryKey}
+                disabled={pending}
+              >
                 <SelectTrigger id={`${formId}-jenis`} className="w-full">
                   <SelectValue placeholder="Pilih jenis" />
                 </SelectTrigger>

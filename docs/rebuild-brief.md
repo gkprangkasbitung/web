@@ -77,12 +77,12 @@ A quirk to preserve: **every church-content module is guarded by the `warta` res
 
 Seeded roles and what they can do:
 
-| Role | warta | users | roles | activity_log |
-|---|---|---|---|---|
-| super_admin | create, read, update, delete | create, read, update, delete | create, read, update, delete | read |
-| admin | create, read, update, delete | none | read | none |
-| editor | create, read, update | none | none | none |
-| viewer | read | none | none | none |
+| Role        | warta                        | users                        | roles                        | activity_log |
+| ----------- | ---------------------------- | ---------------------------- | ---------------------------- | ------------ |
+| super_admin | create, read, update, delete | create, read, update, delete | create, read, update, delete | read         |
+| admin       | create, read, update, delete | none                         | read                         | none         |
+| editor      | create, read, update         | none                         | none                         | none         |
+| viewer      | read                         | none                         | none                         | none         |
 
 What each permission unlocks:
 
@@ -243,17 +243,17 @@ One table of schedule rows (`peribadahan_items`), each with a category and a dat
 
 Categories and their fields (an unknown key uses the `umum` layout):
 
-| key | Name | Fields besides Tanggal | Attendance | Notes field |
-|---|---|---|---|---|
-| umum | Kebaktian Minggu | Waktu, Tempat, Pelayan Firman, Liturgos | L, P, Anak | "Keterangan" |
-| smka | Kebaktian SMKA | Waktu, Tema, Pelayan Liturgi, Pemusik, Bahan Alkitab, group grid | per group | none |
-| krt | Kebaktian Rumah Tangga | Waktu, Tempat, Wilayah, DPA, Tema, Pelayan Firman, Liturgos | L, P, Anak | "Catatan" |
-| pa | Pemahaman Alkitab | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos | L, P, Anak | "Catatan" |
-| lansia | Kebaktian Lansia | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos | L, P | "Catatan" |
-| perempuan | Kebaktian Perempuan | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos | P | "Catatan" |
-| pria | Kebaktian Pria | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos | L | "Catatan" |
-| doa_pagi | Doa Pagi | Waktu, Tempat | L, P, Anak | "Catatan" |
-| pemuda_remaja | Kebaktian Pemuda Remaja | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos | L, P | "Catatan" |
+| key           | Name                    | Fields besides Tanggal                                           | Attendance | Notes field  |
+| ------------- | ----------------------- | ---------------------------------------------------------------- | ---------- | ------------ |
+| umum          | Kebaktian Minggu        | Waktu, Tempat, Pelayan Firman, Liturgos                          | L, P, Anak | "Keterangan" |
+| smka          | Kebaktian SMKA          | Waktu, Tema, Pelayan Liturgi, Pemusik, Bahan Alkitab, group grid | per group  | none         |
+| krt           | Kebaktian Rumah Tangga  | Waktu, Tempat, Wilayah, DPA, Tema, Pelayan Firman, Liturgos      | L, P, Anak | "Catatan"    |
+| pa            | Pemahaman Alkitab       | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | L, P, Anak | "Catatan"    |
+| lansia        | Kebaktian Lansia        | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | L, P       | "Catatan"    |
+| perempuan     | Kebaktian Perempuan     | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | P          | "Catatan"    |
+| pria          | Kebaktian Pria          | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | L          | "Catatan"    |
+| doa_pagi      | Doa Pagi                | Waktu, Tempat                                                    | L, P, Anak | "Catatan"    |
+| pemuda_remaja | Kebaktian Pemuda Remaja | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | L, P       | "Catatan"    |
 
 Field details: "Waktu" is a time input (`jam`); "Tempat" and "Wilayah" are selects over their master lists; "Dasar Pemahaman Alkitab (DPA)" and "Tema" are text; attendance fields are "Jumlah Kehadiran (Laki-laki / Perempuan / Anak-anak)", integers of at least 0. For SMKA, "Pelayan Liturgi" is stored in `liturgos_id`.
 
@@ -390,6 +390,7 @@ Current endpoints, for reference:
    - the finance report as **aggregates only** (per item: Saldo Awal, Pemasukan, Pengeluaran, Saldo Akhir), through a similar function, or a server-only service-role read that never returns individual rows.
 
    Then verify with the anon key that `jemaat` and individual transactions can't be read, and that `/warta/[slug]` still renders completely.
+
 2. The CSV export must follow the current table filters and search.
 3. Add a permission editor to Roles & Permissions (a grid of roles by `resource:action` checkboxes, requiring `roles:update`), and stop super_admin from removing its own `roles:*` or `users:*` access.
 4. Replace the public placeholder pages (Beranda, Tentang Kami, Jadwal Ibadah, Kontak) with real layouts and marked placeholder content.
@@ -426,7 +427,9 @@ Current endpoints, for reference:
 New admin group "Konten Situs" in the sidebar, after Label Jemaat. New permission resource `situs` (create, read, update, delete), seeded: super_admin and admin get all four, editor gets create/read/update, viewer gets read. Plus a separate permission `situs_rekening:update` for bank-account details, seeded to super_admin and admin only. All new tables live in new additive migrations, have RLS enabled, and allow anon `select` only on published/active rows and only on the columns the public site shows. Every mutation writes an activity log row with module `situs` (display label "Konten Situs").
 
 ### 14.1 Profil Gereja (`/admin/profil-gereja`)
+
 A single settings record, edited as one form with sections and one "Simpan" per section:
+
 - Beranda: hero title, hero subtitle, hero photo.
 - Sambutan: text, pastor name, pastor title, pastor photo.
 - Tentang: sejarah (multi-line text), visi, misi (ordered list of lines), sejarah photo.
@@ -436,16 +439,41 @@ A single settings record, edited as one form with sections and one "Simpan" per 
 - Persembahan (requires `situs_rekening:update`): nama bank, nomor rekening, atas nama, optional QRIS image. Changes are logged with old and new values.
 
 ### 14.2 Pelayanan (`/admin/pelayanan`)
+
 Reorderable cards like Litbang (§9.6): nama (required), deskripsi, jadwal (free text), icon (chosen from a fixed list), aktif. Only active cards show on the public site, in order.
 
 ### 14.3 Majelis (`/admin/majelis`)
+
 Reorderable list: nama (required), jabatan (required), foto, aktif. Free text, not linked to `jemaat`.
 
 ### 14.4 Kegiatan (`/admin/kegiatan`)
+
 Table pattern (§9.2): judul (required), tanggal (required), waktu, tempat, deskripsi, foto, status (`draft` / `published`). The public home page shows the next 3 published kegiatan with tanggal ≥ today (Asia/Jakarta).
 
 ### 14.5 Photo uploads
+
 Supabase Storage bucket `situs` (public read, write only via server with `situs:update`). Accept JPEG, PNG, WebP up to 5 MB; verify by magic bytes, not extension; re-encode server-side, which strips EXIF (including GPS) and caps the long edge at 2000 px; store under a random file name. Deleting or replacing a photo removes the old object. Require alt text for every photo.
 
 ### 14.6 Public site
+
 Beranda, Tentang Kami, and Kontak read from these modules through public, column-limited reads. An empty field hides its section instead of showing a placeholder. Content changes revalidate the affected public pages.
+
+### 14.7 Pendeta (`/admin/pendeta`)
+
+Table pattern (§9.2), permission `situs`. Fields: nama (required, including titles, e.g. "Pdt. ..."), peran (required, e.g. "Pendeta Jemaat"), tahun_mulai (required), tahun_selesai (empty = currently serving), foto, keterangan (short text, optional), tampil (default true).
+
+- DB constraints: tahun_mulai between 1800 and the current year (Asia/Jakarta); tahun_selesai null or between tahun_mulai and the current year.
+- Default order: currently serving first, then past pastors by tahun_selesai desc, then tahun_mulai desc. No manual reordering.
+- The "Sambutan" section of Profil Gereja (§14.1) selects a pastor from this list (FK, set null on delete) instead of storing its own name and photo.
+- Public "Tentang Kami": section "Pendeta Jemaat" (currently serving, with photo, peran, and "Melayani sejak {tahun}"), then "Pendeta yang pernah melayani" ("{mulai}–{selesai}"). Rows with tampil = false are hidden. A missing photo falls back to an initials avatar.
+
+### 14.8 Komisi (`/admin/komisi`)
+
+Permission `situs`; managing members also requires `warta:read` (members are jemaat).
+
+- `jabatan_komisi` (master, `/admin/komisi/jabatan`): nama (unique), sort_order, tunggal (boolean: at most one holder per komisi). Seed: Ketua (tunggal), Wakil Ketua (tunggal), Sekretaris (tunggal), Bendahara (tunggal), Anggota.
+- `komisi`: nama (unique), slug (unique, immutable), deskripsi, periode (text, e.g. "2024–2027"), foto, pembina_jemaat_id (FK jemaat, set null), tampil (default true), sort_order.
+- `komisi_anggota`: komisi_id (cascade), jemaat_id (cascade), jabatan_id (restrict); unique (komisi_id, jemaat_id); partial unique index so a `tunggal` jabatan has at most one holder per komisi.
+- DB rules: a member's jemaat must have status_keanggotaan in (`sidi`, `anggota_penuh`). The pembina must carry the label "Penatua" (label id kept in one setting, not matched by name in code).
+- If a member's status later changes to something ineligible, keep the row but flag it in the admin ("Tidak memenuhi syarat") and hide it from the public site.
+- Public `/komisi` (list) and `/komisi/[slug]` (detail): nama, deskripsi, periode, foto, pembina name, and members as name + jabatan only, ordered by jabatan sort_order then name. Read through a column-limited public function; no other jemaat columns ever reach anon.

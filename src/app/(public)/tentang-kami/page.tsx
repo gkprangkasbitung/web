@@ -2,6 +2,7 @@ import { CircleAlertIcon } from "lucide-react";
 import type { Metadata } from "next";
 
 import { MajelisGrid } from "@/components/public/majelis-grid";
+import { PendetaFeatured, PendetaPastGrid } from "@/components/public/pendeta-grid";
 import { PublicImage } from "@/components/public/public-image";
 import { PublicContainer, PublicPageTitleBand, PublicSection } from "@/components/public/public-shell";
 import { Timeline } from "@/components/public/timeline";
@@ -13,13 +14,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Brief §8, §14.6, docs/design/tentang-kami.html. Sejarah, Linimasa, Visi,
- * and Misi come from Profil Gereja and are hidden when empty; Majelis is a
- * placeholder until stage 11b. Renders per request (the loader calls
+ * Brief §8, §14.6-14.7, docs/design/tentang-kami.html. Sejarah, Linimasa,
+ * Visi, and Misi come from Profil Gereja; Pendeta Jemaat and Majelis each
+ * come from their own module. Every section is hidden when empty. Renders
+ * per request (the loader calls
  * `connection()`), so an edit shows on the next visit.
  */
 export default async function TentangKamiPage() {
-  const { profil, majelis } = await loadTentangKamiContent();
+  const { profil, pendetaMelayani, pendetaPernahMelayani, majelis } = await loadTentangKamiContent();
 
   return (
     <>
@@ -55,9 +57,15 @@ export default async function TentangKamiPage() {
             )}
 
             {(profil.data.visi || profil.data.misi.length > 0) && (
-              <div className="grid gap-4 md:grid-cols-2">
+              // Misi is a list and usually runs longer than Visi, so it gets the
+              // wider column; both cards center their content so the shorter
+              // one doesn't leave a block of empty space at the bottom.
+              <div className="grid gap-4 md:grid-cols-5">
                 {profil.data.visi && (
-                  <section aria-labelledby="visi" className="flex flex-col gap-3 rounded-2xl bg-brand p-8 text-brand-foreground">
+                  <section
+                    aria-labelledby="visi"
+                    className={`flex flex-col justify-center gap-3 rounded-2xl bg-brand p-8 text-brand-foreground ${profil.data.misi.length > 0 ? "md:col-span-2" : "md:col-span-5"}`}
+                  >
                     <h2 id="visi" className="text-xs font-medium tracking-[0.12em] text-brand-muted uppercase">
                       Visi
                     </h2>
@@ -65,7 +73,10 @@ export default async function TentangKamiPage() {
                   </section>
                 )}
                 {profil.data.misi.length > 0 && (
-                  <section aria-labelledby="misi" className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-8">
+                  <section
+                    aria-labelledby="misi"
+                    className={`flex flex-col justify-center gap-3 rounded-2xl border border-border bg-card p-8 ${profil.data.visi ? "md:col-span-3" : "md:col-span-5"}`}
+                  >
                     <h2 id="misi" className="text-xs font-medium tracking-[0.12em] text-primary uppercase">
                       Misi
                     </h2>
@@ -79,6 +90,18 @@ export default async function TentangKamiPage() {
               </div>
             )}
           </>
+        )}
+
+        {pendetaMelayani.length > 0 && (
+          <PublicSection id="pendeta-jemaat" title="Pendeta Jemaat">
+            <PendetaFeatured items={pendetaMelayani} />
+          </PublicSection>
+        )}
+
+        {pendetaPernahMelayani.length > 0 && (
+          <PublicSection id="pendeta-pernah-melayani" title="Pendeta yang pernah melayani">
+            <PendetaPastGrid items={pendetaPernahMelayani} />
+          </PublicSection>
         )}
 
         {majelis.length > 0 && (

@@ -6,6 +6,7 @@ import { situsPhotoUrl } from "@/lib/situs-photo";
 
 import { LinimasaSection } from "./linimasa-section";
 import { ProfilFormSection, type FieldConfig, type FormValues } from "./profil-form-section";
+import { SambutanSection } from "./sambutan-section";
 
 export type ProfilGerejaAccess = {
   /** situs:update: every section except Persembahan, and editing/reordering Linimasa. */
@@ -35,17 +36,6 @@ const BERANDA_FIELDS: FieldConfig[] = [
 const berandaValues = (row: ProfilGerejaRow): FormValues => ({
   heroJudul: text(row.hero_judul),
   heroSubjudul: text(row.hero_subjudul),
-});
-
-const SAMBUTAN_FIELDS: FieldConfig[] = [
-  { key: "sambutanTeks", label: "Teks sambutan", kind: "textarea", maxLength: 2000, rows: 5 },
-  { key: "sambutanNama", label: "Nama pendeta", kind: "text", maxLength: 120 },
-  { key: "sambutanJabatan", label: "Jabatan", kind: "text", maxLength: 120, placeholder: "Mis. Pendeta Jemaat" },
-];
-const sambutanValues = (row: ProfilGerejaRow): FormValues => ({
-  sambutanTeks: text(row.sambutan_teks),
-  sambutanNama: text(row.sambutan_nama),
-  sambutanJabatan: text(row.sambutan_jabatan),
 });
 
 const TENTANG_FIELDS: FieldConfig[] = [
@@ -146,18 +136,7 @@ export function ProfilGerejaEditor({ data, access }: { data: ProfilGerejaAdminDa
         fromResponse={(row) => ({ values: berandaValues(row), photo: photo(row.hero_foto_path, row.hero_foto_alt) })}
       />
 
-      <ProfilFormSection<ProfilGerejaRow>
-        title="Sambutan"
-        description="Sambutan singkat dari pendeta di halaman utama."
-        endpoint="/api/admin/profil-gereja/sambutan"
-        fields={SAMBUTAN_FIELDS}
-        initialValues={sambutanValues(profil)}
-        photo={{ label: "Foto pendeta", saved: photo(profil.sambutan_foto_path, profil.sambutan_foto_alt), altHint: "Foto pendeta jemaat" }}
-        canWrite={access.canUpdate}
-        readOnlyNote={readOnlyNote}
-        successMessage="Bagian Sambutan disimpan"
-        fromResponse={(row) => ({ values: sambutanValues(row), photo: photo(row.sambutan_foto_path, row.sambutan_foto_alt) })}
-      />
+      <SambutanSection profil={profil} pendeta={data.pendeta} canWrite={access.canUpdate} />
 
       <ProfilFormSection<ProfilGerejaRow>
         title="Tentang"

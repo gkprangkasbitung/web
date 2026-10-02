@@ -5,6 +5,7 @@ import {
   CalendarDaysIcon,
   CalendarIcon,
   ChurchIcon,
+  ClipboardListIcon,
   HeartHandshakeIcon,
   HistoryIcon,
   HouseIcon,
@@ -15,6 +16,7 @@ import {
   ShieldCheckIcon,
   TagsIcon,
   UserCogIcon,
+  UserRoundIcon,
   UsersIcon,
   UsersRoundIcon,
   WalletIcon,
@@ -45,6 +47,8 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   pelayanan: HeartHandshakeIcon,
   majelis: UsersRoundIcon,
   kegiatan: CalendarIcon,
+  pendeta: UserRoundIcon,
+  komisi: ClipboardListIcon,
 };
 
 function matches(pathname: string, href: string): boolean {

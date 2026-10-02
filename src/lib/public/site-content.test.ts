@@ -15,6 +15,7 @@ vi.mock("@/lib/public-site", () => ({
   loadPublicPelayanan: vi.fn(),
   loadPublicMajelis: vi.fn(),
   loadPublicKegiatanMendatang: vi.fn(),
+  loadPublicPendeta: vi.fn(),
 }));
 
 const {
@@ -24,6 +25,7 @@ const {
   loadPublicPelayanan,
   loadPublicMajelis,
   loadPublicKegiatanMendatang,
+  loadPublicPendeta,
 } = await import("@/lib/public-site");
 const { kebaktianMingguTimes, loadBerandaContent, loadKontakContent, loadSosialMedia, loadTentangKamiContent } =
   await import("./site-content");
@@ -34,10 +36,10 @@ const EMPTY: PublicProfilRow = {
   hero_foto_path: null,
   hero_foto_alt: null,
   sambutan_teks: null,
-  sambutan_nama: null,
-  sambutan_jabatan: null,
-  sambutan_foto_path: null,
-  sambutan_foto_alt: null,
+  sambutan_pendeta_nama: null,
+  sambutan_pendeta_peran: null,
+  sambutan_pendeta_foto_path: null,
+  sambutan_pendeta_foto_alt: null,
   sejarah: null,
   visi: null,
   misi: [],
@@ -92,6 +94,7 @@ beforeEach(() => {
   vi.mocked(loadPublicPelayanan).mockResolvedValue({ data: [], error: null });
   vi.mocked(loadPublicMajelis).mockResolvedValue({ data: [], error: null });
   vi.mocked(loadPublicKegiatanMendatang).mockResolvedValue({ data: [], error: null });
+  vi.mocked(loadPublicPendeta).mockResolvedValue({ data: [], error: null });
 });
 
 describe("kebaktianMingguTimes", () => {
@@ -224,5 +227,38 @@ describe("Pelayanan, Majelis, Kegiatan (brief §14.2-14.4)", () => {
     });
     const tentang = await loadTentangKamiContent();
     expect(tentang.majelis).toEqual([{ id: "m1", nama: "Pdt. Contoh", jabatan: "Pendeta Jemaat", photo: null }]);
+  });
+});
+
+describe("Pendeta (brief §14.7)", () => {
+  it("Tentang Kami: splits currently-serving from past pastors, keeping public_pendeta()'s order", async () => {
+    vi.mocked(loadPublicPendeta).mockResolvedValue({
+      data: [
+        { id: "d1", nama: "Pdt. Satu", peran: "Pendeta Jemaat", tahun_mulai: 2019, tahun_selesai: null, foto_path: null, foto_alt: null, keterangan: null },
+        { id: "d2", nama: "Pdt. Dua", peran: "Pendeta Jemaat", tahun_mulai: 2010, tahun_selesai: 2019, foto_path: null, foto_alt: null, keterangan: null },
+      ],
+      error: null,
+    });
+    const tentang = await loadTentangKamiContent();
+    expect(tentang.pendetaMelayani).toEqual([
+      { id: "d1", nama: "Pdt. Satu", peran: "Pendeta Jemaat", tahunMulai: 2019, tahunSelesai: null, keterangan: null, photo: null },
+    ]);
+    expect(tentang.pendetaPernahMelayani).toEqual([
+      { id: "d2", nama: "Pdt. Dua", peran: "Pendeta Jemaat", tahunMulai: 2010, tahunSelesai: 2019, keterangan: null, photo: null },
+    ]);
+  });
+
+  it("Beranda: Sambutan reads nama/peran/foto from the picked pendeta", async () => {
+    vi.mocked(loadPublicProfil).mockResolvedValue({
+      data: {
+        ...EMPTY,
+        sambutan_teks: "Selamat datang",
+        sambutan_pendeta_nama: "Pdt. Satu",
+        sambutan_pendeta_peran: "Pendeta Jemaat",
+      },
+      error: null,
+    });
+    const content = await loadBerandaContent();
+    expect(content.sambutan).toEqual({ teks: "Selamat datang", nama: "Pdt. Satu", jabatan: "Pendeta Jemaat", photo: null });
   });
 });

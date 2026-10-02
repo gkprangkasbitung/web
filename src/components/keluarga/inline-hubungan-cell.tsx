@@ -43,7 +43,12 @@ export function InlineHubunganCell({
 
   return (
     <div className="flex items-center gap-2">
-      <Select value={selected} onValueChange={setSelected} disabled={pending}>
+      <Select
+        items={[{ value: null, label: "Tidak ada" }, ...HUBUNGAN_KELUARGA.map((option) => ({ value: option, label: option }))]}
+        value={selected}
+        onValueChange={setSelected}
+        disabled={pending}
+      >
         <SelectTrigger className="w-40">
           <SelectValue placeholder="Tidak ada" />
         </SelectTrigger>

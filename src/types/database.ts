@@ -18,6 +18,19 @@ export type Database = {
                   Relationships: [
                     
                   ]
+                },"jabatan_komisi": {
+                  Row: {
+                    "created_at": string,"id": string,"nama": string,"sort_order": number,"tunggal": boolean
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"nama": string,"sort_order"?: number,"tunggal"?: boolean
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"nama"?: string,"sort_order"?: number,"tunggal"?: boolean
+                  }
+                  Relationships: [
+                    
+                  ]
                 },"jemaat": {
                   Row: {
                     "alamat": string | null,"created_at": string,"hubungan_keluarga": string | null,"id": string,"jenis_kelamin": string | null,"keluarga_id": string | null,"nama": string,"no_hp": string | null,"nomor_anggota": string | null,"pekerjaan": string | null,"status_keanggotaan": string | null,"sudah_baptis": boolean,"sudah_sidi": boolean,"tanggal_lahir": string | null,"tanggal_masuk": string | null,"wilayah_id": string | null
@@ -113,6 +126,75 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"komisi": {
+                  Row: {
+                    "created_at": string,"deskripsi": string | null,"foto_alt": string | null,"foto_path": string | null,"id": string,"nama": string,"pembina_jemaat_id": string | null,"periode": string | null,"slug": string,"sort_order": number,"tampil": boolean
+                  }
+                  Insert: {
+                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"nama": string,"pembina_jemaat_id"?: string | null,"periode"?: string | null,"slug": string,"sort_order"?: number,"tampil"?: boolean
+                  }
+                  Update: {
+                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"nama"?: string,"pembina_jemaat_id"?: string | null,"periode"?: string | null,"slug"?: string,"sort_order"?: number,"tampil"?: boolean
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "komisi_pembina_jemaat_id_fkey"
+      columns: ["pembina_jemaat_id"]
+isOneToOne: false
+      referencedRelation: "jemaat"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"komisi_anggota": {
+                  Row: {
+                    "created_at": string,"id": string,"jabatan_id": string,"jabatan_tunggal": boolean,"jemaat_id": string,"komisi_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"jabatan_id": string,"jabatan_tunggal"?: boolean,"jemaat_id": string,"komisi_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"jabatan_id"?: string,"jabatan_tunggal"?: boolean,"jemaat_id"?: string,"komisi_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "komisi_anggota_jabatan_id_fkey"
+      columns: ["jabatan_id"]
+isOneToOne: false
+      referencedRelation: "jabatan_komisi"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "komisi_anggota_jemaat_id_fkey"
+      columns: ["jemaat_id"]
+isOneToOne: false
+      referencedRelation: "jemaat"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "komisi_anggota_komisi_id_fkey"
+      columns: ["komisi_id"]
+isOneToOne: false
+      referencedRelation: "komisi"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"komisi_settings": {
+                  Row: {
+                    "id": number,"pembina_label_id": string | null
+                  }
+                  Insert: {
+                    "id"?: number,"pembina_label_id"?: string | null
+                  }
+                  Update: {
+                    "id"?: number,"pembina_label_id"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "komisi_settings_pembina_label_id_fkey"
+      columns: ["pembina_label_id"]
+isOneToOne: false
+      referencedRelation: "label_jemaat"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"label_jemaat": {
                   Row: {
                     "created_at": string,"id": string,"nama": string,"sort_order": number
@@ -161,6 +243,19 @@ isOneToOne: false
                   }
                   Update: {
                     "aktif"?: boolean,"created_at"?: string,"deskripsi"?: string | null,"icon"?: string,"id"?: string,"jadwal"?: string | null,"nama"?: string,"sort_order"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"pendeta": {
+                  Row: {
+                    "created_at": string,"foto_alt": string | null,"foto_path": string | null,"id": string,"keterangan": string | null,"nama": string,"peran": string,"tahun_mulai": number,"tahun_selesai": number | null,"tampil": boolean
+                  }
+                  Insert: {
+                    "created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"keterangan"?: string | null,"nama": string,"peran": string,"tahun_mulai": number,"tahun_selesai"?: number | null,"tampil"?: boolean
+                  }
+                  Update: {
+                    "created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"keterangan"?: string | null,"nama"?: string,"peran"?: string,"tahun_mulai"?: number,"tahun_selesai"?: number | null,"tampil"?: boolean
                   }
                   Relationships: [
                     
@@ -267,16 +362,22 @@ isOneToOne: false
                   ]
                 },"profil_gereja": {
                   Row: {
-                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"sambutan_foto_alt": string | null,"sambutan_foto_path": string | null,"sambutan_jabatan": string | null,"sambutan_nama": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"updated_at": string,"visi": string | null,"youtube_url": string | null
+                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"sambutan_pendeta_id": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"updated_at": string,"visi": string | null,"youtube_url": string | null
                   }
                   Insert: {
-                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_foto_alt"?: string | null,"sambutan_foto_path"?: string | null,"sambutan_jabatan"?: string | null,"sambutan_nama"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
                   }
                   Update: {
-                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_foto_alt"?: string | null,"sambutan_foto_path"?: string | null,"sambutan_jabatan"?: string | null,"sambutan_nama"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
                   }
                   Relationships: [
-                    
+                    {
+      foreignKeyName: "profil_gereja_sambutan_pendeta_id_fkey"
+      columns: ["sambutan_pendeta_id"]
+isOneToOne: false
+      referencedRelation: "pendeta"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"profil_gereja_linimasa": {
                   Row: {
@@ -520,7 +621,22 @@ isOneToOne: false
                 }
           }
           Functions: {
-            "create_warta":
+            "add_komisi_anggota":
+{ Args: { "p_jabatan_id": string,"p_jemaat_id": string,"p_komisi_id": string }; Returns: {
+              "created_at": string,
+"id": string,
+"jabatan_id": string,
+"jabatan_tunggal": boolean,
+"jemaat_id": string,
+"komisi_id": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "komisi_anggota"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
+"create_warta":
 { Args: { "p_judul_kebaktian": string,"p_renungan_isi"?: string,"p_renungan_judul"?: string,"p_renungan_kitab"?: string,"p_renungan_sumber"?: string,"p_slug": string,"p_tanggal_kebaktian": string,"p_tema_kebaktian"?: string }; Returns: string
                            },
 "delete_keluarga":
@@ -547,6 +663,19 @@ isOneToOne: false
               "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
             }[]
                            },
+"public_komisi_detail":
+{ Args: { "p_slug": string }; Returns: Json
+                           },
+"public_komisi_list":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "deskripsi": string,"foto_alt": string,"foto_path": string,"id": string,"nama": string,"slug": string
+            }[]
+                           },
+"public_pendeta":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "foto_alt": string,"foto_path": string,"id": string,"keterangan": string,"nama": string,"peran": string,"tahun_mulai": number,"tahun_selesai": number
+            }[]
+                           },
 "public_profil_gereja":
 { Args: Record<PropertyKey, never>; Returns: Json
                            },
@@ -559,6 +688,9 @@ isOneToOne: false
 { Args: { "p_slug": string }; Returns: {
               "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
             }[]
+                           },
+"reorder_komisi":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
                            },
 "reorder_litbang_categories":
 { Args: { "p_ids": (string)[] }; Returns: undefined
@@ -622,6 +754,21 @@ isOneToOne: false
 "situs_referenced_photo_paths":
 { Args: Record<PropertyKey, never>; Returns: string[]
                            },
+"update_komisi_anggota_jabatan":
+{ Args: { "p_jabatan_id": string,"p_jemaat_id": string,"p_komisi_id": string }; Returns: {
+              "created_at": string,
+"id": string,
+"jabatan_id": string,
+"jabatan_tunggal": boolean,
+"jemaat_id": string,
+"komisi_id": string
+            }
+                          SetofOptions: {
+        from: "*"
+        to: "komisi_anggota"
+        isOneToOne: true
+        isSetofReturn: false
+      } },
 "update_peribadahan_item":
 { Args: { "p_bahan_alkitab"?: string,"p_catatan"?: string,"p_dpa"?: string,"p_id": string,"p_jam"?: string,"p_kehadiran_anak"?: number,"p_kehadiran_laki_laki"?: number,"p_kehadiran_perempuan"?: number,"p_liturgos_id"?: string,"p_pelayan_firman_id"?: string,"p_pemusik_id"?: string,"p_smka_kelompok"?: Json,"p_tema"?: string,"p_tempat_id"?: string,"p_wilayah_id"?: string }; Returns: undefined
                            },

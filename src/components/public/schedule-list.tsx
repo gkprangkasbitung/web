@@ -47,7 +47,55 @@ function SmkaGroupTable({ row }: { row: PublicScheduleRow }) {
   );
 }
 
-/** One service with every filled field of its category (brief §8). Also reused by `ScheduleTabs` (Jadwal Ibadah). */
+/**
+ * Jadwal Ibadah's card (docs/design/jadwal-ibadah.html): a time column (Jam,
+ * WIB) beside the service type (`categoryName`) with its filled fields —
+ * Tempat, Pelayan Firman, Liturgos, DPA, etc. inline, and the longer Tema /
+ * Keterangan-Catatan as their own lines. Attendance counts are omitted here
+ * on request — Jadwal Ibadah is a schedule, not a report of past attendance.
+ */
+export function JadwalEntry({ row }: { row: PublicScheduleRow }) {
+  const fields = scheduleFields(row).filter((field) => !field.label.startsWith("Kehadiran "));
+  const inline = fields.filter((field) => field.label !== "Waktu" && field.label !== "Tema" && !field.multiline);
+  const blocks = fields.filter((field) => field.label === "Tema" || field.multiline);
+
+  return (
+    <article className="grid grid-cols-[5rem_minmax(0,1fr)] gap-5 rounded-2xl border border-border bg-card p-6 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-7 sm:p-7">
+      <div className="flex flex-col gap-1">
+        {row.jam && (
+          <>
+            <span className="font-serif text-2xl text-brand sm:text-[1.75rem]">{formatJam(row.jam)}</span>
+            <span className="text-xs text-muted-foreground">WIB</span>
+          </>
+        )}
+      </div>
+      <div className="flex min-w-0 flex-col gap-2.5">
+        <span className="font-serif text-xl sm:text-2xl">{row.categoryName}</span>
+        {inline.length > 0 && (
+          <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            {inline.map((field) => (
+              <div key={field.label} className="flex gap-1.5">
+                <dt className="text-muted-foreground">{field.label}:</dt>
+                <dd className={cn("wrap-break-word", field.numeric && "font-mono tabular-nums")}>{field.value}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {blocks.map((field) => (
+          <p
+            key={field.label}
+            className={cn("wrap-break-word text-sm text-muted-foreground", field.multiline && "whitespace-pre-line")}
+          >
+            {field.label}: {field.value}
+          </p>
+        ))}
+        <SmkaGroupTable row={row} />
+      </div>
+    </article>
+  );
+}
+
+/** One service with every filled field of its category (brief §8). Reused by `ScheduleList` (Warta). */
 export function ScheduleEntry({ row }: { row: PublicScheduleRow }) {
   const fields = scheduleFields(row);
   return (

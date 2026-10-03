@@ -27,7 +27,7 @@ const {
   loadPublicKegiatanMendatang,
   loadPublicPendeta,
 } = await import("@/lib/public-site");
-const { kebaktianMingguTimes, loadBerandaContent, loadKontakContent, loadSosialMedia, loadTentangKamiContent } =
+const { kebaktianMingguTimes, loadBerandaContent, loadFooterContent, loadKontakContent, loadTentangKamiContent } =
   await import("./site-content");
 
 const EMPTY: PublicProfilRow = {
@@ -168,10 +168,22 @@ describe("empty Profil Gereja fields hide their sections (brief §14.6)", () => 
     expect(content.data?.waLink).toBe("https://wa.me/6281234567890");
   });
 
-  it("footer: no social links → null; a failed load → null, not an error", async () => {
-    expect(await loadSosialMedia()).toBeNull();
+  it("footer: empty fields → nulls; a failed load → nulls, not an error", async () => {
+    const none = { sosialMedia: null, alamat: null, waLink: null };
+    expect(await loadFooterContent()).toEqual(none);
+
+    vi.mocked(loadPublicProfil).mockResolvedValue({
+      data: { ...EMPTY, alamat: "Alamat", telepon: "081234567890", instagram_url: "https://instagram.com/x" },
+      error: null,
+    });
+    expect(await loadFooterContent()).toEqual({
+      sosialMedia: { instagram: "https://instagram.com/x", youtube: null, facebook: null },
+      alamat: "Alamat",
+      waLink: "https://wa.me/6281234567890",
+    });
+
     vi.mocked(loadPublicProfil).mockResolvedValue({ data: null, error: "profil gereja" });
-    expect(await loadSosialMedia()).toBeNull();
+    expect(await loadFooterContent()).toEqual(none);
     const tentang = await loadTentangKamiContent();
     expect(tentang.profil.error).toBe("profil gereja");
   });

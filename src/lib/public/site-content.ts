@@ -267,12 +267,22 @@ export async function loadKontakContent(): Promise<KontakContent> {
   return { data: { kontak, waLink: kontak?.telepon ? buildWaLink(kontak.telepon) : null }, error: null };
 }
 
-/** The footer's social links (every public page); null when none is set or the load failed. */
-export async function loadSosialMedia(): Promise<SosialMedia | null> {
+export type FooterContent = { sosialMedia: SosialMedia | null; alamat: string | null; waLink: string | null };
+
+/**
+ * The footer on every public page (docs/design/beranda.html): alamat, the
+ * WhatsApp link, and social links from Profil Gereja. Each is null when
+ * unset; a failed load hides them all rather than failing the page.
+ */
+export async function loadFooterContent(): Promise<FooterContent> {
   const { data } = await loadPublicProfil();
-  if (!data) return null;
+  if (!data) return { sosialMedia: null, alamat: null, waLink: null };
   const links = { instagram: data.instagram_url, youtube: data.youtube_url, facebook: data.facebook_url };
-  return Object.values(links).some((value) => value !== null) ? links : null;
+  return {
+    sosialMedia: Object.values(links).some((value) => value !== null) ? links : null,
+    alamat: data.alamat,
+    waLink: data.telepon ? buildWaLink(data.telepon) : null,
+  };
 }
 
 // ---------------------------------------------------------------------------

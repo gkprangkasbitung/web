@@ -1,22 +1,103 @@
+import Link from "next/link";
+
 import { today } from "@/lib/dates";
-import type { SosialMedia } from "@/lib/public/site-content";
+import type { FooterContent, SosialMedia } from "@/lib/public/site-content";
 
 import { PublicHeader } from "./public-header";
 
+const SOCIAL_LABELS = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" } as const;
+
+/** The footer's "Jemaat" column: the header's pages minus Beranda and Kontak (Kontak sits under "Hubungi"). */
+const JEMAAT_LINKS = [
+  { href: "/tentang-kami", label: "Tentang Kami" },
+  { href: "/komisi", label: "Komisi" },
+  { href: "/jadwal-ibadah", label: "Jadwal Ibadah" },
+  { href: "/warta", label: "Warta" },
+] as const;
+
+const footerLinkClass =
+  "w-fit rounded-sm underline-offset-4 outline-none hover:text-stone-50 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50";
+
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" className={footerLinkClass}>
+      {children}
+      <span className="sr-only"> (tab baru)</span>
+    </a>
+  );
+}
+
+function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <nav aria-label={title} className="flex flex-col gap-2.5">
+      <span className="font-semibold text-stone-50">{title}</span>
+      {children}
+    </nav>
+  );
+}
+
 /**
- * The public site's shell (brief §8, docs/design/*.html): a header, a
- * footer "© {year} GKP Rangkasbitung." with the social links from Profil
- * Gereja (docs/design/beranda.html "Ikuti kami"; hidden when none is set),
- * `lang="id"` (root layout). The
+ * The footer from docs/design/beranda.html, on every public page: the
+ * church name and alamat, then "Jemaat", "Hubungi", and "Ikuti kami"
+ * columns, and "© {year} GKP Rangkasbitung." below a divider. Like the brand
+ * band, it is a fixed dark surface (stone-900) in both themes. Alamat,
+ * WhatsApp, and the social links come from Profil Gereja and are hidden when
+ * unset; "Ikuti kami" is left out when no social link is set.
+ */
+function PublicFooter({ footer }: { footer: FooterContent }) {
+  // The year in WIB, not UTC: on 1 January before 07:00 WIB UTC is still last year.
+  const year = today().slice(0, 4);
+  const { sosialMedia, alamat, waLink } = footer;
+
+  return (
+    <footer className="bg-stone-900 text-sm text-stone-300">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 pt-16 pb-10 md:px-8">
+        <div className="grid grid-cols-2 gap-10 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] md:gap-12">
+          <div className="col-span-2 flex flex-col gap-3 md:col-span-1">
+            <span className="text-lg font-semibold text-stone-50">GKP Rangkasbitung</span>
+            {alamat && <p className="max-w-xs leading-relaxed whitespace-pre-line">{alamat}</p>}
+          </div>
+          <FooterColumn title="Jemaat">
+            {JEMAAT_LINKS.map((link) => (
+              <Link key={link.href} href={link.href} className={footerLinkClass}>
+                {link.label}
+              </Link>
+            ))}
+          </FooterColumn>
+          <FooterColumn title="Hubungi">
+            <Link href="/kontak" className={footerLinkClass}>
+              Kontak
+            </Link>
+            {waLink && <ExternalLink href={waLink}>WhatsApp</ExternalLink>}
+          </FooterColumn>
+          {sosialMedia && (
+            <FooterColumn title="Ikuti kami">
+              {(Object.keys(SOCIAL_LABELS) as (keyof SosialMedia)[]).map((platform) => {
+                const url = sosialMedia[platform];
+                return (
+                  url && (
+                    <ExternalLink key={platform} href={url}>
+                      {SOCIAL_LABELS[platform]}
+                    </ExternalLink>
+                  )
+                );
+              })}
+            </FooterColumn>
+          )}
+        </div>
+        <p className="border-t border-stone-800 pt-6 text-stone-400">© {year} GKP Rangkasbitung.</p>
+      </div>
+    </footer>
+  );
+}
+
+/**
+ * The public site's shell (brief §8, docs/design/*.html): a skip link, the
+ * header, and the footer, with `lang="id"` set by the root layout. The
  * header itself is a client component (see `public-header.tsx`); everything
  * else here stays a plain Server Component, since none of it is interactive.
  */
-const SOCIAL_LABELS = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" } as const;
-
-export function PublicShell({ sosialMedia, children }: { sosialMedia: SosialMedia | null; children: React.ReactNode }) {
-  // The year in WIB, not UTC: on 1 January before 07:00 WIB UTC is still last year.
-  const year = today().slice(0, 4);
-
+export function PublicShell({ footer, children }: { footer: FooterContent; children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <a
@@ -32,34 +113,7 @@ export function PublicShell({ sosialMedia, children }: { sosialMedia: SosialMedi
         {children}
       </main>
 
-      <footer className="bg-brand text-brand-muted">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-8 text-sm md:flex-row md:items-center md:justify-between md:px-8">
-          <span className="font-semibold text-brand-foreground">GKP Rangkasbitung</span>
-          {sosialMedia && (
-            <nav aria-label="Sosial media" className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <span className="font-semibold text-brand-foreground">Ikuti kami</span>
-              {(Object.keys(SOCIAL_LABELS) as (keyof SosialMedia)[]).map((platform) => {
-                const url = sosialMedia[platform];
-                return (
-                  url && (
-                    <a
-                      key={platform}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="rounded-sm underline-offset-4 outline-none hover:text-brand-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
-                    >
-                      {SOCIAL_LABELS[platform]}
-                      <span className="sr-only"> (tab baru)</span>
-                    </a>
-                  )
-                );
-              })}
-            </nav>
-          )}
-          <span>© {year} GKP Rangkasbitung.</span>
-        </div>
-      </footer>
+      <PublicFooter footer={footer} />
     </div>
   );
 }

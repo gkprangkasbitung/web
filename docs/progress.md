@@ -16,6 +16,7 @@
 - [x] 11b. Pelayanan, Majelis, Kegiatan + sambungkan halaman publik ke data (§14.2–14.4, §14.6)
 - [x] 11c. Pendeta: modul CMS + Sambutan memakai data pendeta + section di Tentang Kami (§14.7)
 - [x] 11d. Komisi: master jabatan, komisi + anggota, halaman publik /komisi (§14.8)
+- [ ] 11e. Kalender Kegiatan: kategori + rentang tanggal + halaman /kegiatan & detail (§14.4 baru)
 
 ## Notes / decisions
 
@@ -1351,3 +1352,13 @@ Visual-only stage on top of stage 9b's data layer: no migration, no new route, n
 
 - The seven day tabs were a wrapping flex row. In the 600px `lg` column and on phones they broke into 2–3 uneven rows, while jadwal-ibadah.html has one row. They are now a `grid-cols-7` row at every width. Below `sm`, each tab stacks the day name over the date ("Min" / "4") so seven fit in 328px. From `sm` up they are the mockup's "Min 4" pills. A `{" "}` between the two spans keeps the accessible name "Rab 3".
 - Verified: `tsc`, `eslint`, `next build`, and the `components/public` tests (12) pass. Not checked in a browser.
+
+### Follow-up: embedded Google map on Beranda and Kontak, 2026-10-04
+
+- On request, the map now shows directly as an iframe (`components/public/map-embed.tsx`), with a "Buka di Google Maps" link below it. This replaces stage 9c's link-only `MapLink`, which is deleted. Trade-off accepted with this change: Google's embed loads on every Beranda/Kontak visit (cookies and tracking), which 9c had avoided.
+- No API key is needed. The src is `https://www.google.com/maps?q=…&z=16&output=embed` (with `ll=` when there is a pin), built server-side by `lib/public/maps-embed.ts` (`server-only`):
+  - A `maps.app.goo.gl` share link can't be embedded, so the server follows its single redirect (`redirect: "manual"`, 3 s timeout) and accepts the target only when it is an https google.com/maps URL. The result is cached in memory for 24 h per server instance, because Next's fetch cache isn't guaranteed for 3xx responses.
+  - From the full URL, the query is the `/place/<name>` with the `!3d…!4d…` pin coordinates as `ll`, else the coordinates, else `q`/`query`. The current local share link resolves to "GKP Rangkasbitung" at -6.3499703,106.2486079. Fetched with curl, the embed's final 200 page carries the same place id (`0x2e42170043483dab:0xaeba03074458cc4f`).
+  - When the URL gives nothing usable, or there is no URL, the embed searches for the alamat. With neither, no map is shown.
+- `KontakInfo` gained `mapEmbedSrc`, and `toKontak` is now async. Beranda's Kunjungi Kami and Kontak show the map whenever `mapEmbedSrc` is set.
+- Verified: `tsc`, `eslint`, `next build`, and vitest pass (new `maps-embed.test.ts`, 6 tests: parsing, the resolve-once cache, fallback on a failed or off-site redirect; plus `lib/public` 29 and `components` 84). `/` and `/kontak` on the dev server render the iframe with the expected src. Not looked at in a browser.

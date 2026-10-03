@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ActivityGrid } from "@/components/public/activity-grid";
 import { ContactList } from "@/components/public/contact-cards";
 import { Hero } from "@/components/public/hero";
-import { MapLink } from "@/components/public/map-link";
+import { MapEmbed } from "@/components/public/map-embed";
 import { MinistryGrid } from "@/components/public/ministry-grid";
 import { PublicImage } from "@/components/public/public-image";
 import { EyebrowHeading } from "@/components/public/public-shell";
@@ -168,16 +168,18 @@ export default async function HomePage() {
         </div>
       )}
 
-      {kontak && (hasContactLines || kontak.mapsUrl) && (
+      {kontak && (hasContactLines || kontak.mapEmbedSrc) && (
         <section
           aria-labelledby="kunjungi-kami"
-          className={`${CONTAINER} grid gap-10 pb-16 md:pb-26 ${hasContactLines && kontak.mapsUrl ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-16" : ""}`}
+          className={`${CONTAINER} grid gap-10 pb-16 md:pb-26 ${hasContactLines && kontak.mapEmbedSrc ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-16" : ""}`}
         >
           <div className="flex flex-col gap-6">
             <EyebrowHeading id="kunjungi-kami" eyebrow="Kunjungi kami" title="Kami menantikan kehadiran Anda" />
             <ContactList kontak={kontak} />
           </div>
-          {kontak.mapsUrl && <MapLink mapsUrl={kontak.mapsUrl} className="min-h-72 rounded-[20px] lg:min-h-95" />}
+          {kontak.mapEmbedSrc && (
+            <MapEmbed src={kontak.mapEmbedSrc} mapsUrl={kontak.mapsUrl} className="min-h-96 rounded-[20px] lg:min-h-110" />
+          )}
         </section>
       )}
     </>

@@ -23,6 +23,7 @@ import {
 import type { PublicScheduleRow } from "@/lib/public-schedule";
 import { situsPhotoUrl } from "@/lib/situs-photo";
 
+import { mapsEmbedSrc } from "./maps-embed";
 import { buildWaLink } from "./whatsapp";
 
 /**
@@ -65,6 +66,8 @@ export type KontakInfo = {
   email: string | null;
   jamSekretariat: string | null;
   mapsUrl: string | null;
+  /** The embedded map's `src` (lib/public/maps-embed.ts), from mapsUrl or else alamat; null when neither gives one. */
+  mapEmbedSrc: string | null;
 };
 
 export type SosialMedia = { instagram: string | null; youtube: string | null; facebook: string | null };
@@ -80,15 +83,16 @@ function toPhoto(path: string | null, alt: string | null): PublicPhoto {
   return path && alt && PHOTO_PATH.test(path) ? { url: situsPhotoUrl(path), alt } : null;
 }
 
-function toKontak(row: PublicProfilRow): KontakInfo | null {
-  const kontak = {
+async function toKontak(row: PublicProfilRow): Promise<KontakInfo | null> {
+  const fields = {
     alamat: row.alamat,
     telepon: row.telepon,
     email: row.email,
     jamSekretariat: row.jam_sekretariat,
     mapsUrl: row.maps_url,
   };
-  return Object.values(kontak).some((value) => value !== null) ? kontak : null;
+  if (!Object.values(fields).some((value) => value !== null)) return null;
+  return { ...fields, mapEmbedSrc: await mapsEmbedSrc(row.maps_url, row.alamat) };
 }
 
 function toRekening(row: PublicProfilRow): RekeningInfo | null {
@@ -174,7 +178,7 @@ export async function loadBerandaContent(): Promise<BerandaContent> {
       : null,
     pelayanan: (pelayananResult.data ?? []).map(toPelayananItem),
     kegiatan: (kegiatanResult.data ?? []).map(toKegiatanItem),
-    kontak: profil ? toKontak(profil) : null,
+    kontak: profil ? await toKontak(profil) : null,
     rekening: profil ? toRekening(profil) : null,
   };
 }
@@ -263,7 +267,7 @@ export type KontakContent = Result<{ kontak: KontakInfo | null; waLink: string |
 export async function loadKontakContent(): Promise<KontakContent> {
   const result = await loadPublicProfil();
   if (!result.data) return { data: null, error: result.error };
-  const kontak = toKontak(result.data);
+  const kontak = await toKontak(result.data);
   return { data: { kontak, waLink: kontak?.telepon ? buildWaLink(kontak.telepon) : null }, error: null };
 }
 

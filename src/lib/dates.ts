@@ -140,6 +140,12 @@ export function formatDayShort(date: IsoDate): string {
   return DAY_NAMES[weekday(date)]!.slice(0, 3);
 }
 
+/** "Min, 4 Okt" — day and date without the year, for short lists within one week. */
+export function formatDayDateShort(date: IsoDate): string {
+  const { month, day } = parse(date);
+  return `${formatDayShort(date)}, ${day} ${MONTH_SHORT[month - 1]}`;
+}
+
 /** "14 September 2025" */
 export function formatDateShort(date: IsoDate): string {
   const { year, month, day } = parse(date);

@@ -52,6 +52,44 @@ export function ContactCards({ kontak }: { kontak: KontakInfo }) {
   );
 }
 
+/**
+ * Beranda's "Kunjungi kami" contact lines (docs/design/beranda.html): the
+ * same fields as `ContactCards`, as a plain list instead of cards.
+ */
+export function ContactList({ kontak }: { kontak: KontakInfo }) {
+  const fields = FIELDS.filter(({ key }) => kontak[key] !== null);
+  if (fields.length === 0) return null;
+
+  return (
+    <dl className="flex flex-col gap-3.5 text-base text-foreground/85">
+      {fields.map(({ key, label, icon: Icon }) => {
+        const value = kontak[key]!;
+        return (
+          <div key={key} className="flex items-start gap-3">
+            <dt className="mt-0.5 shrink-0 text-primary">
+              <Icon aria-hidden="true" className="size-5" />
+              <span className="sr-only">{label}</span>
+            </dt>
+            <dd className="min-w-0 wrap-break-word whitespace-pre-line">
+              {key === "email" ? (
+                <a href={`mailto:${value}`} className="underline-offset-4 hover:underline">
+                  {value}
+                </a>
+              ) : key === "telepon" ? (
+                <a href={`tel:${value}`} className="font-mono tabular-nums underline-offset-4 hover:underline">
+                  {value}
+                </a>
+              ) : (
+                value
+              )}
+            </dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+
 /** The `wa.me` button (lib/public/whatsapp.ts). The caller renders it only when there is a number. */
 export function WhatsappButton({ waLink }: { waLink: string }) {
   return (

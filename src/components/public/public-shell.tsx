@@ -127,6 +127,40 @@ export function PlaceholderBlock({ title, children }: { title?: string; children
   );
 }
 
+/**
+ * Beranda's section heading (docs/design/beranda.html): a small uppercase
+ * eyebrow over a large serif `h2`. `tone="brand"` is for the dark band.
+ */
+export function EyebrowHeading({
+  id,
+  eyebrow,
+  title,
+  align = "start",
+  tone = "default",
+}: {
+  id: string;
+  eyebrow: string;
+  title: string;
+  align?: "start" | "center";
+  tone?: "default" | "brand";
+}) {
+  return (
+    <div className={`flex flex-col gap-3 ${align === "center" ? "items-center text-center" : ""}`}>
+      <span
+        className={`text-xs font-medium tracking-[0.12em] uppercase md:text-sm ${tone === "brand" ? "text-brand-muted" : "text-primary"}`}
+      >
+        {eyebrow}
+      </span>
+      <h2
+        id={id}
+        className="font-serif text-4xl leading-[1.1] font-normal tracking-tight text-balance md:text-[3.25rem]"
+      >
+        {title}
+      </h2>
+    </div>
+  );
+}
+
 /** A labelled `<section>` with an `h2`, the building block of every public page. */
 export function PublicSection({
   id,

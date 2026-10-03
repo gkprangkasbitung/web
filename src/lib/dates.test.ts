@@ -4,6 +4,7 @@ import {
   addDays,
   financeWeek,
   formatDateCompact,
+  formatDayDateShort,
   formatDateLong,
   formatDateShort,
   formatTimestamp,
@@ -123,6 +124,7 @@ describe("formatting", () => {
     expect(formatDateLong("2025-12-01")).toBe("Senin, 1 Desember 2025");
     expect(formatDateShort("2025-09-14")).toBe("14 September 2025");
     expect(formatDateCompact("2025-08-03")).toBe("3 Agu 2025");
+    expect(formatDayDateShort("2026-10-04")).toBe("Min, 4 Okt");
   });
 
   it("formats timestamps in WIB", () => {

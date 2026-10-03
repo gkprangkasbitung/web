@@ -1,6 +1,6 @@
 import { cn } from "cn";
 
-import { formatDateLong } from "@/lib/dates";
+import { formatDateLong, formatDayDateShort } from "@/lib/dates";
 import { formatJam } from "@/lib/peribadahan";
 import { groupByDate, scheduleFields, type PublicScheduleRow } from "@/lib/public-schedule";
 
@@ -145,17 +145,24 @@ export function ScheduleList({ rows, emptyText }: { rows: PublicScheduleRow[]; e
 export function CompactScheduleList({ rows, emptyText }: { rows: PublicScheduleRow[]; emptyText: string }) {
   if (rows.length === 0) return <p className="text-sm text-muted-foreground">{emptyText}</p>;
   return (
-    <ul className="flex flex-col divide-y divide-border">
+    <ul className="flex flex-col divide-y divide-border/60">
       {rows.map((row) => {
         const place = [row.tempatNama, row.wilayahNama].filter(Boolean).join(" · ");
         return (
-          <li key={row.id} className="flex flex-col gap-0.5 py-3 first:pt-0 last:pb-0">
-            <span className="font-medium">{row.categoryName}</span>
-            <span className="text-sm text-muted-foreground">
-              {formatDateLong(row.tanggal)}
-              {row.jam && <span className="font-mono tabular-nums">, {formatJam(row.jam)}</span>}
-              {place && ` · ${place}`}
-            </span>
+          <li key={row.id} className="flex items-start justify-between gap-3 py-3.5 first:pt-0 last:pb-0">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="text-[15px] font-medium">{row.categoryName}</span>
+              {(row.jam || place) && (
+                <span className="text-[13px] text-muted-foreground">
+                  {row.jam && <span className="font-mono tabular-nums">{formatJam(row.jam)} WIB</span>}
+                  {row.jam && place && " · "}
+                  {place}
+                </span>
+              )}
+            </div>
+            <time dateTime={row.tanggal} className="shrink-0 text-[13px] font-medium whitespace-nowrap text-primary">
+              {formatDayDateShort(row.tanggal)}
+            </time>
           </li>
         );
       })}

@@ -27,9 +27,10 @@ export function ScheduleTabs({ week, rows }: { week: DateRange; rows: PublicSche
         variant="line"
         aria-label="Pilih hari"
         activateOnFocus
-        // `h-auto!`: the shared list pins `h-9` with a more specific selector, so
-        // wrapped rows (mobile) would spill over the panel below.
-        className="h-auto! flex-wrap justify-start gap-2 bg-transparent p-0"
+        // One row of seven equal columns at every width, as in the mockup (a
+        // wrapping flex row broke into 2–3 ragged rows on narrow screens).
+        // `h-auto!`: the shared list pins `h-9` with a more specific selector.
+        className="grid h-auto! w-full grid-cols-7 gap-1.5 bg-transparent p-0 sm:gap-2"
       >
         {days.map((day) => (
           <TabsTrigger
@@ -37,9 +38,11 @@ export function ScheduleTabs({ week, rows }: { week: DateRange; rows: PublicSche
             value={day}
             // `!`: the shared `line` variant resets the active tab to a transparent
             // background with a more specific selector, and draws an underline via `after:`.
-            className="h-11 flex-none rounded-full border border-border bg-card px-4 text-sm font-medium text-foreground shadow-none after:hidden data-active:border-brand! data-active:bg-brand! data-active:text-brand-foreground!"
+            // Below `sm` the day name sits above the date so seven fit in 328px.
+            className="h-14 w-full min-w-0 flex-col gap-0 rounded-2xl border border-border bg-card px-0 text-sm font-medium text-foreground shadow-none after:hidden data-active:border-brand! data-active:bg-brand! data-active:text-brand-foreground! sm:h-11 sm:flex-row sm:gap-1 sm:rounded-full"
           >
-            {formatDayShort(day)} {Number(day.slice(-2))}
+            <span>{formatDayShort(day)}</span>{" "}
+            <span className="tabular-nums">{Number(day.slice(-2))}</span>
           </TabsTrigger>
         ))}
       </TabsList>

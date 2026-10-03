@@ -78,6 +78,17 @@
   --brand-foreground: #fafaf9;
   --brand-muted: #b7cbc3;
   --brand-border: rgb(250 250 249 / 14%);
+
+  /*
+   * Public footer (docs/design/beranda.html's layout). Themed, unlike the
+   * brand band: a surface one step off the page background in each mode, so
+   * it never blends into it. Text pairs pass AA on their surface.
+   */
+  --footer: #f2f1ef;
+  --footer-foreground: #44403c;
+  --footer-heading: #1c1917;
+  --footer-muted: #57534e;
+  --footer-border: #e7e5e4;
 }
 
 .dark {
@@ -135,6 +146,11 @@
   --brand-foreground: #fafaf9;
   --brand-muted: #b7cbc3;
   --brand-border: rgb(250 250 249 / 14%);
+  --footer: #292524;
+  --footer-foreground: #d6d3d1;
+  --footer-heading: #fafaf9;
+  --footer-muted: #a8a29e;
+  --footer-border: #44403c;
 }
 
 @theme inline {
@@ -197,6 +213,12 @@
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-muted: var(--brand-muted);
   --color-brand-border: var(--brand-border);
+
+  --color-footer: var(--footer);
+  --color-footer-foreground: var(--footer-foreground);
+  --color-footer-heading: var(--footer-heading);
+  --color-footer-muted: var(--footer-muted);
+  --color-footer-border: var(--footer-border);
 
   /* 8px for inputs and buttons (rounded-md / rounded-lg), 12px for cards and dialogs (rounded-xl). */
   --radius-sm: 6px;

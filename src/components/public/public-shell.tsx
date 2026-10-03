@@ -16,7 +16,7 @@ const JEMAAT_LINKS = [
 ] as const;
 
 const footerLinkClass =
-  "w-fit rounded-sm underline-offset-4 outline-none hover:text-stone-50 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50";
+  "w-fit rounded-sm underline-offset-4 outline-none hover:text-footer-heading hover:underline focus-visible:ring-3 focus-visible:ring-ring/50";
 
 function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
@@ -30,7 +30,7 @@ function ExternalLink({ href, children }: { href: string; children: React.ReactN
 function FooterColumn({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <nav aria-label={title} className="flex flex-col gap-2.5">
-      <span className="font-semibold text-stone-50">{title}</span>
+      <span className="font-semibold text-footer-heading">{title}</span>
       {children}
     </nav>
   );
@@ -39,8 +39,9 @@ function FooterColumn({ title, children }: { title: string; children: React.Reac
 /**
  * The footer from docs/design/beranda.html, on every public page: the
  * church name and alamat, then "Jemaat", "Hubungi", and "Ikuti kami"
- * columns, and "© {year} GKP Rangkasbitung." below a divider. Like the brand
- * band, it is a fixed dark surface (stone-900) in both themes. Alamat,
+ * columns, and "© {year} GKP Rangkasbitung." below a divider. Its colors
+ * are the themed `--footer*` tokens (globals.css), so it follows Terang /
+ * Gelap / Sistem and always stands apart from the page background. Alamat,
  * WhatsApp, and the social links come from Profil Gereja and are hidden when
  * unset; "Ikuti kami" is left out when no social link is set.
  */
@@ -50,11 +51,11 @@ function PublicFooter({ footer }: { footer: FooterContent }) {
   const { sosialMedia, alamat, waLink } = footer;
 
   return (
-    <footer className="bg-stone-900 text-sm text-stone-300">
+    <footer className="border-t border-footer-border bg-footer text-sm text-footer-foreground">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-12 px-4 pt-16 pb-10 md:px-8">
         <div className="grid grid-cols-2 gap-10 md:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] md:gap-12">
           <div className="col-span-2 flex flex-col gap-3 md:col-span-1">
-            <span className="text-lg font-semibold text-stone-50">GKP Rangkasbitung</span>
+            <span className="text-lg font-semibold text-footer-heading">GKP Rangkasbitung</span>
             {alamat && <p className="max-w-xs leading-relaxed whitespace-pre-line">{alamat}</p>}
           </div>
           <FooterColumn title="Jemaat">
@@ -85,7 +86,7 @@ function PublicFooter({ footer }: { footer: FooterContent }) {
             </FooterColumn>
           )}
         </div>
-        <p className="border-t border-stone-800 pt-6 text-stone-400">© {year} GKP Rangkasbitung.</p>
+        <p className="border-t border-footer-border pt-6 text-footer-muted">© {year} GKP Rangkasbitung.</p>
       </div>
     </footer>
   );

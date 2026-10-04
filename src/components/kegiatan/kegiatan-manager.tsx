@@ -1,6 +1,7 @@
 "use client";
 
 import { PlusIcon } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -9,61 +10,76 @@ import { PageHeader } from "@/components/admin/page-header";
 import { DataTable } from "@/components/data-table/data-table";
 import { createDataTableColumnHelper, type DataTableColumnDef } from "@/components/data-table/features";
 import { useDataTable } from "@/components/data-table/use-data-table";
-import { DateRangeFilter, type DateRangeValue } from "@/components/shared/date-range-filter";
 import { Button } from "@/components/ui/button";
 import { apiFetch, errorMessage } from "@/lib/api-client";
-import { formatDateLong } from "@/lib/dates";
-import { KEGIATAN_DELETE_DESCRIPTION, KEGIATAN_STATUS_LABELS, type KegiatanRow, type KegiatanStatus } from "@/lib/kegiatan";
+import {
+  formatTanggalRange,
+  KEGIATAN_DELETE_DESCRIPTION,
+  KEGIATAN_STATUS_LABELS,
+  type KategoriKegiatanRow,
+  type KegiatanRow,
+  type KegiatanStatus,
+} from "@/lib/kegiatan";
 
+import { KategoriBadge } from "./kategori-badge";
 import { KegiatanDialog } from "./kegiatan-dialog";
 import { KegiatanStatusBadge } from "./kegiatan-status-badge";
 
 const helper = createDataTableColumnHelper<KegiatanRow>();
 
-function buildColumns(): DataTableColumnDef<KegiatanRow>[] {
+function buildColumns(kategoriById: Map<string, KategoriKegiatanRow>): DataTableColumnDef<KegiatanRow>[] {
   return [
     helper.accessor("judul", {
       header: "Judul",
       enableSorting: true,
       meta: { search: true, className: "font-medium" },
     }),
-    helper.accessor("tanggal", {
-      id: "tanggal",
+    helper.accessor("kategori_id", {
+      id: "kategori_id",
+      header: "Kategori",
+      meta: {
+        facet: { title: "Kategori", formatValue: (value) => kategoriById.get(value as string)?.nama ?? value },
+      },
+      cell: ({ getValue }) => {
+        const kategori = kategoriById.get(getValue());
+        return kategori ? <KategoriBadge nama={kategori.nama} warna={kategori.warna} /> : "—";
+      },
+    }),
+    helper.accessor("tanggal_mulai", {
+      id: "tanggal_mulai",
       header: "Tanggal",
       enableSorting: true,
-      filterFn: "inDateRange",
       meta: { numeric: true },
-      cell: ({ getValue }) => formatDateLong(getValue()),
-    }),
-    helper.accessor("tempat", {
-      header: "Tempat",
-      meta: { search: true },
-      cell: ({ getValue }) => getValue() || <span className="text-muted-foreground">—</span>,
+      cell: ({ row }) => formatTanggalRange(row.original.tanggal_mulai, row.original.tanggal_selesai),
     }),
     helper.accessor("status", {
       id: "status",
       header: "Status",
-      meta: { facet: { formatValue: (value) => KEGIATAN_STATUS_LABELS[value as KegiatanStatus] ?? value } },
+      meta: { facet: { title: "Status", formatValue: (value) => KEGIATAN_STATUS_LABELS[value as KegiatanStatus] ?? value } },
       cell: ({ getValue }) => <KegiatanStatusBadge status={getValue()} />,
     }),
   ];
 }
 
-/** `/admin/kegiatan` (brief §9.2, §14.4): DataTable, Status facet, date range on tanggal, Terbitkan/Tarik ke Draft. */
+/** `/admin/kegiatan` (brief §9.2, §14.4): DataTable, Kategori + Status facets, Terbitkan/Tarik ke Draft. */
 export function KegiatanManager({
   rows,
+  kategoriOptions,
+  komisiOptions,
   canWrite,
   canDelete,
 }: {
   rows: KegiatanRow[];
+  kategoriOptions: KategoriKegiatanRow[];
+  komisiOptions: { id: string; nama: string }[];
   canWrite: boolean;
   canDelete: boolean;
 }) {
   const router = useRouter();
-  const columns = useMemo(() => buildColumns(), []);
-  // No initial sort: rows arrive newest tanggal first.
+  const kategoriById = useMemo(() => new Map(kategoriOptions.map((row) => [row.id, row])), [kategoriOptions]);
+  const columns = useMemo(() => buildColumns(kategoriById), [kategoriById]);
+  // No initial sort: rows arrive newest tanggal_mulai first.
   const table = useDataTable({ data: rows, columns, getRowId: (row) => row.id });
-  const tanggalColumn = table.table.getColumn("tanggal");
 
   const [dialogRow, setDialogRow] = useState<KegiatanRow | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -104,7 +120,19 @@ export function KegiatanManager({
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title="Kegiatan" actions={addAction} />
+      <PageHeader
+        title="Kegiatan"
+        description={
+          <>
+            Kelola{" "}
+            <Link href="/admin/kegiatan/kategori" className="underline underline-offset-4 hover:text-foreground">
+              kategori kegiatan
+            </Link>
+            .
+          </>
+        }
+        actions={addAction}
+      />
 
       <DataTable
         table={table}
@@ -112,13 +140,6 @@ export function KegiatanManager({
         noun="kegiatan"
         canWrite={canWrite}
         addAction={addAction}
-        toolbar={
-          <DateRangeFilter
-            label="Tanggal"
-            value={(tanggalColumn?.getFilterValue() as DateRangeValue | undefined) ?? {}}
-            onValueChange={(value) => tanggalColumn?.setFilterValue(value.start || value.end ? value : undefined)}
-          />
-        }
         rowActions={{
           getRowLabel: (row) => row.judul,
           edit: { onSelect: (row) => openDialog(row) },
@@ -143,6 +164,8 @@ export function KegiatanManager({
         row={dialogRow}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        kategoriOptions={kategoriOptions}
+        komisiOptions={komisiOptions}
         readOnly={!canWrite}
         onSaved={() => router.refresh()}
       />

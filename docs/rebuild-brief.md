@@ -446,9 +446,12 @@ Reorderable cards like Litbang (§9.6): nama (required), deskripsi, jadwal (free
 
 Reorderable list: nama (required), jabatan (required), foto, aktif. Free text, not linked to `jemaat`.
 
-### 14.4 Kegiatan (`/admin/kegiatan`)
-
-Table pattern (§9.2): judul (required), tanggal (required), waktu, tempat, deskripsi, foto, status (`draft` / `published`). The public home page shows the next 3 published kegiatan with tanggal ≥ today (Asia/Jakarta).
+### 14.4 Kegiatan (`/admin/kegiatan`) — calendar edition
+- `kategori_kegiatan` (master, `/admin/kegiatan/kategori`): nama (unique), warna (one key from a fixed palette defined in code with light and dark variants, never a free hex), sort_order. Seed: Ibadah khusus, Pemuda & Remaja, Anak, Diakonia, Rapat & organisasi.
+- `kegiatan`: judul (required), slug (unique, immutable), kategori_id (required, restrict), tanggal_mulai (required), tanggal_selesai (required, ≥ tanggal_mulai, span ≤ 31 days), waktu_mulai, waktu_selesai (optional; empty = all-day), tempat, maps_url (Google Maps hosts only), deskripsi, info_pendaftaran, foto, penyelenggara_komisi_id (optional, FK komisi, set null), status (`draft`/`published`).
+- Public `/kegiatan?bulan=YYYY-MM` (default: current month in Asia/Jakarta): month grid starting on Minggu, a list view, and a category legend. Multi-day events appear on every day they cover, labelled "(n/total)". Data comes from a public function that takes one month and returns only published events that overlap it.
+- Public `/kegiatan/[slug]`: detail per docs/design/kegiatan-detail.html, with "Tambahkan ke kalender saya" (.ics) and "Bagikan lewat WhatsApp".
+- Beranda "Kegiatan mendatang": next 3 published events with tanggal_selesai ≥ today (Asia/Jakarta), so ongoing events still show.
 
 ### 14.5 Photo uploads
 

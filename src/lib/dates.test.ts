@@ -2,18 +2,25 @@ import { describe, expect, it } from "vitest";
 
 import {
   addDays,
+  addMonths,
   financeWeek,
   formatDateCompact,
   formatDayDateShort,
   formatDateLong,
+  formatDateRangeLong,
+  formatDateRangeShort,
   formatDateShort,
+  formatMonthLong,
   formatTimestamp,
   isoDateSchema,
   isoDateToLocalDate,
   isValidIsoDate,
+  isValidIsoMonth,
   jakartaDayStart,
   jakartaTimestampBounds,
   localDateToIsoDate,
+  monthOf,
+  monthRange,
   nextSunday,
   serviceWeek,
   today,
@@ -154,5 +161,51 @@ describe("date range bounds", () => {
     expect([local.getFullYear(), local.getMonth(), local.getDate()]).toEqual([2025, 10, 30]);
     expect(localDateToIsoDate(local)).toBe("2025-11-30");
     expect(localDateToIsoDate(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
+  });
+});
+
+describe("month helpers (brief §14.4, the kalender kegiatan)", () => {
+  it("validates the YYYY-MM format", () => {
+    expect(isValidIsoMonth("2026-10")).toBe(true);
+    expect(isValidIsoMonth("2026-13")).toBe(false);
+    expect(isValidIsoMonth("2026-00")).toBe(false);
+    expect(isValidIsoMonth("2026-1")).toBe(false);
+    expect(isValidIsoMonth("not-a-month")).toBe(false);
+  });
+
+  it("monthOf: the YYYY-MM containing a date", () => {
+    expect(monthOf("2026-10-15")).toBe("2026-10");
+  });
+
+  it("addMonths: forward, backward, and across a year boundary", () => {
+    expect(addMonths("2026-10", 1)).toBe("2026-11");
+    expect(addMonths("2026-10", -1)).toBe("2026-09");
+    expect(addMonths("2026-12", 1)).toBe("2027-01");
+    expect(addMonths("2026-01", -1)).toBe("2025-12");
+    expect(addMonths("2026-10", -24)).toBe("2024-10");
+  });
+
+  it("monthRange: first and last calendar date, including a 31/30/28-day month", () => {
+    expect(monthRange("2026-10")).toEqual({ start: "2026-10-01", end: "2026-10-31" });
+    expect(monthRange("2026-04")).toEqual({ start: "2026-04-01", end: "2026-04-30" });
+    expect(monthRange("2026-02")).toEqual({ start: "2026-02-01", end: "2026-02-28" });
+    expect(monthRange("2028-02")).toEqual({ start: "2028-02-01", end: "2028-02-29" }); // leap year
+  });
+
+  it("formatMonthLong", () => {
+    expect(formatMonthLong("2026-10")).toBe("Oktober 2026");
+  });
+
+  it("formatDateRangeShort: same day, same month, cross-month, cross-year", () => {
+    expect(formatDateRangeShort("2026-10-16", "2026-10-16")).toBe("16 Oktober 2026");
+    expect(formatDateRangeShort("2026-10-16", "2026-10-18")).toBe("16 – 18 Oktober 2026");
+    expect(formatDateRangeShort("2026-10-30", "2026-11-02")).toBe("30 Oktober – 2 November 2026");
+    expect(formatDateRangeShort("2026-12-30", "2027-01-02")).toBe("30 Desember 2026 – 2 Januari 2027");
+  });
+
+  it("formatDateRangeLong: adds weekday names, same-month only", () => {
+    expect(formatDateRangeLong("2026-10-16", "2026-10-16")).toBe("Jumat, 16 Oktober 2026");
+    expect(formatDateRangeLong("2026-10-16", "2026-10-18")).toBe("Jumat, 16 – Minggu, 18 Oktober 2026");
+    expect(formatDateRangeLong("2026-10-30", "2026-11-02")).toBe("Jumat, 30 Oktober 2026 – Senin, 2 November 2026");
   });
 });

@@ -9,12 +9,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
-/** The public header's links, in brief §8's order. */
+/** The public header's links, in brief §8's order (Kegiatan added after Jadwal Ibadah, §14.4). */
 export const PUBLIC_NAV = [
   { href: "/", label: "Beranda" },
   { href: "/tentang-kami", label: "Tentang Kami" },
   { href: "/komisi", label: "Komisi" },
   { href: "/jadwal-ibadah", label: "Jadwal Ibadah" },
+  { href: "/kegiatan", label: "Kegiatan" },
   { href: "/warta", label: "Warta" },
   { href: "/kontak", label: "Kontak" },
 ] as const;

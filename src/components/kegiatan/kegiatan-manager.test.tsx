@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { KegiatanRow } from "@/lib/kegiatan";
+import type { KategoriKegiatanRow, KegiatanRow } from "@/lib/kegiatan";
 
 import { KegiatanManager } from "./kegiatan-manager";
 
@@ -20,27 +20,44 @@ vi.mock("sonner", () => ({
   toast: { success: (message: string) => toastSuccess(message), error: (message: string) => toastError(message) },
 }));
 
+const KATEGORI: KategoriKegiatanRow[] = [{ id: "kat-1", nama: "Ibadah khusus", warna: "hijau", sort_order: 0 }];
+const KOMISI: { id: string; nama: string }[] = [];
+
 const ROWS: KegiatanRow[] = [
   {
     id: "a",
     judul: "Retret Pemuda",
-    tanggal: "2031-06-15",
-    waktu: null,
+    slug: "retret-pemuda",
+    tanggal_mulai: "2031-06-15",
+    tanggal_selesai: "2031-06-15",
+    waktu_mulai: null,
+    waktu_selesai: null,
     tempat: "Aula",
+    maps_url: null,
     deskripsi: null,
+    info_pendaftaran: null,
     foto_path: null,
     foto_alt: null,
+    kategori_id: "kat-1",
+    penyelenggara_komisi_id: null,
     status: "draft",
   },
   {
     id: "b",
     judul: "Ibadah Natal",
-    tanggal: "2031-12-25",
-    waktu: null,
+    slug: "ibadah-natal",
+    tanggal_mulai: "2031-12-25",
+    tanggal_selesai: "2031-12-25",
+    waktu_mulai: null,
+    waktu_selesai: null,
     tempat: null,
+    maps_url: null,
     deskripsi: null,
+    info_pendaftaran: null,
     foto_path: null,
     foto_alt: null,
+    kategori_id: "kat-1",
+    penyelenggara_komisi_id: null,
     status: "published",
   },
 ];
@@ -67,7 +84,7 @@ function respond(status: number, body: unknown) {
 describe("KegiatanManager", () => {
   it("adds a kegiatan through the dialog as multipart, starting as draft", async () => {
     const user = userEvent.setup();
-    render(<KegiatanManager rows={ROWS} canWrite canDelete />);
+    render(<KegiatanManager rows={ROWS} kategoriOptions={KATEGORI} komisiOptions={KOMISI} canWrite canDelete />);
 
     await user.click(screen.getByRole("button", { name: "Tambah Kegiatan" }));
     const dialog = await screen.findByRole("dialog", { name: "Tambah Kegiatan" });
@@ -82,11 +99,12 @@ describe("KegiatanManager", () => {
     expect(init.method).toBe("POST");
     expect(init.body).toBeInstanceOf(FormData);
     expect((init.body as FormData).get("judul")).toBe("Kegiatan Baru");
+    expect((init.body as FormData).get("kategoriId")).toBe("kat-1");
   });
 
   it("row menu offers Terbitkan for a draft and Tarik ke Draft for a published row", async () => {
     const user = userEvent.setup();
-    render(<KegiatanManager rows={ROWS} canWrite canDelete />);
+    render(<KegiatanManager rows={ROWS} kategoriOptions={KATEGORI} komisiOptions={KOMISI} canWrite canDelete />);
 
     await user.click(screen.getByRole("button", { name: "Aksi untuk Retret Pemuda" }));
     expect(await screen.findByRole("menuitem", { name: "Terbitkan" })).toBeInTheDocument();
@@ -98,7 +116,7 @@ describe("KegiatanManager", () => {
 
   it("Terbitkan calls the status endpoint and shows a toast", async () => {
     const user = userEvent.setup();
-    render(<KegiatanManager rows={ROWS} canWrite canDelete />);
+    render(<KegiatanManager rows={ROWS} kategoriOptions={KATEGORI} komisiOptions={KOMISI} canWrite canDelete />);
 
     await user.click(screen.getByRole("button", { name: "Aksi untuk Retret Pemuda" }));
     respond(200, { data: { ...ROWS[0], status: "published" } });
@@ -114,7 +132,7 @@ describe("KegiatanManager", () => {
 
   it("read-only mode: no add action, no Terbitkan/Hapus in the row menu", async () => {
     const user = userEvent.setup();
-    render(<KegiatanManager rows={ROWS} canWrite={false} canDelete={false} />);
+    render(<KegiatanManager rows={ROWS} kategoriOptions={KATEGORI} komisiOptions={KOMISI} canWrite={false} canDelete={false} />);
 
     expect(screen.queryByRole("button", { name: "Tambah Kegiatan" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Aksi untuk Retret Pemuda" }));

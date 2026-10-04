@@ -9,3 +9,8 @@ export function buildWaLink(phone: string): string {
   const withCountryCode = digits.startsWith("0") ? `62${digits.slice(1)}` : digits;
   return `https://wa.me/${withCountryCode}`;
 }
+
+/** "Bagikan lewat WhatsApp" (brief §14.4, D): a share intent with no fixed recipient. */
+export function buildShareWaLink(text: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}

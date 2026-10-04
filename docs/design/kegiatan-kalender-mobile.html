@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Kalender Kegiatan (HP) | GKP Rangkasbitung</title>
+<script src="../support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1C1917;background:#FAFAF9}
+a{color:inherit;text-decoration:none}
+button:focus-visible{outline:2px solid #1F4D3F;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 390px; height: 1360px; background: #FAFAF9; font-family: 'Geist', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column; box-sizing: border-box">
+
+<header style="height: 60px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; background: #1F2E29; color: #FAFAF9">
+<a href="../umum/Beranda.dc.html" style="font-weight: 600; font-size: 15px">GKP Rangkasbitung</a>
+<button type="button" aria-label="Buka menu" style="width: 44px; height: 44px; border: 0; background: transparent; color: #FAFAF9; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+</header>
+
+<section style="padding: 32px 16px 28px; background: #1F2E29; color: #FAFAF9; display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 40px">Kalender Kegiatan</h1>
+<p style="margin: 0; font-size: 15px; color: #D6E2DD">Ketuk tanggal untuk melihat kegiatannya.</p>
+</section>
+
+<section style="padding: 20px 16px; display: flex; flex-direction: column; gap: 16px">
+<div style="display: flex; align-items: center; justify-content: space-between">
+<button type="button" aria-label="Bulan sebelumnya" style="width: 44px; height: 44px; border-radius: 999px; border: 1px solid #D6D3D1; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #1C1917"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+<h2 style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 26px">Oktober 2026</h2>
+<button type="button" aria-label="Bulan berikutnya" style="width: 44px; height: 44px; border-radius: 999px; border: 1px solid #D6D3D1; background: #FFFFFF; display: flex; align-items: center; justify-content: center; color: #1C1917"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+</div>
+
+<div style="border: 1px solid #E7E5E4; border-radius: 16px; background: #FFFFFF; padding: 8px">
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr))">
+<sc-for list="{{weekdays}}" as="w" hint-placeholder-count="7">
+<span style="text-align: center; padding: 6px 0; font-size: 12px; color: #57534E">{{w}}</span>
+</sc-for>
+<sc-for list="{{cells}}" as="d" hint-placeholder-count="35">
+<button type="button" onClick="{{d.pick}}" aria-label="{{d.aria}}" aria-pressed="{{d.pressed}}" style="{{d.style}}">
+<span style="{{d.numStyle}}">{{d.num}}</span>
+<span style="display: flex; gap: 3px; height: 6px">
+<sc-for list="{{d.dots}}" as="x" hint-placeholder-count="1"><span style="{{x}}"></span></sc-for>
+</span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; margin-top: 4px">
+<span style="font-size: 15px; font-weight: 600">{{selLabel}}</span>
+<sc-if value="{{selEmpty}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; padding: 16px; border-radius: 12px; background: #F2F1EF; font-size: 15px; color: #57534E">Tidak ada kegiatan pada tanggal ini.</p>
+</sc-if>
+<sc-for list="{{selEvents}}" as="e" hint-placeholder-count="2">
+<a href="Detail.dc.html" style="display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 14px; border: 1px solid #E7E5E4; background: #FFFFFF; box-shadow: {{e.edge}}">
+<span style="font-size: 12px; font-weight: 500; color: #57534E">{{e.cat}}</span>
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 21px; line-height: 1.2">{{e.title}}</span>
+<span style="font-size: 14px; color: #44403C">{{e.time}} · {{e.place}}</span>
+</a>
+</sc-for>
+</div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1360}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 18 }; }
+  renderVals() {
+    var self = this;
+    var CAT = {
+      ibadah: { name: 'Ibadah khusus', dot: '#1F4D3F' },
+      pemuda: { name: 'Pemuda & Remaja', dot: '#B45309' },
+      anak: { name: 'Anak', dot: '#1E40AF' },
+      diakonia: { name: 'Diakonia', dot: '#9D174D' },
+      rapat: { name: 'Rapat & organisasi', dot: '#57534E' }
+    };
+    var ev = {
+      1: [{ c: 'diakonia', t: '[Kunjungan diakonia]', time: '[Jam]', place: '[Tempat]' }],
+      3: [{ c: 'rapat', t: '[Rapat majelis]', time: '19.00', place: '[Tempat]' }],
+      4: [{ c: 'ibadah', t: '[Ibadah khusus]', time: '[Jam]', place: '[Tempat]' }],
+      10: [{ c: 'anak', t: '[Kegiatan Sekolah Minggu]', time: '[Jam]', place: '[Tempat]' }],
+      16: [{ c: 'pemuda', t: '[Retreat pemuda] (1/3)', time: 'Mulai [Jam]', place: '[Lokasi]' }],
+      17: [{ c: 'pemuda', t: '[Retreat pemuda] (2/3)', time: 'Sepanjang hari', place: '[Lokasi]' }],
+      18: [{ c: 'pemuda', t: '[Retreat pemuda] (3/3)', time: 'Selesai [Jam]', place: '[Lokasi]' }, { c: 'diakonia', t: '[Bakti sosial]', time: '[Jam]', place: '[Tempat]' }, { c: 'ibadah', t: '[Ibadah syukur]', time: '[Jam]', place: '[Tempat]' }],
+      24: [{ c: 'rapat', t: '[Rapat komisi]', time: '[Jam]', place: '[Tempat]' }],
+      25: [{ c: 'ibadah', t: '[Ibadah khusus]', time: '[Jam]', place: '[Tempat]' }],
+      31: [{ c: 'pemuda', t: '[Kegiatan remaja]', time: '[Jam]', place: '[Tempat]' }]
+    };
+    var longDow = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    var start = 4, today = 1, cells = [];
+    for (var i = 0; i < 35; i++) {
+      var day = i - start + 1;
+      if (day < 1) {
+        cells.push({ num: String(30 + day), aria: (30 + day) + ' September 2026', pressed: 'false', pick: null, dots: [],
+          style: 'height: 48px; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; color: #A8A29E;',
+          numStyle: 'font-size: 14px;' });
+        continue;
+      }
+      (function (d) {
+        var list = ev[d] || [], isSel = self.state.sel === d, isToday = d === today;
+        cells.push({
+          num: String(d),
+          aria: longDow[(start + d - 1) % 7] + ', ' + d + ' Oktober 2026' + (list.length ? ', ' + list.length + ' kegiatan' : ''),
+          pressed: isSel ? 'true' : 'false',
+          pick: function () { self.setState({ sel: d }); },
+          dots: list.slice(0, 3).map(function (e) { return 'width: 6px; height: 6px; border-radius: 999px; background: ' + CAT[e.c].dot + ';'; }),
+          style: 'height: 48px; border: 0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; cursor: pointer; ' + (isSel ? 'background: #1F2E29; color: #FAFAF9;' : 'background: transparent; color: #1C1917;'),
+          numStyle: 'font-size: 15px; ' + (isToday ? 'font-weight: 700; text-decoration: underline; text-underline-offset: 3px;' : 'font-weight: 500;')
+        });
+      })(day);
+    }
+    var sel = this.state.sel;
+    var selList = (ev[sel] || []).map(function (e) { return { title: e.t, time: e.time, place: e.place, cat: CAT[e.c].name, edge: 'inset 4px 0 0 ' + CAT[e.c].dot }; });
+    return {
+      weekdays: ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'],
+      cells: cells,
+      selLabel: longDow[(start + sel - 1) % 7] + ', ' + sel + ' Oktober 2026',
+      selEvents: selList,
+      selEmpty: selList.length === 0
+    };
+  }
+}
+</script>
+</body>
+</html>

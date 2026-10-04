@@ -1,11 +1,14 @@
 import "server-only";
 
-import { formatDateLong, weekContaining, type DateRange } from "@/lib/dates";
+import { weekContaining, type DateRange } from "@/lib/dates";
+import { formatTanggalRange, formatWaktuRange, isSepanjangHari } from "@/lib/kegiatan";
 import { formatJam } from "@/lib/peribadahan";
 import {
   loadJadwalPekanIni,
+  loadKegiatanBulan,
+  loadKegiatanDetail,
+  loadKegiatanMendatang,
   loadLatestPublicWarta,
-  loadPublicKegiatanMendatang,
   loadPublicKomisi,
   loadPublicKomisiList,
   loadPublicMajelis,
@@ -16,15 +19,16 @@ import {
   type PublicPelayananRow,
   type PublicPendetaRow,
   type PublicProfilRow,
-  type PublicKegiatanRow,
   type PublicWartaListItem,
   type Result,
 } from "@/lib/public-site";
 import type { PublicScheduleRow } from "@/lib/public-schedule";
+import type { PublicKegiatanBulanRow, PublicKegiatanMendatangRow } from "@/lib/public-kegiatan";
+import { siteOrigin } from "@/lib/site-url";
 import { situsPhotoUrl } from "@/lib/situs-photo";
 
 import { mapsEmbedSrc } from "./maps-embed";
-import { buildWaLink } from "./whatsapp";
+import { buildShareWaLink, buildWaLink } from "./whatsapp";
 
 /**
  * The public site's one data-loading entry point (brief §9c instruction B):
@@ -54,9 +58,15 @@ export type MajelisItem = { id: string; nama: string; jabatan: string; photo: Pu
 export type KegiatanItem = {
   id: string;
   judul: string;
+  slug: string;
+  /** Raw tanggal_mulai, for a compact date badge (the "Kegiatan lainnya" grid). */
+  tanggalMulai: string;
+  /** Formatted range: "16 – 18 Oktober 2026". */
   tanggal: string;
-  waktu: string | null;
+  waktuLabel: string | null;
   tempat: string | null;
+  kategoriNama: string;
+  kategoriWarna: string;
   photo: PublicPhoto;
 };
 
@@ -113,14 +123,18 @@ function toMajelisItem(row: PublicMajelisRow): MajelisItem {
   return { id: row.id, nama: row.nama, jabatan: row.jabatan, photo: toPhoto(row.foto_path, row.foto_alt) };
 }
 
-function toKegiatanItem(row: PublicKegiatanRow): KegiatanItem {
+function toKegiatanItem(row: PublicKegiatanMendatangRow): KegiatanItem {
   return {
     id: row.id,
     judul: row.judul,
-    tanggal: formatDateLong(row.tanggal),
-    waktu: row.waktu ? formatJam(row.waktu) : null,
+    slug: row.slug,
+    tanggalMulai: row.tanggalMulai,
+    tanggal: formatTanggalRange(row.tanggalMulai, row.tanggalSelesai),
+    waktuLabel: isSepanjangHari(row.waktuMulai, row.waktuSelesai) ? null : formatWaktuRange(row.waktuMulai, row.waktuSelesai),
     tempat: row.tempat,
-    photo: toPhoto(row.foto_path, row.foto_alt),
+    kategoriNama: row.kategoriNama,
+    kategoriWarna: row.kategoriWarna,
+    photo: toPhoto(row.fotoPath, row.fotoAlt),
   };
 }
 
@@ -155,7 +169,7 @@ export async function loadBerandaContent(): Promise<BerandaContent> {
     loadLatestPublicWarta(),
     loadPublicProfil(),
     loadPublicPelayanan(),
-    loadPublicKegiatanMendatang(),
+    loadKegiatanMendatang(3),
   ]);
   // A failed Profil load hides its sections (already logged), like an empty profile.
   const profil = profilResult.data;
@@ -344,4 +358,87 @@ export async function loadKomisiDetailContent(slug: string): Promise<KomisiDetai
     pembinaNama: row.pembinaNama,
     anggotaPerJabatan,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Kalender Kegiatan (brief §14.4, stage 11e)
+// ---------------------------------------------------------------------------
+
+export type KegiatanKalenderContent = {
+  bulan: string;
+  events: PublicKegiatanBulanRow[];
+  /** Distinct categories appearing this month, for the legend — sorted by name. */
+  legend: { nama: string; warna: string }[];
+};
+
+/** `/kegiatan?bulan=YYYY-MM`. `bulan` must already be validated (the page falls back to the current month, never passing an invalid one through). */
+export async function loadKegiatanKalenderContent(bulan: string): Promise<Result<KegiatanKalenderContent>> {
+  const result = await loadKegiatanBulan(bulan);
+  if (!result.data) return { data: null, error: result.error };
+
+  const byKategori = new Map<string, { nama: string; warna: string }>();
+  for (const event of result.data) byKategori.set(event.kategoriId, { nama: event.kategoriNama, warna: event.kategoriWarna });
+  const legend = [...byKategori.values()].sort((a, b) => a.nama.localeCompare(b.nama, "id"));
+
+  return { data: { bulan, events: result.data, legend }, error: null };
+}
+
+export type KegiatanDetailContent = {
+  id: string;
+  judul: string;
+  slug: string;
+  kategoriNama: string;
+  kategoriWarna: string;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  waktuMulai: string | null;
+  waktuSelesai: string | null;
+  tempat: string | null;
+  mapsUrl: string | null;
+  deskripsi: string | null;
+  infoPendaftaran: string | null;
+  photo: PublicPhoto;
+  penyelenggaraKomisiNama: string | null;
+  penyelenggaraKomisiSlug: string | null;
+  icsHref: string;
+  /** null when `SITE_URL` isn't configured — the share button is hidden rather than built from the request's Host (brief §14.4, D). */
+  waShareHref: string | null;
+};
+
+/** `/kegiatan/[slug]` (brief §14.4): draft/unknown slug -> `null` (the page 404s). */
+export async function loadKegiatanDetailContent(slug: string): Promise<KegiatanDetailContent | null> {
+  const row = await loadKegiatanDetail(slug);
+  if (!row) return null;
+
+  const origin = siteOrigin();
+  const waShareHref = origin
+    ? buildShareWaLink(`${row.judul} — ${formatTanggalRange(row.tanggalMulai, row.tanggalSelesai)}\n${origin}/kegiatan/${row.slug}`)
+    : null;
+
+  return {
+    id: row.id,
+    judul: row.judul,
+    slug: row.slug,
+    kategoriNama: row.kategoriNama,
+    kategoriWarna: row.kategoriWarna,
+    tanggalMulai: row.tanggalMulai,
+    tanggalSelesai: row.tanggalSelesai,
+    waktuMulai: row.waktuMulai,
+    waktuSelesai: row.waktuSelesai,
+    tempat: row.tempat,
+    mapsUrl: row.mapsUrl,
+    deskripsi: row.deskripsi,
+    infoPendaftaran: row.infoPendaftaran,
+    photo: toPhoto(row.fotoPath, row.fotoAlt),
+    penyelenggaraKomisiNama: row.penyelenggaraKomisiNama,
+    penyelenggaraKomisiSlug: row.penyelenggaraKomisiSlug,
+    icsHref: `/kegiatan/${row.slug}/ics`,
+    waShareHref,
+  };
+}
+
+/** The detail page's "Kegiatan lainnya": next 3 upcoming, excluding the current event. */
+export async function loadKegiatanLainnya(excludeId: string, limit = 3): Promise<KegiatanItem[]> {
+  const result = await loadKegiatanMendatang(limit, excludeId);
+  return (result.data ?? []).map(toKegiatanItem);
 }

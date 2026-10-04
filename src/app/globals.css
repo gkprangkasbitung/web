@@ -89,6 +89,38 @@
   --footer-heading: #1c1917;
   --footer-muted: #57534e;
   --footer-border: #e7e5e4;
+
+  /*
+   * Kategori Kegiatan palette (brief §14.4): a fixed set of keys stored in
+   * the database (lib/kegiatan-kategori.ts), never a free hex. -bg/-fg are a
+   * tinted pill (same formula as --badge-*); -dot is a more saturated accent
+   * for the calendar grid, legend, and agenda rows, where color is always
+   * paired with the category's name as text.
+   */
+  --kegiatan-hijau-bg: #dcebe4;
+  --kegiatan-hijau-fg: #14392f;
+  --kegiatan-hijau-dot: #1f4d3f;
+  --kegiatan-oranye-bg: #fbe7cf;
+  --kegiatan-oranye-fg: #6b3207;
+  --kegiatan-oranye-dot: #b45309;
+  --kegiatan-biru-bg: #dfe7fb;
+  --kegiatan-biru-fg: #1e3a8a;
+  --kegiatan-biru-dot: #1e40af;
+  --kegiatan-merah-bg: #fbe1ec;
+  --kegiatan-merah-fg: #831843;
+  --kegiatan-merah-dot: #9d174d;
+  --kegiatan-abu-bg: #eceae7;
+  --kegiatan-abu-fg: #292524;
+  --kegiatan-abu-dot: #57534e;
+  --kegiatan-kuning-bg: #faf0c8;
+  --kegiatan-kuning-fg: #6b4e04;
+  --kegiatan-kuning-dot: #b38a0a;
+  --kegiatan-ungu-bg: #ebe1fa;
+  --kegiatan-ungu-fg: #4c1d95;
+  --kegiatan-ungu-dot: #6d28d9;
+  --kegiatan-teal-bg: #d8f0ec;
+  --kegiatan-teal-fg: #0f4c44;
+  --kegiatan-teal-dot: #0d9488;
 }
 
 .dark {
@@ -151,6 +183,32 @@
   --footer-heading: #fafaf9;
   --footer-muted: #a8a29e;
   --footer-border: #44403c;
+
+  /* Dark tint + light text of the same hue, same formula as --badge-* dark. */
+  --kegiatan-hijau-bg: #1c2e27;
+  --kegiatan-hijau-fg: #9fcbb9;
+  --kegiatan-hijau-dot: #7fb5a3;
+  --kegiatan-oranye-bg: #3a2614;
+  --kegiatan-oranye-fg: #f3c892;
+  --kegiatan-oranye-dot: #d97706;
+  --kegiatan-biru-bg: #1c2740;
+  --kegiatan-biru-fg: #afc3f2;
+  --kegiatan-biru-dot: #5b82e0;
+  --kegiatan-merah-bg: #3a1a28;
+  --kegiatan-merah-fg: #f3afcb;
+  --kegiatan-merah-dot: #e0527f;
+  --kegiatan-abu-bg: #292524;
+  --kegiatan-abu-fg: #d6d3d1;
+  --kegiatan-abu-dot: #a8a29e;
+  --kegiatan-kuning-bg: #3a2e0e;
+  --kegiatan-kuning-fg: #edd889;
+  --kegiatan-kuning-dot: #c9a227;
+  --kegiatan-ungu-bg: #2a1e40;
+  --kegiatan-ungu-fg: #cbb6f0;
+  --kegiatan-ungu-dot: #8b5cf6;
+  --kegiatan-teal-bg: #0f2b28;
+  --kegiatan-teal-fg: #8fd9cc;
+  --kegiatan-teal-dot: #14b8a6;
 }
 
 @theme inline {

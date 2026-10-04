@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Kalender Kegiatan | GKP Rangkasbitung</title>
+<script src="../support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1C1917;background:#FAFAF9}
+a{color:inherit;text-decoration:none}a:hover{opacity:.88}
+button:focus-visible,a:focus-visible{outline:2px solid #1F4D3F;outline-offset:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 1520px; background: #FAFAF9; font-family: 'Geist', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column; box-sizing: border-box">
+
+<header style="height: 84px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 120px; background: #1F2E29; color: #FAFAF9">
+<a href="../umum/Beranda.dc.html" style="font-weight: 600; font-size: 17px">GKP Rangkasbitung</a>
+<nav aria-label="Navigasi utama" style="display: flex; align-items: center; gap: 28px; font-size: 15px">
+<a href="../umum/Beranda.dc.html" style="color: #D6E2DD">Beranda</a>
+<a href="../umum/TentangKami.dc.html" style="color: #D6E2DD">Tentang Kami</a>
+<a href="../umum/Jadwal.dc.html" style="color: #D6E2DD">Jadwal Ibadah</a>
+<a href="#" aria-current="page" style="font-weight: 600">Kegiatan</a>
+<a href="../Warta.dc.html" style="color: #D6E2DD">Warta</a>
+<a href="../umum/Kontak.dc.html" style="color: #D6E2DD">Kontak</a>
+<a href="../portal/Portal.dc.html" style="height: 40px; padding: 0 18px; border-radius: 999px; background: #FAFAF9; color: #1F2E29; display: flex; align-items: center; font-weight: 500">Portal</a>
+</nav>
+</header>
+
+<section style="padding: 72px 120px 56px; background: #1F2E29; color: #FAFAF9; display: flex; flex-direction: column; gap: 14px">
+<span style="font-size: 14px; color: #B7CBC3">Beranda / Kegiatan</span>
+<h1 style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 68px; letter-spacing: -0.02em">Kalender Kegiatan</h1>
+<p style="margin: 0; font-size: 18px; color: #D6E2DD">Kegiatan jemaat, persekutuan, dan pelayanan GKP Rangkasbitung.</p>
+</section>
+
+<section style="padding: 40px 120px 96px; display: flex; flex-direction: column; gap: 24px">
+
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 24px">
+<div style="display: flex; align-items: center; gap: 12px">
+<button type="button" aria-label="Bulan sebelumnya" style="width: 44px; height: 44px; border-radius: 999px; border: 1px solid #D6D3D1; background: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1C1917">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"></path></svg></button>
+<h2 style="margin: 0; min-width: 240px; text-align: center; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 34px">Oktober 2026</h2>
+<button type="button" aria-label="Bulan berikutnya" style="width: 44px; height: 44px; border-radius: 999px; border: 1px solid #D6D3D1; background: #FFFFFF; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #1C1917">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg></button>
+<button type="button" onClick="{{goToday}}" style="height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid #D6D3D1; background: #FFFFFF; font: inherit; font-size: 15px; cursor: pointer; color: #1C1917">Hari ini</button>
+</div>
+<div role="tablist" aria-label="Tampilan" style="display: flex; padding: 4px; border-radius: 999px; background: #F2F1EF">
+<button type="button" role="tab" aria-selected="{{monthSel}}" onClick="{{toMonth}}" style="{{monthTab}}">Bulan</button>
+<button type="button" role="tab" aria-selected="{{listSel}}" onClick="{{toList}}" style="{{listTab}}">Daftar</button>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 14px; color: #44403C">
+<sc-for list="{{cats}}" as="c" hint-placeholder-count="5">
+<span style="display: flex; align-items: center; gap: 8px"><span style="{{c.dot}}"></span>{{c.name}}</span>
+</sc-for>
+</div>
+
+<sc-if value="{{isMonth}}" hint-placeholder-val="{{ true }}">
+<div style="display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 28px; align-items: start">
+<div style="border: 1px solid #E7E5E4; border-radius: 18px; background: #FFFFFF; overflow: hidden">
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid #E7E5E4; background: #FAFAF9">
+<sc-for list="{{weekdays}}" as="w" hint-placeholder-count="7">
+<span style="padding: 12px 14px; font-size: 13px; font-weight: 500; color: #57534E">{{w}}</span>
+</sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr))">
+<sc-for list="{{cells}}" as="d" hint-placeholder-count="35">
+<button type="button" onClick="{{d.pick}}" aria-label="{{d.aria}}" aria-pressed="{{d.pressed}}" style="{{d.style}}">
+<span style="{{d.numStyle}}">{{d.num}}</span>
+<sc-for list="{{d.chips}}" as="e" hint-placeholder-count="1">
+<span style="{{e.style}}">{{e.title}}</span>
+</sc-for>
+<sc-if value="{{d.hasMore}}" hint-placeholder-val="{{ false }}">
+<span style="font-size: 12px; color: #57534E; padding-left: 4px">{{d.more}}</span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+
+<aside style="border: 1px solid #E7E5E4; border-radius: 18px; background: #FFFFFF; padding: 24px; display: flex; flex-direction: column; gap: 18px; position: sticky; top: 24px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<span style="font-size: 13px; color: #57534E">Kegiatan pada</span>
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 26px">{{selLabel}}</span>
+</div>
+<sc-if value="{{selEmpty}}" hint-placeholder-val="{{ false }}">
+<p style="margin: 0; padding: 20px; border-radius: 12px; background: #FAFAF9; font-size: 15px; color: #57534E">Tidak ada kegiatan pada tanggal ini.</p>
+</sc-if>
+<sc-for list="{{selEvents}}" as="e" hint-placeholder-count="1">
+<a href="Detail.dc.html" style="display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 14px; border: 1px solid #E7E5E4; background: #FAFAF9">
+<span style="{{e.badge}}">{{e.cat}}</span>
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 22px; line-height: 1.2">{{e.title}}</span>
+<span style="font-size: 14px; color: #44403C">{{e.time}} · {{e.place}}</span>
+<span style="font-size: 14px; font-weight: 500; color: #1F4D3F">Lihat detail →</span>
+</a>
+</sc-for>
+</aside>
+</div>
+</sc-if>
+
+<sc-if value="{{isList}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; border: 1px solid #E7E5E4; border-radius: 18px; background: #FFFFFF; overflow: hidden">
+<sc-for list="{{agenda}}" as="g" hint-placeholder-count="6">
+<a href="Detail.dc.html" style="display: grid; grid-template-columns: 96px 160px minmax(0, 1fr) 200px; gap: 24px; align-items: center; padding: 20px 28px; border-bottom: 1px solid #F2F1EF">
+<span style="display: flex; flex-direction: column; align-items: center; width: 64px; padding: 8px 0; border-radius: 12px; background: #F2F1EF"><span style="font-size: 12px; color: #57534E">{{g.dow}}</span><span style="font-family: 'Newsreader', Georgia, serif; font-size: 28px; line-height: 1">{{g.day}}</span></span>
+<span style="{{g.badge}}">{{g.cat}}</span>
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 22px">{{g.title}}</span>
+<span style="font-size: 14px; color: #57534E; text-align: right">{{g.time}} · {{g.place}}</span>
+</a>
+</sc-for>
+</div>
+</sc-if>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1520}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: 1, view: 'month' }; }
+  renderVals() {
+    var self = this;
+    var CAT = {
+      ibadah: { name: 'Ibadah khusus', fg: '#14392F', bg: '#DCEBE4', dot: '#1F4D3F' },
+      pemuda: { name: 'Pemuda & Remaja', fg: '#6B3207', bg: '#FBE7CF', dot: '#B45309' },
+      anak: { name: 'Anak', fg: '#1E3A8A', bg: '#DFE7FB', dot: '#1E40AF' },
+      diakonia: { name: 'Diakonia', fg: '#831843', bg: '#FBE1EC', dot: '#9D174D' },
+      rapat: { name: 'Rapat & organisasi', fg: '#292524', bg: '#ECEAE7', dot: '#57534E' }
+    };
+    var ev = {
+      1: [{ c: 'diakonia', t: '[Kunjungan diakonia]', time: '[Jam]', place: '[Tempat]' }],
+      3: [{ c: 'rapat', t: '[Rapat majelis]', time: '19.00', place: '[Tempat]' }],
+      4: [{ c: 'ibadah', t: '[Ibadah khusus]', time: '[Jam]', place: '[Tempat]' }],
+      10: [{ c: 'anak', t: '[Kegiatan Sekolah Minggu]', time: '[Jam]', place: '[Tempat]' }],
+      16: [{ c: 'pemuda', t: '[Retreat pemuda] (1/3)', time: 'Mulai [Jam]', place: '[Lokasi]' }],
+      17: [{ c: 'pemuda', t: '[Retreat pemuda] (2/3)', time: 'Sepanjang hari', place: '[Lokasi]' }],
+      18: [{ c: 'pemuda', t: '[Retreat pemuda] (3/3)', time: 'Selesai [Jam]', place: '[Lokasi]' }, { c: 'diakonia', t: '[Bakti sosial]', time: '[Jam]', place: '[Tempat]' }, { c: 'ibadah', t: '[Ibadah syukur]', time: '[Jam]', place: '[Tempat]' }],
+      24: [{ c: 'rapat', t: '[Rapat komisi]', time: '[Jam]', place: '[Tempat]' }],
+      25: [{ c: 'ibadah', t: '[Ibadah khusus]', time: '[Jam]', place: '[Tempat]' }],
+      31: [{ c: 'pemuda', t: '[Kegiatan remaja]', time: '[Jam]', place: '[Tempat]' }]
+    };
+    var longDow = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    var shortDow = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+    var start = 4, today = 1;
+    var badge = function (c) { var k = CAT[c]; return 'align-self: flex-start; display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 500; background: ' + k.bg + '; color: ' + k.fg + ';'; };
+    var cells = [];
+    for (var i = 0; i < 35; i++) {
+      var day = i - start + 1;
+      if (day < 1) {
+        cells.push({ num: String(30 + day), aria: (30 + day) + ' September 2026', pressed: 'false', pick: null, chips: [], hasMore: false, more: '',
+          style: 'height: 124px; padding: 10px; border: 0; border-right: 1px solid #F2F1EF; border-bottom: 1px solid #F2F1EF; background: #FAFAF9; text-align: left; display: flex; flex-direction: column; gap: 4px; font: inherit; color: #A8A29E;',
+          numStyle: 'font-size: 14px;' });
+        continue;
+      }
+      (function (d) {
+        var list = ev[d] || [];
+        var isSel = self.state.sel === d, isToday = d === today;
+        cells.push({
+          num: String(d),
+          aria: longDow[(start + d - 1) % 7] + ', ' + d + ' Oktober 2026' + (list.length ? ', ' + list.length + ' kegiatan' : ''),
+          pressed: isSel ? 'true' : 'false',
+          pick: function () { self.setState({ sel: d }); },
+          chips: list.slice(0, 2).map(function (e) { var k = CAT[e.c]; return { title: e.t, style: 'display: block; padding: 3px 8px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: ' + k.bg + '; color: ' + k.fg + '; box-shadow: inset 3px 0 0 ' + k.dot + ';' }; }),
+          hasMore: list.length > 2,
+          more: '+' + (list.length - 2) + ' lagi',
+          style: 'height: 124px; padding: 10px; border: 0; border-right: 1px solid #F2F1EF; border-bottom: 1px solid #F2F1EF; text-align: left; display: flex; flex-direction: column; gap: 4px; font: inherit; color: #1C1917; cursor: pointer; min-width: 0; ' + (isSel ? 'background: #F0F6F3; box-shadow: inset 0 0 0 2px #1F4D3F;' : 'background: #FFFFFF;'),
+          numStyle: isToday ? 'align-self: flex-start; width: 28px; height: 28px; border-radius: 999px; background: #1F4D3F; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600;' : 'font-size: 14px; font-weight: 500; padding: 4px 0 2px 4px;'
+        });
+      })(day);
+    }
+    var sel = this.state.sel;
+    var selList = (ev[sel] || []).map(function (e) { return { title: e.t, time: e.time, place: e.place, cat: CAT[e.c].name, badge: badge(e.c) }; });
+    var agenda = [];
+    Object.keys(ev).map(Number).sort(function (a, b) { return a - b; }).forEach(function (d) {
+      ev[d].forEach(function (e) { agenda.push({ dow: shortDow[(start + d - 1) % 7], day: String(d), title: e.t, time: e.time, place: e.place, cat: CAT[e.c].name, badge: badge(e.c) }); });
+    });
+    var tabOn = 'height: 36px; padding: 0 18px; border: 0; border-radius: 999px; background: #FFFFFF; font: inherit; font-size: 14px; font-weight: 500; color: #1C1917; box-shadow: 0 1px 2px rgba(0,0,0,0.08); cursor: pointer;';
+    var tabOff = 'height: 36px; padding: 0 18px; border: 0; border-radius: 999px; background: transparent; font: inherit; font-size: 14px; color: #57534E; cursor: pointer;';
+    var isMonth = this.state.view === 'month';
+    return {
+      weekdays: shortDow,
+      cells: cells,
+      cats: Object.keys(CAT).map(function (k) { return { name: CAT[k].name, dot: 'width: 10px; height: 10px; border-radius: 3px; background: ' + CAT[k].dot + ';' }; }),
+      selLabel: longDow[(start + sel - 1) % 7] + ', ' + sel + ' Oktober 2026',
+      selEvents: selList,
+      selEmpty: selList.length === 0,
+      agenda: agenda,
+      isMonth: isMonth,
+      isList: !isMonth,
+      monthSel: isMonth ? 'true' : 'false',
+      listSel: isMonth ? 'false' : 'true',
+      monthTab: isMonth ? tabOn : tabOff,
+      listTab: isMonth ? tabOff : tabOn,
+      toMonth: function () { self.setState({ view: 'month' }); },
+      toList: function () { self.setState({ view: 'list' }); },
+      goToday: function () { self.setState({ sel: today, view: 'month' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

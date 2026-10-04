@@ -100,18 +100,43 @@ isOneToOne: false
       referencedColumns: ["id"]
     }
                   ]
-                },"kegiatan": {
+                },"kategori_kegiatan": {
                   Row: {
-                    "created_at": string,"deskripsi": string | null,"foto_alt": string | null,"foto_path": string | null,"id": string,"judul": string,"status": string,"tanggal": string,"tempat": string | null,"updated_at": string,"waktu": string | null
+                    "created_at": string,"id": string,"nama": string,"sort_order": number,"warna": string
                   }
                   Insert: {
-                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"judul": string,"status"?: string,"tanggal": string,"tempat"?: string | null,"updated_at"?: string,"waktu"?: string | null
+                    "created_at"?: string,"id"?: string,"nama": string,"sort_order"?: number,"warna": string
                   }
                   Update: {
-                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"judul"?: string,"status"?: string,"tanggal"?: string,"tempat"?: string | null,"updated_at"?: string,"waktu"?: string | null
+                    "created_at"?: string,"id"?: string,"nama"?: string,"sort_order"?: number,"warna"?: string
                   }
                   Relationships: [
                     
+                  ]
+                },"kegiatan": {
+                  Row: {
+                    "created_at": string,"deskripsi": string | null,"foto_alt": string | null,"foto_path": string | null,"id": string,"info_pendaftaran": string | null,"judul": string,"kategori_id": string,"maps_url": string | null,"penyelenggara_komisi_id": string | null,"slug": string,"status": string,"tanggal_mulai": string,"tanggal_selesai": string,"tempat": string | null,"updated_at": string,"waktu_mulai": string | null,"waktu_selesai": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"info_pendaftaran"?: string | null,"judul": string,"kategori_id": string,"maps_url"?: string | null,"penyelenggara_komisi_id"?: string | null,"slug": string,"status"?: string,"tanggal_mulai": string,"tanggal_selesai": string,"tempat"?: string | null,"updated_at"?: string,"waktu_mulai"?: string | null,"waktu_selesai"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"deskripsi"?: string | null,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"info_pendaftaran"?: string | null,"judul"?: string,"kategori_id"?: string,"maps_url"?: string | null,"penyelenggara_komisi_id"?: string | null,"slug"?: string,"status"?: string,"tanggal_mulai"?: string,"tanggal_selesai"?: string,"tempat"?: string | null,"updated_at"?: string,"waktu_mulai"?: string | null,"waktu_selesai"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "kegiatan_kategori_id_fkey"
+      columns: ["kategori_id"]
+isOneToOne: false
+      referencedRelation: "kategori_kegiatan"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "kegiatan_penyelenggara_komisi_id_fkey"
+      columns: ["penyelenggara_komisi_id"]
+isOneToOne: false
+      referencedRelation: "komisi"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"keluarga": {
                   Row: {
@@ -649,6 +674,19 @@ isOneToOne: false
                            },
 "has_permission":
 { Args: { "p_action": string,"p_resource": string,"p_user_id": string }; Returns: boolean
+                           },
+"kegiatan_bulan":
+{ Args: { "p_bulan": string }; Returns: {
+              "id": string,"judul": string,"kategori_id": string,"kategori_nama": string,"kategori_warna": string,"slug": string,"tanggal_mulai": string,"tanggal_selesai": string,"tempat": string,"waktu_mulai": string,"waktu_selesai": string
+            }[]
+                           },
+"kegiatan_detail":
+{ Args: { "p_slug": string }; Returns: Json
+                           },
+"kegiatan_mendatang":
+{ Args: { "p_exclude_id"?: string,"p_limit"?: number }; Returns: {
+              "foto_alt": string,"foto_path": string,"id": string,"judul": string,"kategori_nama": string,"kategori_warna": string,"slug": string,"tanggal_mulai": string,"tanggal_selesai": string,"tempat": string,"waktu_mulai": string,"waktu_selesai": string
+            }[]
                            },
 "link_user_jemaat":
 { Args: { "p_jemaat_id"?: string,"p_user_id": string }; Returns: undefined

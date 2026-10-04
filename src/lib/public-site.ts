@@ -4,7 +4,15 @@ import { connection } from "next/server";
 import { cache } from "react";
 import { z } from "zod";
 
-import { isValidIsoDate, today } from "@/lib/dates";
+import { isValidIsoDate } from "@/lib/dates";
+import {
+  parseKegiatanBulanRows,
+  parseKegiatanDetail,
+  parseKegiatanMendatangRows,
+  type PublicKegiatanBulanRow,
+  type PublicKegiatanDetail,
+  type PublicKegiatanMendatangRow,
+} from "@/lib/public-kegiatan";
 import { parseFullScheduleRows, parseUpcomingScheduleRows, type PublicScheduleRow } from "@/lib/public-schedule";
 import { createPublicClient } from "@/lib/supabase/public";
 
@@ -270,15 +278,6 @@ export const loadPublicProfil = cache(async (): Promise<Result<PublicProfilRow>>
 
 export type PublicPelayananRow = { id: string; nama: string; deskripsi: string | null; jadwal: string | null; icon: string };
 export type PublicMajelisRow = { id: string; nama: string; jabatan: string; foto_path: string | null; foto_alt: string | null };
-export type PublicKegiatanRow = {
-  id: string;
-  judul: string;
-  tanggal: string;
-  waktu: string | null;
-  tempat: string | null;
-  foto_path: string | null;
-  foto_alt: string | null;
-};
 
 /** Beranda's "Pelayanan" grid: active cards, in the admin's own sort order (brief §14.2). */
 export async function loadPublicPelayanan(): Promise<Result<PublicPelayananRow[]>> {
@@ -308,19 +307,51 @@ export async function loadPublicMajelis(): Promise<Result<PublicMajelisRow[]>> {
   return { data: data as PublicMajelisRow[], error: null };
 }
 
-/** Beranda's "Kegiatan mendatang" grid: the next 3 published, tanggal >= today in WIB (brief §14.4). */
-export async function loadPublicKegiatanMendatang(): Promise<Result<PublicKegiatanRow[]>> {
+// ---------------------------------------------------------------------------
+// Kalender Kegiatan (brief §14.4, stage 11e)
+// ---------------------------------------------------------------------------
+//
+// anon can't select `kegiatan`/`kategori_kegiatan` directly (0033): every
+// read goes through kegiatan_bulan/kegiatan_detail/kegiatan_mendatang.
+
+/** `/kegiatan?bulan=YYYY-MM`: published events overlapping that month. */
+export async function loadKegiatanBulan(bulan: string): Promise<Result<PublicKegiatanBulanRow[]>> {
   await connection();
-  const { data, error } = await createPublicClient()
-    .from("kegiatan")
-    .select("id, judul, tanggal, waktu, tempat, foto_path, foto_alt")
-    .eq("status", "published")
-    .gte("tanggal", today())
-    .order("tanggal", { ascending: true })
-    .order("id")
-    .limit(3);
+  const { data, error } = await createPublicClient().rpc("kegiatan_bulan", { p_bulan: bulan });
+  if (error) return failure("kegiatan bulan", error);
+  try {
+    return { data: parseKegiatanBulanRows(data), error: null };
+  } catch (parseError) {
+    return failure("kegiatan bulan", parseError);
+  }
+}
+
+/**
+ * `/kegiatan/[slug]`: a published row, or `null` for a draft/unknown slug
+ * (-> `notFound()`). Wrapped in React `cache`, so `generateMetadata` and the
+ * page share one load per request (same pattern as `loadPublicWarta`); a
+ * real failure throws, for `error.tsx` to show.
+ */
+export const loadKegiatanDetail = cache(async (slug: string): Promise<PublicKegiatanDetail | null> => {
+  await connection();
+  const { data, error } = await createPublicClient().rpc("kegiatan_detail", { p_slug: slug });
+  if (error) throw new Error(`[public] kegiatan ${slug}: ${error.message}`);
+  return parseKegiatanDetail(data);
+});
+
+/** Beranda's "Kegiatan mendatang" and the detail page's "Kegiatan lainnya": next N, tanggal_selesai >= today (brief §14.4). */
+export async function loadKegiatanMendatang(limit = 3, excludeId: string | null = null): Promise<Result<PublicKegiatanMendatangRow[]>> {
+  await connection();
+  const { data, error } = await createPublicClient().rpc("kegiatan_mendatang", {
+    p_limit: limit,
+    p_exclude_id: excludeId ?? undefined,
+  });
   if (error) return failure("kegiatan mendatang", error);
-  return { data: data as PublicKegiatanRow[], error: null };
+  try {
+    return { data: parseKegiatanMendatangRows(data), error: null };
+  } catch (parseError) {
+    return failure("kegiatan mendatang", parseError);
+  }
 }
 
 // ---------------------------------------------------------------------------

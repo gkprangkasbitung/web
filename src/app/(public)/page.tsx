@@ -153,8 +153,8 @@ export default async function HomePage() {
         <section aria-labelledby="kegiatan" className={`${CONTAINER} flex flex-col gap-10 pb-16 md:pb-26`}>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <EyebrowHeading id="kegiatan" eyebrow="Kegiatan" title="Kegiatan mendatang" />
-            <Link href="/warta" className={linkClass}>
-              Lihat warta terbaru
+            <Link href="/kegiatan" className={linkClass}>
+              Lihat kalender kegiatan
               <ArrowRightIcon aria-hidden="true" className="size-4" />
             </Link>
           </div>

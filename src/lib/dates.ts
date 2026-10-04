@@ -13,12 +13,15 @@ import { z } from "zod";
  */
 
 export type IsoDate = string;
+/** "YYYY-MM", e.g. "2026-10" (brief §14.4, the kalender kegiatan's `?bulan=`). */
+export type IsoMonth = string;
 
 export type DateRange = { start: IsoDate; end: IsoDate };
 
 const TIME_ZONE = "Asia/Jakarta";
 const DAY_MS = 86_400_000;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+const ISO_MONTH = /^(\d{4})-(0[1-9]|1[0-2])$/;
 
 const DAY_NAMES = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] as const;
 const MONTH_NAMES = [
@@ -196,4 +199,77 @@ export function localDateToIsoDate(value: Date): IsoDate {
 export function formatDateCompact(date: IsoDate): string {
   const { year, month, day } = parse(date);
   return `${day} ${MONTH_SHORT[month - 1]} ${year}`;
+}
+
+/**
+ * Month helpers for the kalender kegiatan (brief §14.4). `IsoMonth` values
+ * are "YYYY-MM"; arithmetic is done on the first-of-month `IsoDate` and
+ * converted back, so it's exact across year boundaries.
+ */
+export function isValidIsoMonth(value: string): boolean {
+  return ISO_MONTH.test(value);
+}
+
+/** The "YYYY-MM" containing `date` (default: today in Asia/Jakarta). */
+export function monthOf(date: IsoDate = today()): IsoMonth {
+  return date.slice(0, 7);
+}
+
+/** `bulan` + `n` months (negative goes back), still "YYYY-MM". */
+export function addMonths(bulan: IsoMonth, n: number): IsoMonth {
+  const match = ISO_MONTH.exec(bulan);
+  if (!match) throw new RangeError(`Invalid month: ${bulan}`);
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const total = year * 12 + (month - 1) + n;
+  const nextYear = Math.floor(total / 12);
+  const nextMonth = total - nextYear * 12;
+  return `${String(nextYear).padStart(4, "0")}-${pad(nextMonth + 1)}`;
+}
+
+/** First and last calendar date of `bulan` (both inclusive). */
+export function monthRange(bulan: IsoMonth): DateRange {
+  const match = ISO_MONTH.exec(bulan);
+  if (!match) throw new RangeError(`Invalid month: ${bulan}`);
+  const start = `${match[1]}-${match[2]}-01`;
+  const end = addDays(addMonths(bulan, 1) + "-01", -1);
+  return { start, end };
+}
+
+/** "Oktober 2026" */
+export function formatMonthLong(bulan: IsoMonth): string {
+  const match = ISO_MONTH.exec(bulan);
+  if (!match) throw new RangeError(`Invalid month: ${bulan}`);
+  return `${MONTH_NAMES[Number(match[2]) - 1]} ${match[1]}`;
+}
+
+/**
+ * A kegiatan's date range (brief §14.4), without weekday names: "16 – 18
+ * Oktober 2026" (same month), "30 Oktober – 2 November 2026" (different
+ * month), "30 Desember 2026 – 2 Januari 2027" (different year), or just
+ * "16 Oktober 2026" when `end` equals `start`.
+ */
+export function formatDateRangeShort(start: IsoDate, end: IsoDate): string {
+  if (start === end) return formatDateShort(start);
+  const a = parse(start);
+  const b = parse(end);
+  if (a.year === b.year && a.month === b.month) {
+    return `${a.day} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
+  }
+  if (a.year === b.year) {
+    return `${a.day} ${MONTH_NAMES[a.month - 1]} – ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
+  }
+  return `${formatDateShort(start)} – ${formatDateShort(end)}`;
+}
+
+/** Same as `formatDateRangeShort`, with each end's weekday name (the detail page's title band). */
+export function formatDateRangeLong(start: IsoDate, end: IsoDate): string {
+  if (start === end) return formatDateLong(start);
+  const a = parse(start);
+  const b = parse(end);
+  const startText = `${DAY_NAMES[weekday(start)]}, ${a.day}`;
+  if (a.year === b.year && a.month === b.month) {
+    return `${startText} – ${DAY_NAMES[weekday(end)]}, ${b.day} ${MONTH_NAMES[b.month - 1]} ${b.year}`;
+  }
+  return `${formatDateLong(start)} – ${formatDateLong(end)}`;
 }

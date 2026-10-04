@@ -6,7 +6,7 @@ import { KegiatanManager } from "@/components/kegiatan/kegiatan-manager";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { can } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { loadKegiatanList } from "@/lib/kegiatan-routes";
+import { loadKategoriKegiatanOptions, loadKegiatanList } from "@/lib/kegiatan-routes";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Kegiatan" };
@@ -14,10 +14,14 @@ export const metadata: Metadata = { title: "Kegiatan" };
 export default async function Page() {
   const user = await requirePermission("situs", "read");
   const supabase = await createClient();
-  const { data, error } = await loadKegiatanList(supabase);
+  const [{ data, error }, kategoriRes, komisiRes] = await Promise.all([
+    loadKegiatanList(supabase),
+    loadKategoriKegiatanOptions(supabase),
+    supabase.from("komisi").select("id, nama").order("sort_order").order("created_at"),
+  ]);
 
-  if (error || !data) {
-    console.error("[/admin/kegiatan] Failed to load:", error);
+  if (error || !data || kategoriRes.error || !kategoriRes.data) {
+    console.error("[/admin/kegiatan] Failed to load:", error ?? kategoriRes.error);
     return (
       <div className="flex flex-col gap-6">
         <PageHeader title="Kegiatan" />
@@ -30,5 +34,13 @@ export default async function Page() {
     );
   }
 
-  return <KegiatanManager rows={data} canWrite={can(user, "situs", "update")} canDelete={can(user, "situs", "delete")} />;
+  return (
+    <KegiatanManager
+      rows={data}
+      kategoriOptions={kategoriRes.data}
+      komisiOptions={komisiRes.data ?? []}
+      canWrite={can(user, "situs", "update")}
+      canDelete={can(user, "situs", "delete")}
+    />
+  );
 }

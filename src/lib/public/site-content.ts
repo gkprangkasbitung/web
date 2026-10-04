@@ -217,10 +217,6 @@ export type PendetaItem = {
 
 export type TentangKamiContent = {
   profil: Result<TentangKamiProfil>;
-  /** Currently serving (brief §14.7: usually one, but not assumed to be exactly one). */
-  pendetaMelayani: PendetaItem[];
-  pendetaPernahMelayani: PendetaItem[];
-  majelis: MajelisItem[];
 };
 
 function toPendetaItem(row: PublicPendetaRow): PendetaItem {
@@ -236,12 +232,7 @@ function toPendetaItem(row: PublicPendetaRow): PendetaItem {
 }
 
 export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
-  const [result, majelisResult, pendetaResult] = await Promise.all([
-    loadPublicProfil(),
-    loadPublicMajelis(),
-    loadPublicPendeta(),
-  ]);
-  const pendeta = (pendetaResult.data ?? []).map(toPendetaItem);
+  const result = await loadPublicProfil();
   return {
     profil: result.data
       ? {
@@ -255,6 +246,21 @@ export async function loadTentangKamiContent(): Promise<TentangKamiContent> {
           error: null,
         }
       : { data: null, error: result.error },
+  };
+}
+
+export type PendetaMajelisContent = {
+  /** Currently serving (brief §14.7: usually one, but not assumed to be exactly one). */
+  pendetaMelayani: PendetaItem[];
+  pendetaPernahMelayani: PendetaItem[];
+  majelis: MajelisItem[];
+};
+
+/** `/pendeta-majelis`: its own page, split out of Tentang Kami so it has its own URL (like Komisi). */
+export async function loadPendetaMajelisContent(): Promise<PendetaMajelisContent> {
+  const [majelisResult, pendetaResult] = await Promise.all([loadPublicMajelis(), loadPublicPendeta()]);
+  const pendeta = (pendetaResult.data ?? []).map(toPendetaItem);
+  return {
     // public_pendeta() already orders "currently serving first"; splitting
     // on tahunSelesai here keeps that same order within each group.
     pendetaMelayani: pendeta.filter((p) => p.tahunSelesai === null),

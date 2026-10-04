@@ -29,8 +29,14 @@ const {
   loadKegiatanMendatang,
   loadPublicPendeta,
 } = await import("@/lib/public-site");
-const { kebaktianMingguTimes, loadBerandaContent, loadFooterContent, loadKontakContent, loadTentangKamiContent } =
-  await import("./site-content");
+const {
+  kebaktianMingguTimes,
+  loadBerandaContent,
+  loadFooterContent,
+  loadKontakContent,
+  loadPendetaMajelisContent,
+  loadTentangKamiContent,
+} = await import("./site-content");
 
 const EMPTY: PublicProfilRow = {
   hero_judul: null,
@@ -243,18 +249,18 @@ describe("Pelayanan, Majelis, Kegiatan (brief §14.2-14.4)", () => {
     expect(content.kegiatan).toEqual([]);
   });
 
-  it("Tentang Kami: majelis rows are mapped, photo hidden without alt text", async () => {
+  it("Pendeta & Majelis: majelis rows are mapped, photo hidden without alt text", async () => {
     vi.mocked(loadPublicMajelis).mockResolvedValue({
       data: [{ id: "m1", nama: "Pdt. Contoh", jabatan: "Pendeta Jemaat", foto_path: PHOTO, foto_alt: null }],
       error: null,
     });
-    const tentang = await loadTentangKamiContent();
-    expect(tentang.majelis).toEqual([{ id: "m1", nama: "Pdt. Contoh", jabatan: "Pendeta Jemaat", photo: null }]);
+    const content = await loadPendetaMajelisContent();
+    expect(content.majelis).toEqual([{ id: "m1", nama: "Pdt. Contoh", jabatan: "Pendeta Jemaat", photo: null }]);
   });
 });
 
 describe("Pendeta (brief §14.7)", () => {
-  it("Tentang Kami: splits currently-serving from past pastors, keeping public_pendeta()'s order", async () => {
+  it("Pendeta & Majelis: splits currently-serving from past pastors, keeping public_pendeta()'s order", async () => {
     vi.mocked(loadPublicPendeta).mockResolvedValue({
       data: [
         { id: "d1", nama: "Pdt. Satu", peran: "Pendeta Jemaat", tahun_mulai: 2019, tahun_selesai: null, foto_path: null, foto_alt: null, keterangan: null },
@@ -262,11 +268,11 @@ describe("Pendeta (brief §14.7)", () => {
       ],
       error: null,
     });
-    const tentang = await loadTentangKamiContent();
-    expect(tentang.pendetaMelayani).toEqual([
+    const content = await loadPendetaMajelisContent();
+    expect(content.pendetaMelayani).toEqual([
       { id: "d1", nama: "Pdt. Satu", peran: "Pendeta Jemaat", tahunMulai: 2019, tahunSelesai: null, keterangan: null, photo: null },
     ]);
-    expect(tentang.pendetaPernahMelayani).toEqual([
+    expect(content.pendetaPernahMelayani).toEqual([
       { id: "d2", nama: "Pdt. Dua", peran: "Pendeta Jemaat", tahunMulai: 2010, tahunSelesai: 2019, keterangan: null, photo: null },
     ]);
   });

@@ -18,7 +18,7 @@
 - [x] 11d. Komisi: master jabatan, komisi + anggota, halaman publik /komisi (§14.8)
 - [x] 11e. Kalender Kegiatan: kategori + rentang tanggal + halaman /kegiatan & detail (§14.4 baru)
 - [x] 11f. Portal login: /portal (pilih), login Jemaat (kode email), restyle login Admin, pemisahan akses /admin vs /jemaat
-- [ ] 11g. Header publik: satu konfigurasi menu, dropdown Tentang Kami, menu HP, tombol Portal
+- [x] 11g. Header publik: satu konfigurasi menu, dropdown Tentang Kami, menu HP, tombol Portal
 
 ## Notes / decisions
 
@@ -1508,4 +1508,58 @@ Visual-only stage on top of stage 9b's data layer: no migration, no new route, n
   - Staff-only cookie: `/jemaat` → 307 `/portal?error=akses`; `/portal`, `/login` → 307 `/admin`; `/portal/masuk` → 200.
   - Test accounts and jemaat rows were deleted afterwards.
 - **Not verified yet**: an actual browser (no browser tool in this session). Worth a look: the two login layouts at 360px and at the `lg` switch, both themes (the admin panel's muted surface and the cards in dark mode), the code field's autofill on iOS/Android, the radio cards' focus ring in "Undang Pengguna", and keyboard use of the password toggle. Real email delivery through production SMTP also can't be tested locally.
+
+### Stage 11g (Header publik), 2026-10-04
+
+No migration, no new route, no RLS/RPC change. Visual/structural only, on top of the existing public shell.
+
+**Decisions**
+
+- **One config, `lib/public/nav.ts`** (no `"use client"`, safe from a Server Component): `PUBLIC_NAV` (Beranda, a "Tentang Kami" dropdown with Profil Gereja/Pendeta & Majelis/Komisi, Jadwal Ibadah, Kegiatan, Warta, Kontak) and `PORTAL_LINK` ("Portal" → `/portal`). `visiblePublicNav()` drops any entry (or dropdown item) marked `enabled: false`, so a module not yet built hides instead of linking to a 404 — a mechanism kept ready for the next stage, since every page it points to already exists today (stage 11d's Komisi, 11e's Kegiatan, 11f's Portal). `isActivePublicPath` (fragment-stripped) and `isDropdownActive` (a dropdown counts active for its own page or any of its items') are the one place that logic lives; `flattenPublicNav()` unwraps the dropdown for the footer.
+- **`/tentang-kami`'s "Pendeta Jemaat" section id renamed** `pendeta-jemaat` → `pendeta`, so "Pendeta & Majelis" can link to `/tentang-kami#pendeta` (Majelis immediately follows it on the page). Not referenced anywhere else; a one-line rename.
+- **Desktop dropdown**: "Tentang Kami" is a direct `<Link>` to `/tentang-kami`, plus a separate chevron-only `<button>` (Base UI `Popover`) for the three items — so the brief's "Link 'Tentang Kami' tetap bisa diakses langsung" holds even though the submenu is a disclosure. Base UI's popover already supplies the rest the brief asks for: `aria-expanded` on the trigger, opened by click or Enter/Space (a real `<button>`, `openOnHover` left at its default `false`), Escape closes it and returns focus to the trigger, and an outside press closes it too (`useDismiss`) — verified in `public-nav.test.tsx`, not just assumed from the library's docs.
+- **Mobile breakpoint moved from `md` to `lg`** (brief's own instruction, "karena item menu bertambah"): `PublicNav` is `hidden lg:flex`, the hamburger trigger is `lg:hidden`. The header band's own color-switch classes (`md:bg-brand` etc., stage 9c) are untouched, so between `md` and `lg` the band already looks right with just the hamburger in it — nothing else needed changing.
+- **Mobile submenu is a plain accordion** (local `useState`, not a nested Popover inside the Sheet's dialog, to avoid stacking two focus-trapping layers): a row with the direct link plus its own chevron button (`aria-expanded`/`aria-controls`), expanded by default when already on a Tentang Kami page. The Sheet (Base UI `Dialog` underneath) already traps focus, closes on Escape with focus back on its own trigger, and locks body scroll — unchanged from stage 9b, re-verified here.
+- **Portal pill** renders twice: inline at the end of the desktop nav (`bg-brand-foreground text-brand` on the brand band, `bg-primary text-primary-foreground` on the plain bar) and full-width in the mobile panel's `SheetFooter`. Kontak is now a plain link in both places; Portal took over the "last item is a CTA pill" treatment the mockup originally gave Kontak.
+- **Footer's "Jemaat" column now reads from `flattenPublicNav()`** instead of its own hand-maintained list. This fixes a real drift bug from stage 11e: the footer's old list never gained "Kegiatan" when the header did, so the footer silently fell behind. Kontak is filtered out of the flattened list (it has its own "Hubungi" column, unchanged).
+
+**UI**
+
+- `components/public/public-nav.tsx`: `DropdownNavItem` (desktop), `MobileDropdownItem` (accordion), `PortalPill`, rewritten `PublicNav`/`PublicMobileNav` consuming `lib/public/nav.ts`.
+- `components/public/public-shell.tsx`: `JEMAAT_LINKS` is now `flattenPublicNav().filter(...)`.
+
+**Verification (stage 11g)**
+
+- `tsc`, `eslint`, and `next build` all pass.
+- `pnpm test`: 311 tests, 46 files. New:
+  - `lib/public/nav.test.ts` (5): every visible link (and Portal) resolves to a real `page.tsx` under `src/app/(public)/` or `src/app/` (checked against the filesystem, not just hand-copied paths); `visiblePublicNav` drops a disabled entry, a disabled dropdown item, and an entirely-disabled dropdown; `isActivePublicPath` ignores `#fragment`s; `isDropdownActive` is true for `/tentang-kami`, `/komisi`, and `/komisi/[slug]`, false elsewhere; `flattenPublicNav`'s order.
+  - `components/public/public-nav.test.tsx` rewritten (9): the header's seven links plus the submenu button, in order; `aria-current="page"` on `/` (Beranda), on a `/warta/[slug]` path (Warta), and on a `/komisi/[slug]` path (Tentang Kami, submenu still closed); opening the submenu by click lists its three items with the right hrefs; opening with `{Enter}` on the focused button then `{Escape}` closes it **and returns focus to the button** (asserted directly, not assumed); a click outside closes it; the mobile panel's accordion toggles `aria-expanded` and reveals/hides "Komisi"; the panel closes after a top-level link and after a submenu link alike.
+- **Build output**: every public route (`/`, `/tentang-kami`, `/jadwal-ibadah`, `/kegiatan`, `/kegiatan/[slug]`, `/komisi`, `/komisi/[slug]`, `/warta`, `/warta/[slug]`, `/kontak`) was compared marker-for-marker against a build from before this stage's diff (`git stash push` on just this stage's changed files, rebuild, compare, pop, rebuild again) — identical in both: all dynamic (ƒ), as they already were from stage 11a onward (Kontak and Tentang Kami stopped being the stage 9b/9c static `revalidate = 86400` pages once they started reading the Profil Gereja/Pendeta/Majelis modules; that happened in an earlier stage, not this one). So this stage changes no page's rendering mode, which is what "halaman publik tetap static/ISR setelah perubahan" asks for here: nothing in this diff regresses caching.
+- **HTTP**, `next build` + `next start` on :3108 against the local stack (the usual env overrides; :3107 still held by an older session's server, left alone; the normal build was rerun afterward). `/` returned the "Submenu Tentang Kami" button, the "Buka menu" trigger, and a `/portal` link in the server-rendered HTML (so it isn't JS-only); the closed popover's items (`/komisi`) were absent from that markup, confirming Base UI doesn't pre-render closed popover content; `/tentang-kami` has `id="pendeta"` on its heading.
+- **Not verified yet**: an actual browser (no browser tool in this session). Worth a look: the `md`–`lg` in-between width (brand band with only the hamburger), the popover's position/offset against the real brand-band header height, `prefers-reduced-motion` on the chevron's rotate transition, and the mobile accordion's focus order against VoiceOver/TalkBack.
+
+### Follow-up: "Pendeta & Majelis" is its own page, not a #pendeta anchor on Tentang Kami, 2026-10-04
+
+On request, right after stage 11g: the dropdown's "Pendeta & Majelis" item now goes to a new `/pendeta-majelis` page instead of `/tentang-kami#pendeta`, the same way "Komisi" already has its own page rather than an anchor.
+
+- `loadTentangKamiContent()` is back to just `{ profil }` (sejarah/visi/misi/linimasa). The pendeta/majelis loading it used to do moved to a new `loadPendetaMajelisContent()` (`lib/public/site-content.ts`), same "fail as empty section" behavior as before.
+- New `src/app/(public)/pendeta-majelis/page.tsx`: the title band ("Beranda / Tentang Kami / Pendeta & Majelis"), then the same three sections (`PendetaFeatured`, `PendetaPastGrid`, `MajelisGrid`) moved as-is out of `/tentang-kami`, plus a "Belum ada data pendeta atau majelis yang ditampilkan." empty state when all three are empty (that page no longer has the rest of Tentang Kami's content to fall back on visually).
+- `/tentang-kami` dropped those three sections and the now-unused imports; its own content (Sejarah, Linimasa, Visi, Misi) is unchanged.
+- `lib/public/nav.ts`: the dropdown item's href is `/pendeta-majelis`. `visiblePublicNav`/`isDropdownActive`/`flattenPublicNav` needed no change, since they already worked off whatever href an item carries — `/pendeta-majelis/*` marks "Tentang Kami" active the same way `/komisi/*` does.
+- The `id="pendeta"` rename from stage 11g (on the "Pendeta Jemaat" heading) stays, now pointless as a same-page anchor but harmless; it's just an id on a heading on its own page now.
+
+**Verification**: `tsc`, `eslint`, `next build` pass; `/pendeta-majelis` appears in the route list (ƒ, same as every other content page). `pnpm test`: still 311 tests, 46 files — `site-content.test.ts`'s majelis-mapping and pendeta-splitting tests now call `loadPendetaMajelisContent()`; `public-nav.test.tsx` and `lib/public/nav.test.ts` updated for the new href, plus a new assertion that `/pendeta-majelis` marks "Tentang Kami" active. HTTP against the local stack: `/pendeta-majelis` → 200 with its empty state (the local seed has no pendeta/majelis rows); `/tentang-kami` no longer mentions "Pendeta Jemaat" or "Majelis Jemaat"; the header's submenu link points at `/pendeta-majelis`.
+
+### Follow-up: Jadwal Ibadah, Kegiatan, and Warta grouped into a second dropdown "Informasi Jemaat", 2026-10-04
+
+On request, right after the `/pendeta-majelis` follow-up. Menu is now: Beranda, Tentang Kami (dropdown), **Informasi Jemaat (dropdown: Jadwal Ibadah, Kegiatan, Warta)**, Kontak, then the Portal pill.
+
+- **The name was asked and agreed in chat, not picked alone**: "Informasi Jemaat" over "Ibadah & Kegiatan" (too narrow — Warta is a weekly report, not just a schedule) or "Jadwal & Warta" (drops "Kegiatan" from the label). Flagged the trade-off (Warta goes from one click to two) before applying it.
+- **This dropdown has no page of its own**, unlike "Tentang Kami" (`/tentang-kami` exists). `lib/public/nav.ts`'s dropdown variant's `href` is now optional: present → the brief's original split (a direct link plus a small chevron-only disclosure button); absent → the whole label is the disclosure button (text + chevron in one control, `aria-expanded` on it, same Base UI Popover underneath so Escape/outside-click/focus-return all still apply unchanged). `isDropdownActive` falls back to "any of its items" when `href` is undefined.
+- **`aria-current="page"` goes on whichever element is the entry's visible top-level control**: the `<Link>` for an href'd dropdown (unchanged from stage 11g), the trigger `<button>` itself for an href-less one. So `/warta/[slug]`, `/jadwal-ibadah`, and `/kegiatan/[slug]` all mark the "Informasi Jemaat" *button* current, not a link — there's no single page it could point to.
+- Mobile accordion: same split — "Tentang Kami" keeps its link-plus-chevron row; "Informasi Jemaat" is one full-width toggle row (label left, chevron right), expanding to the same three links.
+- React list keys switched from `entry.href` to `entry.label` in both `NAV_ITEMS.map` calls, since a dropdown can now have no `href`.
+- `flattenPublicNav()` needed no change: it already just dumps a dropdown's `items` regardless of the dropdown's own `href`, so the footer's "Jemaat" column automatically kept "Jadwal Ibadah", "Kegiatan", "Warta" in the same order, just sourced from a different dropdown now.
+
+**Verification**: `tsc`, `eslint`, `next build` pass (`/jadwal-ibadah`, `/kegiatan`, `/warta` unchanged in the route list — this only touched the menu, not the pages). `pnpm test`: 314 tests, 46 files. New in `lib/public/nav.test.ts`: `isDropdownActive` for "Informasi Jemaat" confirms `href` is `undefined` and it's active on `/jadwal-ibadah`, `/kegiatan`, `/kegiatan/[slug]`, `/warta`, and `/warta/[slug]`, but not on `/` or `/tentang-kami`. `public-nav.test.tsx` rewritten (11 tests): the four remaining top-level links plus both dropdown triggers in one list; `aria-current` on the "Informasi Jemaat" *button* for a warta/kegiatan/jadwal-ibadah path; each dropdown opens independently by click and lists its own items; Enter/Escape on the href-less trigger still opens/closes and returns focus; the mobile panel has two independent accordions, each closing the sheet after its own link is chosen. HTTP against the local stack: the home page's server-rendered HTML has `>Informasi Jemaat<` as plain button text (no separate `aria-label`, since the visible text is already its accessible name) alongside the unchanged `aria-label="Submenu Tentang Kami"`.
 

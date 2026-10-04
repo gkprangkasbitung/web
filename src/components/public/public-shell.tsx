@@ -1,19 +1,20 @@
 import Link from "next/link";
 
 import { today } from "@/lib/dates";
+import { flattenPublicNav } from "@/lib/public/nav";
 import type { FooterContent, SosialMedia } from "@/lib/public/site-content";
 
 import { PublicHeader } from "./public-header";
 
 const SOCIAL_LABELS = { instagram: "Instagram", youtube: "YouTube", facebook: "Facebook" } as const;
 
-/** The footer's "Jemaat" column: the header's pages minus Beranda and Kontak (Kontak sits under "Hubungi"). */
-const JEMAAT_LINKS = [
-  { href: "/tentang-kami", label: "Tentang Kami" },
-  { href: "/komisi", label: "Komisi" },
-  { href: "/jadwal-ibadah", label: "Jadwal Ibadah" },
-  { href: "/warta", label: "Warta" },
-] as const;
+/**
+ * The footer's "Jemaat" column (stage 11g): the same `lib/public/nav.ts`
+ * config as the header, so the two can't drift apart. Beranda and Kontak are
+ * left out (Kontak sits under "Hubungi" below); the "Tentang Kami" dropdown
+ * is flattened to its own items.
+ */
+const JEMAAT_LINKS = flattenPublicNav().filter((link) => link.href !== "/kontak");
 
 const footerLinkClass =
   "w-fit rounded-sm underline-offset-4 outline-none hover:text-footer-heading hover:underline focus-visible:ring-3 focus-visible:ring-ring/50";

@@ -1,8 +1,6 @@
 import { CircleAlertIcon } from "lucide-react";
 import type { Metadata } from "next";
 
-import { MajelisGrid } from "@/components/public/majelis-grid";
-import { PendetaFeatured, PendetaPastGrid } from "@/components/public/pendeta-grid";
 import { PublicImage } from "@/components/public/public-image";
 import { PublicContainer, PublicPageTitleBand, PublicSection } from "@/components/public/public-shell";
 import { Timeline } from "@/components/public/timeline";
@@ -14,14 +12,15 @@ export const metadata: Metadata = {
 };
 
 /**
- * Brief §8, §14.6-14.7, docs/design/tentang-kami.html. Sejarah, Linimasa,
- * Visi, and Misi come from Profil Gereja; Pendeta Jemaat and Majelis each
- * come from their own module. Every section is hidden when empty. Renders
- * per request (the loader calls
- * `connection()`), so an edit shows on the next visit.
+ * Brief §8, §14.6, docs/design/tentang-kami.html. Sejarah, Linimasa, Visi,
+ * and Misi come from Profil Gereja. Every section is hidden when empty.
+ * Renders per request (the loader calls `connection()`), so an edit shows on
+ * the next visit. Pendeta Jemaat and Majelis moved to their own page,
+ * `/pendeta-majelis` (stage 11g follow-up), reached from the header's
+ * "Tentang Kami" dropdown, the same way Komisi has its own page.
  */
 export default async function TentangKamiPage() {
-  const { profil, pendetaMelayani, pendetaPernahMelayani, majelis } = await loadTentangKamiContent();
+  const { profil } = await loadTentangKamiContent();
 
   return (
     <>
@@ -90,24 +89,6 @@ export default async function TentangKamiPage() {
               </div>
             )}
           </>
-        )}
-
-        {pendetaMelayani.length > 0 && (
-          <PublicSection id="pendeta-jemaat" title="Pendeta Jemaat">
-            <PendetaFeatured items={pendetaMelayani} />
-          </PublicSection>
-        )}
-
-        {pendetaPernahMelayani.length > 0 && (
-          <PublicSection id="pendeta-pernah-melayani" title="Pendeta yang pernah melayani">
-            <PendetaPastGrid items={pendetaPernahMelayani} />
-          </PublicSection>
-        )}
-
-        {majelis.length > 0 && (
-          <PublicSection id="pelayan" title="Majelis Jemaat">
-            <MajelisGrid items={majelis} />
-          </PublicSection>
         )}
       </PublicContainer>
     </>

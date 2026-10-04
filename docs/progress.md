@@ -17,6 +17,8 @@
 - [x] 11c. Pendeta: modul CMS + Sambutan memakai data pendeta + section di Tentang Kami (§14.7)
 - [x] 11d. Komisi: master jabatan, komisi + anggota, halaman publik /komisi (§14.8)
 - [x] 11e. Kalender Kegiatan: kategori + rentang tanggal + halaman /kegiatan & detail (§14.4 baru)
+- [x] 11f. Portal login: /portal (pilih), login Jemaat (kode email), restyle login Admin, pemisahan akses /admin vs /jemaat
+- [ ] 11g. Header publik: satu konfigurasi menu, dropdown Tentang Kami, menu HP, tombol Portal
 
 ## Notes / decisions
 
@@ -1433,3 +1435,77 @@ Visual-only stage on top of stage 9b's data layer: no migration, no new route, n
   - Beranda showed the fixed "Lihat kalender kegiatan →" link and the event card.
   - Fixtures were deleted and the local database reset afterward; the normal build (reading `.env.local`, i.e. pointed at the real project) was rerun last so the working tree isn't left pointed at the local stack.
 - **Not verified yet**: an actual browser (light/dark, 360px, keyboard-only use) — no browser tool was available in this session, consistent with every prior stage's note. This matters most here for: the month grid's arrow-key roving focus and the chip/dot responsive switch around the `md` breakpoint (exercised only via the unit tests on the pure cell-building logic and a plain HTTP render, not real keyboard/pointer interaction); the color swatch picker's keyboard operation; the Bulan/Daftar `Tabs`; and the palette's light/dark contrast (constructed with the same formula the project's other dark badge/avatar tokens use, but not run through a contrast checker).
+
+### Stage 11f (Portal login), 2026-10-04
+
+**Before deploying to production**
+
+- Push migration `0034_portal_jemaat.sql` together with 0018–0033.
+- Do every step in the new `docs/deploy-checklist.md`: sign-up off, the Magic Link (sign-in code) template with `{{ .Token }}`, the updated Invite template and its conditional subject, custom SMTP, the `/auth/callback**` redirect URL, OTP expiry 600 s, and the rate limits. The app doesn't set any of these from code.
+- `docs/bootstrap-super-admin.md` → "Invites" now points at the checklist.
+
+**Decisions (made in this stage; the instructions said to proceed on my own recommendations)**
+
+- **One definition of access** (`lib/auth/portal.ts`, client-safe): `isStaff` = at least one role, `isJemaat` = `profiles.jemaat_id` set, `homePath` = /admin, else /jemaat, else none. Every page, route, action, and the callback asks these; the login page used never matters.
+- **Brief §4 changed on instruction**: Dashboard and Profil Saya are staff only. `requireStaff()` guards the admin layout, Dashboard, and Profil Saya; `requirePermission()` calls it first. `requirePermissionApi()` and the new `requireStaffApi()` (which replaces `requireUserApi`, so `mutation({ permission: "staff" })` replaces `"signed-in"`) answer 403 "Akun ini tidak memiliki akses pengurus." to an account without a role. `requireUser()` stays only for `/auth/set-password`. The brief was updated (§4, §6, §9.11, new §15).
+- **/portal with `?error=akses` doesn't auto-redirect** a signed-in visitor: an instant redirect would hide the notice the instructions ask for. It shows the notice with the account's email, buttons to the portals it does have, and "Keluar dan masuk dengan akun lain". Without the error it redirects (staff → /admin, jemaat only → /jemaat). A signed-in account with neither sees an info notice and "Keluar".
+- **/login and /portal/masuk show the form to a signed-in account of the other kind** (to switch accounts) instead of redirecting it.
+- **`next` is per area**: `safeNextPath(next, "admin" | "jemaat")` keeps only paths inside that area and now also refuses backslashes (raw or `%5C`), `//` anywhere, and dot segments (raw or `%2e`). `safeCallbackPath` accepts `/auth/set-password` or either area.
+- **The code step never claims a code was sent**: it shows "Jika email terdaftar, kode masuk telah dikirim." (from `lib/auth/portal-copy.ts`, shared by the action and the form) instead of the mockup's "Kami mengirim kode 6 digit ke …".
+- **Enumeration**: every Supabase error on send (not only "Signups not allowed for otp" / `otp_disabled`) is logged and answered with the same message, because SMTP failures and quota errors only happen for existing accounts. Each send is padded to at least 1 s, since a registered email waits for SMTP. The app's own throttle runs first and applies to every email alike.
+- **Server-side limits without the service role** (brief §3 keeps it for invites/deletes): `auth_throttle(buckets, subjects, record)` in 0034 is `security definer` and executable by anon. Subjects are SHA-256 hex digests computed in `lib/auth/portal-otp.ts` (`email:` / `ip:` prefixes), so no email or IP is stored. Limits are fixed per bucket in SQL (callers can't choose them). Calling it directly can only use up quota, which submitting the form can do too. It fails closed: if the RPC errors, the visitor is told to wait.
+- **Why the app needs its own per-IP limit**: Supabase sees every auth request from the app server's IP (Server Actions), so its per-IP limits count the whole congregation as one visitor. The checklist says to raise them.
+- **Invite landing**: one invite template for both kinds, with `{{ if .Data.portal_jemaat }}` choosing the wording, subject, and `next` (`/jemaat` vs `/auth/set-password`). Verified that local GoTrue renders the conditional subject and body. Independently of the link, `/auth/callback` sends a jemaat-only account to /jemaat even if it arrives with `next=/auth/set-password`, and a failed /jemaat link goes to `/portal/masuk?error=tautan` (info notice there) instead of the admin login. Accepting an Akun Jemaat invite logs "Login ke Portal Jemaat".
+- **`/auth/set-password` now redirects to the account's home** (`homePath`, else `/portal?error=akses`) instead of always `/admin`; a "Pengurus" invite with role "Tidak ada" is otherwise sent into a refusal.
+- **"Pengurus" invites keep "Tidak ada" as a role option** (brief §9.11 unchanged). Such an account, if linked to a jemaat, is simply a jemaat account now; without a jemaat it has no access ("Tanpa akses" in the table).
+- **Log lines** (module `auth`): "Login ke Portal Pengurus", "Login ke Portal Jemaat", "Logout dari Portal Pengurus", "Logout dari Portal Jemaat", and plain "Logout" for "Keluar" on /portal itself. Every Keluar goes through `lib/auth/sign-out.ts` and returns to /portal.
+- **Staff who are also jemaat**: the admin account menu gains "Portal Jemaat", and /jemaat shows "Buka halaman admin".
+- **Local config**: `otp_expiry = 600`, a `magic_link` template (`supabase/templates/magic-link.html`), and the invite subject template, in `supabase/config.toml`. Local `enable_signup` is left **on** on purpose, so the integration test proves `shouldCreateUser: false` itself stops account creation (production turns sign-up off as a second layer).
+
+**0034 migration**
+
+- `get_my_jemaat()`: security definer, empty search_path, returns `(id, nama)` of the caller's own linked jemaat only; authenticated only. `jemaat` stays readable only with `warta:read`.
+- `private.auth_throttle_events` (RLS on, no grants) + `private.auth_throttle_limits(bucket)` + `public.auth_throttle(...)`: locks each (bucket, subject) pair in a fixed order with `pg_advisory_xact_lock`, computes the wait from the N-th newest event in each window, records all pairs or none, and prunes events older than a day. Buckets: `otp_send_email` (1/min, 5/h), `otp_send_ip` (20/h), `otp_fail_email` (5/15 min), `otp_fail_ip` (30/15 min).
+- No RLS or policy change anywhere.
+
+**Routes, actions, and pages**
+
+- `src/proxy.ts` (`lib/supabase/proxy.ts`): no session on /admin* → `/login?next=…`; on /jemaat* → `/portal/masuk?next=…`.
+- `app/login/actions.ts`: after the password, `loadAuthUser(supabase)` (new: the same loader as `getAuthenticatedUser`, for the client that just signed in); no role → `signOut({ scope: "local" })` + "Akun ini tidak memiliki akses pengurus."
+- `app/portal/masuk/actions.ts` (`portalLogin`, one Server Action with `intent` = send / verify / change-email, works without JS): Zod-validated email and 6-digit code; `verifyOtp({ email, token, type: "email" })` on the cookie client; a non-jemaat is signed out with "Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat."; a GoTrue 429 has its own message.
+- Pengguna: `POST /api/admin/users` takes `kind: "pengurus"` (default, unchanged) or `kind: "jemaat"` (email + required jemaat; no role; `full_name` = the jemaat's name; `redirectTo` `…/auth/callback?next=/jemaat`; `portal_jemaat: true` metadata). An existing email gets a hint to link the jemaat via Edit. A failed link step → 207 "Pengguna diundang, tapi gagal menautkan jemaat: …". Log: `Mengundang akun jemaat "…" untuk "…"`. `UserRow.accountKind` ("Pengurus" / "Jemaat" / "Pengurus & Jemaat" / "Tanpa akses").
+
+**UI**
+
+- `components/portal/`: `PortalSplitLayout` (the two login pages: brand-dark panel for jemaat, muted panel for admin, hidden below `lg`; the form's `<h1>` is the page heading at every width, so the panel's big line is a `<p>`), `PortalAlert` (tinted error/info box with a live region), `PortalBrand`.
+- `/portal`: desktop and phone layouts from the two mockups in one page (phone copy and desktop copy swap at `sm`; the phone header's ✕ is the "Kembali ke website" link with an aria-label).
+- `/login`: the admin mockup, "Tampilkan password" toggle (`aria-pressed`), "Pilih portal lain", "Masuk ke Portal Jemaat". Texts and errors from §6 unchanged.
+- `/portal/masuk`: email step, then the code step (`inputMode="numeric"`, `autoComplete="one-time-code"`, `maxLength=6`, cleared after each wrong try, Enter submits "Masuk"), "Ganti email", the 60 s countdown ("Kirim ulang dalam 0:45") then "Kirim ulang kode".
+- `/jemaat`: greeting with the jemaat's name, "Portal Jemaat sedang disiapkan…", the account's email, Keluar.
+- Pengguna: "Jenis akun" radio cards in "Undang Pengguna" (Akun Jemaat hides Nama Lengkap and Role and labels the picker "Jemaat (wajib)"), a "Jenis Akun" column (badges, facet), and an updated page description.
+- Mockup colors map to existing tokens: `--brand*` for the dark panel/card, `--badge-accent*` for the pale-green chips, `--badge-destructive*` for the error box. The admin submit button is `bg-foreground` rather than the fixed `--brand`, which would vanish on the dark background.
+
+**Verification (stage 11f)**
+
+- `tsc`, `eslint`, and `next build` pass (`/portal`, `/portal/masuk`, `/jemaat` in the route list). `pnpm` still fails here (corepack can't run pnpm 12 on Node 23.6), so commands ran from `node_modules/.bin` with a throwaway `pnpm` shim on `PATH` for the harness and `pnpm db:types`.
+- `pnpm test`: 300 tests, 45 files. New: `auth/portal.test.ts`; `safe-next.test.ts` (both areas, `//evil.com`, backslashes, `%5C`, dot segments, cross-area refusal); `portal-login-form.test.tsx` (intent=send, the code field's attributes, the countdown 1:00 → 0:45 → "Kirim ulang kode" with fake timers, Enter submits verify with email/code/next, a wrong code shown); `users-manager.test.tsx` (Jenis Akun badges and facet counts, Akun Jemaat hides Role/Nama, requires a jemaat, disables an already-linked jemaat, and posts `{ kind: "jemaat", email, jemaatId }`). `api-mutation.test.ts` renamed to `"staff"`.
+- `pnpm test:db`: 20 files, 649 tests. New `portal_jemaat.test.sql` (30): `get_my_jemaat` definer/search_path/columns, anon refused, own row only, none without a link; a jemaat-only account reads 0 rows from jemaat, keluarga, transactions, balances, schedule, user_roles, only its own profile, and is refused `sarana_dana_report`; `auth_throttle` refuses a non-hash subject, an unknown bucket, and mismatched arrays, anon can't read the events table, 1/min per email (60 s wait), other emails unaffected, all-or-nothing recording, and the 6th try after 5 wrong codes waits 900 s.
+- `pnpm test:integration`: 14 files, 172 tests. New `portal.test.ts` (16) covers every item on the stage's test list, against the real local GoTrue and Mailpit:
+  - a jemaat-only account: admin layout, Dashboard, Profil Saya, and Pengguna → `/portal?error=akses`; tempat POST, profile PATCH, users POST → 403; REST `select` on jemaat, keluarga, transactions, balances, schedule with its own JWT → `[]` (the seed has rows), and `rpc/sarana_dana_report` refused; /jemaat renders its own jemaat's name;
+  - staff without a jemaat → /jemaat redirects to `/portal?error=akses`; staff + jemaat opens both;
+  - the proxy's two login redirects with `next`;
+  - an unknown email: no profile, no auth user (`admin.listUsers`), no mail, and the returned state is deep-equal to a registered email's (except the email and nonce); the resend limit hits both alike;
+  - the real emailed code with `next=https://example.com` and with `next=/admin` → `/jemaat`; "Login ke Portal Jemaat" / "Logout dari Portal Jemaat" logged;
+  - 5 wrong codes, then the right code → "Terlalu banyak kode yang salah. Coba lagi dalam 15 menit." and no session;
+  - a staff account proving its email at /portal/masuk is signed out, nothing logged;
+  - `/login` with `next=//evil.com` → `/admin` (§13 #15), `/admin/warta` kept, `/jemaat` refused; "Login/Logout … Portal Pengurus" logged; an account without a role is refused and signed out;
+  - the Akun Jemaat invite end to end: 201, profile linked with the jemaat's name and no role, the log line, Mailpit subject "Aktivasi Portal Jemaat GKP Rangkasbitung" and a `next=/jemaat` link from the Site URL; following it in a fresh jar → `/jemaat`, the page greets the jemaat, `/admin` refuses; a bad /jemaat link → `/portal/masuk?error=tautan`.
+  - `users-roles.test.ts`: Profil Saya tests now use a viewer (role-less accounts are refused by design); the invite assertion includes `portalJemaat: false`.
+- Mutation checks: `shouldCreateUser: true` fails the unknown-email test (it created an account, deleted afterwards); dropping the staff check from `requireStaffApi` fails the 403 test.
+- **HTTP**, `next build` + `next start` on :3108 (:3107 was held by a `next-server` from an earlier session, left alone) with env overrides to the local stack; the normal build was rerun afterwards and my server stopped.
+  - Signed out: `/portal`, `/login`, `/portal/masuk?next=https://example.com` → 200; `/jemaat`, `/jemaat/apa` → 307 `/portal/masuk?next=…`; `/admin/warta?x=1` → 307 `/login?next=…`.
+  - Jemaat-only cookie: `/admin`, `/admin/akun`, `/admin/users` → real 307 `/portal?error=akses` (the layout redirects before streaming starts); `/portal` and `/portal/masuk` → 307 `/jemaat`; `/login` → 200 (form); the APIs → 403 JSON; `/portal?error=akses` shows the email, "Buka Portal Jemaat", and "Keluar dan masuk dengan akun lain".
+  - Staff-only cookie: `/jemaat` → 307 `/portal?error=akses`; `/portal`, `/login` → 307 `/admin`; `/portal/masuk` → 200.
+  - Test accounts and jemaat rows were deleted afterwards.
+- **Not verified yet**: an actual browser (no browser tool in this session). Worth a look: the two login layouts at 360px and at the `lg` switch, both themes (the admin panel's muted surface and the cards in dark mode), the code field's autofill on iOS/Android, the radio cards' focus ring in "Undang Pengguna", and keyboard use of the password toggle. Real email delivery through production SMTP also can't be tested locally.
+

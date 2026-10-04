@@ -13,7 +13,7 @@ const profileSchema = z.object({ fullName: optionalText(100) });
 
 /** PATCH /api/account/profile: "Informasi Akun" (brief §9.14). Empty saves as null. */
 export const updateOwnProfile = mutation({
-  permission: "signed-in",
+  permission: "staff",
   schema: profileSchema,
   async run({ input, user, supabase }) {
     const { data, error } = await supabase
@@ -75,7 +75,7 @@ async function verifyCurrentPassword(email: string, password: string): Promise<"
  * other session of this account is signed out.
  */
 export const changeOwnPassword = mutation({
-  permission: "signed-in",
+  permission: "staff",
   schema: passwordSchema,
   async run({ input, user, supabase }) {
     const verified = await verifyCurrentPassword(user.email, input.currentPassword);

@@ -2,17 +2,19 @@ import type { AccountSummary } from "@/components/admin/account-menu";
 import { MobileSidebar } from "@/components/admin/mobile-sidebar";
 import { SidebarContent } from "@/components/admin/sidebar-content";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
-import { displayName, requireUser } from "@/lib/auth/session";
+import { isJemaat } from "@/lib/auth/portal";
+import { displayName, requireStaff } from "@/lib/auth/session";
 import { getAdminNav } from "@/lib/nav";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser();
+  const user = await requireStaff();
   const items = await getAdminNav(user, await createClient());
   const account: AccountSummary = {
     name: displayName(user),
     email: user.email,
     roleNames: user.roles.map((role) => role.name),
+    isJemaat: isJemaat(user),
   };
 
   return (

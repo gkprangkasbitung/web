@@ -661,6 +661,9 @@ isOneToOne: false
         isOneToOne: true
         isSetofReturn: false
       } },
+"auth_throttle":
+{ Args: { "p_buckets": (string)[],"p_record": boolean,"p_subjects": (string)[] }; Returns: number
+                           },
 "create_warta":
 { Args: { "p_judul_kebaktian": string,"p_renungan_isi"?: string,"p_renungan_judul"?: string,"p_renungan_kitab"?: string,"p_renungan_sumber"?: string,"p_slug": string,"p_tanggal_kebaktian": string,"p_tema_kebaktian"?: string }; Returns: string
                            },
@@ -670,6 +673,11 @@ isOneToOne: false
 "get_my_access":
 { Args: Record<PropertyKey, never>; Returns: {
               "action": string,"resource": string,"role_id": string,"role_name": string
+            }[]
+                           },
+"get_my_jemaat":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "id": string,"nama": string
             }[]
                            },
 "has_permission":

@@ -5,13 +5,13 @@ import { ProfileForm } from "@/components/account/profile-form";
 import { PageHeader } from "@/components/admin/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireUser } from "@/lib/auth/session";
+import { requireStaff } from "@/lib/auth/session";
 
 export const metadata: Metadata = { title: "Profil Saya" };
 
-/** Profil Saya (brief §9.14): open to every signed-in user. */
+/** Profil Saya (brief §9.14): open to every staff account (stage 11f). */
 export default async function Page() {
-  const user = await requireUser();
+  const user = await requireStaff();
 
   return (
     <div className="flex flex-col gap-6">

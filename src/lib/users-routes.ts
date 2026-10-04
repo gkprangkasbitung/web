@@ -5,6 +5,7 @@ import { z } from "zod";
 import { SUPER_ADMIN_ROLE } from "@/lib/access";
 import { quote } from "@/lib/activity-log";
 import { ApiError, dbError, mutation, rpcError } from "@/lib/api-mutation";
+import { isJemaat, isStaff } from "@/lib/auth/portal";
 import { listPeopleForPicker } from "@/lib/jemaat-routes";
 import { inviteRedirectUrl, siteOrigin } from "@/lib/site-url";
 import { deleteAuthUser, inviteUser } from "@/lib/supabase/admin";
@@ -14,6 +15,18 @@ import { idParams, optionalText } from "@/lib/validation";
 const NOT_FOUND = "Pengguna tidak ditemukan.";
 const JEMAAT_TAKEN = "Jemaat ini sudah terhubung ke akun lain.";
 const LAST_SUPER_ADMIN = "Harus ada minimal satu super_admin.";
+
+/** Pengurus = has a role, Jemaat = linked to a jemaat (lib/auth/portal.ts). */
+export type AccountKind = "Pengurus" | "Jemaat" | "Pengurus & Jemaat" | "Tanpa akses";
+
+export function accountKind(account: { roleIds: readonly string[]; jemaatId: string | null }): AccountKind {
+  const staff = isStaff({ roles: account.roleIds });
+  const jemaat = isJemaat(account);
+  if (staff && jemaat) return "Pengurus & Jemaat";
+  if (staff) return "Pengurus";
+  if (jemaat) return "Jemaat";
+  return "Tanpa akses";
+}
 
 export type UserRow = {
   id: string;
@@ -26,6 +39,8 @@ export type UserRow = {
   roleNames: string | null;
   jemaatId: string | null;
   jemaatNama: string | null;
+  /** The "Jenis Akun" badge and facet. */
+  accountKind: AccountKind;
 };
 
 export type UserPersonOption = {
@@ -86,6 +101,7 @@ export async function loadUsersOverview(
       roleNames: names.length > 0 ? names.join(", ") : null,
       jemaatId: p.jemaat_id,
       jemaatNama: p.jemaat_id ? (jemaatNames.get(p.jemaat_id) ?? null) : null,
+      accountKind: accountKind({ roleIds, jemaatId: p.jemaat_id }),
     };
   });
 
@@ -107,18 +123,42 @@ const optionalId = z
   .nullish()
   .transform((value) => value ?? null);
 
-const inviteSchema = z.object({
-  email: z
-    .string({ error: "Email wajib diisi." })
-    .trim()
-    .min(1, "Email wajib diisi.")
-    .max(254, "Email terlalu panjang.")
-    .toLowerCase()
-    .pipe(z.email({ error: "Format email tidak valid." })),
-  fullName: optionalText(100),
-  roleId: optionalId,
-  jemaatId: optionalId,
-});
+const inviteEmail = z
+  .string({ error: "Email wajib diisi." })
+  .trim()
+  .min(1, "Email wajib diisi.")
+  .max(254, "Email terlalu panjang.")
+  .toLowerCase()
+  .pipe(z.email({ error: "Format email tidak valid." }));
+
+/**
+ * Two kinds of invite (stage 11f). "pengurus" (the default, brief §9.11):
+ * role and jemaat optional, the link opens "Atur Password". "jemaat": a
+ * jemaat is required and there is no role; the link lands on /jemaat and the
+ * account signs in with email codes afterwards.
+ */
+const inviteSchema = z.preprocess(
+  (value) =>
+    value && typeof value === "object" && !("kind" in value) ? { ...value, kind: "pengurus" } : value,
+  z.discriminatedUnion(
+    "kind",
+    [
+      z.object({
+        kind: z.literal("pengurus"),
+        email: inviteEmail,
+        fullName: optionalText(100),
+        roleId: optionalId,
+        jemaatId: optionalId,
+      }),
+      z.object({
+        kind: z.literal("jemaat"),
+        email: inviteEmail,
+        jemaatId: z.uuid({ error: "Jemaat wajib dipilih untuk Akun Jemaat." }),
+      }),
+    ],
+    { error: "Data yang dikirim tidak valid." },
+  ),
+);
 
 async function roleName(supabase: ServerSupabase, roleId: string): Promise<string | null> {
   const { data, error } = await supabase.from("roles").select("name").eq("id", roleId).maybeSingle();
@@ -152,19 +192,35 @@ export const inviteUserRoute = mutation({
 
     // Checks that can fail predictably run before the email goes out, so they
     // are a 400 instead of a 207 after the invite. The RPC checks them again.
-    if (input.roleId && !(await roleName(supabase, input.roleId))) {
+    const roleId = input.kind === "pengurus" ? input.roleId : null;
+    if (roleId && !(await roleName(supabase, roleId))) {
       throw new ApiError(400, "Role tidak ditemukan.");
     }
+    let linkedNama: string | null = null;
     if (input.jemaatId) {
-      if (!(await jemaatName(supabase, input.jemaatId))) throw new ApiError(400, "Jemaat tidak ditemukan.");
+      linkedNama = await jemaatName(supabase, input.jemaatId);
+      if (!linkedNama) throw new ApiError(400, "Jemaat tidak ditemukan.");
       const linked = await supabase.from("profiles").select("id").eq("jemaat_id", input.jemaatId).maybeSingle();
       if (linked.error) throw dbError(linked.error);
       if (linked.data) throw new ApiError(400, JEMAAT_TAKEN);
     }
 
-    const invited = await inviteUser({ email: input.email, fullName: input.fullName, redirectTo: inviteRedirectUrl(origin) });
+    const invited = await inviteUser({
+      email: input.email,
+      // An Akun Jemaat is named after its jemaat.
+      fullName: input.kind === "pengurus" ? input.fullName : linkedNama,
+      redirectTo: inviteRedirectUrl(origin, input.kind),
+      portalJemaat: input.kind === "jemaat",
+    });
     if (!invited.ok) {
-      if (invited.reason === "exists") throw new ApiError(400, "Email ini sudah terdaftar sebagai pengguna.");
+      if (invited.reason === "exists") {
+        throw new ApiError(
+          400,
+          input.kind === "jemaat"
+            ? "Email ini sudah terdaftar sebagai pengguna. Tautkan jemaatnya lewat Edit pada akun tersebut."
+            : "Email ini sudah terdaftar sebagai pengguna.",
+        );
+      }
       if (invited.reason === "rate_limited") {
         throw new ApiError(400, "Terlalu banyak email undangan dikirim. Coba lagi beberapa saat lagi.");
       }
@@ -172,18 +228,29 @@ export const inviteUserRoute = mutation({
     }
 
     let partial: string | undefined;
-    if (input.roleId || input.jemaatId) {
+    if (roleId || input.jemaatId) {
       const { error } = await supabase.rpc("set_user_access", {
         p_user_id: invited.userId,
-        ...(input.roleId ? { p_role_id: input.roleId } : {}),
+        ...(roleId ? { p_role_id: roleId } : {}),
         ...(input.jemaatId ? { p_jemaat_id: input.jemaatId } : {}),
       });
-      if (error) partial = `Pengguna diundang, tapi gagal set role/jemaat: ${accessStepMessage(error)}`;
+      if (error) {
+        partial =
+          input.kind === "jemaat"
+            ? `Pengguna diundang, tapi gagal menautkan jemaat: ${accessStepMessage(error)}`
+            : `Pengguna diundang, tapi gagal set role/jemaat: ${accessStepMessage(error)}`;
+      }
     }
 
     return {
       data: { id: invited.userId },
-      log: { module: "users", activity: `Mengundang pengguna ${quote(input.email)}` },
+      log: {
+        module: "users",
+        activity:
+          input.kind === "jemaat"
+            ? `Mengundang akun jemaat ${quote(input.email)} untuk ${quote(linkedNama ?? "")}`
+            : `Mengundang pengguna ${quote(input.email)}`,
+      },
       revalidate: ["/admin/users"],
       partial,
     };

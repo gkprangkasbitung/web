@@ -26,7 +26,7 @@ export function siteOrigin(value: string | undefined = process.env.SITE_URL): st
   return url.origin;
 }
 
-/** redirectTo for auth.admin.inviteUserByEmail (brief §6). */
-export function inviteRedirectUrl(origin: string): string {
-  return `${origin}/auth/callback?next=/auth/set-password`;
+/** redirectTo for auth.admin.inviteUserByEmail (brief §6); "Akun Jemaat" invites land on /jemaat (stage 11f). */
+export function inviteRedirectUrl(origin: string, kind: "pengurus" | "jemaat" = "pengurus"): string {
+  return `${origin}/auth/callback?next=${kind === "jemaat" ? "/jemaat" : "/auth/set-password"}`;
 }

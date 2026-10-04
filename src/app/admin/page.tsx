@@ -8,7 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { can } from "@/lib/auth/permissions";
-import { displayName, requireUser } from "@/lib/auth/session";
+import { displayName, requireStaff } from "@/lib/auth/session";
 import { formatDateLong, weekContaining } from "@/lib/dates";
 import { formatRupiah } from "@/lib/format";
 import { formatJam } from "@/lib/peribadahan";
@@ -35,7 +35,7 @@ const linkClass = "text-sm font-medium text-primary underline-offset-4 hover:und
  * users who can read church content (`warta:read`). §12.8: the forbidden notice.
  */
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const [user, { error }] = await Promise.all([requireUser(), searchParams]);
+  const [user, { error }] = await Promise.all([requireStaff(), searchParams]);
   const canRead = can(user, "warta", "read");
 
   const week = weekContaining();

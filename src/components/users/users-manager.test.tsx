@@ -15,6 +15,9 @@ const ME = "00000000-0000-4000-8000-00000000000a";
 const OTHER = "00000000-0000-4000-8000-00000000000b";
 const ROLE_ADMIN = "00000000-0000-4000-8000-0000000000e1";
 const ROLE_SUPER = "00000000-0000-4000-8000-0000000000e2";
+const JEMAAT_USER = "00000000-0000-4000-8000-00000000000c";
+const JEMAAT_LINKED = "00000000-0000-4000-8000-0000000000f1";
+const JEMAAT_FREE = "00000000-0000-4000-8000-0000000000f2";
 
 const OVERVIEW: UsersOverview = {
   roles: [
@@ -31,6 +34,7 @@ const OVERVIEW: UsersOverview = {
       roleNames: "super_admin",
       jemaatId: null,
       jemaatNama: null,
+      accountKind: "Pengurus",
     },
     {
       id: OTHER,
@@ -41,9 +45,24 @@ const OVERVIEW: UsersOverview = {
       roleNames: null,
       jemaatId: null,
       jemaatNama: null,
+      accountKind: "Tanpa akses",
+    },
+    {
+      id: JEMAAT_USER,
+      email: "jemaat@contoh.test",
+      fullName: "Contoh Jemaat",
+      nama: "Contoh Jemaat",
+      roleIds: [],
+      roleNames: null,
+      jemaatId: JEMAAT_LINKED,
+      jemaatNama: "Contoh Jemaat",
+      accountKind: "Jemaat",
     },
   ],
-  people: [],
+  people: [
+    { id: JEMAAT_LINKED, nama: "Contoh Jemaat", labels: [], linkedEmail: "jemaat@contoh.test", linkedUserId: JEMAAT_USER },
+    { id: JEMAAT_FREE, nama: "Contoh Bebas", labels: [], linkedEmail: null, linkedUserId: null },
+  ],
 };
 
 const fetchMock = vi.fn();
@@ -134,5 +153,53 @@ describe("UsersManager", () => {
     await user.click(screen.getByRole("button", { name: "Aksi untuk lain@contoh.test" }));
     await screen.findByRole("menuitem", { name: "Edit" });
     expect(screen.queryByRole("menuitem", { name: "Hapus" })).not.toBeInTheDocument();
+  });
+
+  it("shows the account kind as badges, with a Jenis Akun facet (stage 11f)", async () => {
+    const user = userEvent.setup();
+    renderManager();
+
+    const row = (name: string) => screen.getByRole("row", { name: new RegExp(name) });
+    expect(within(row("Contoh Saya")).getByText("Pengurus")).toBeInTheDocument();
+    expect(within(row("Contoh Jemaat")).getByText("Jemaat")).toBeInTheDocument();
+    expect(within(row("lain@contoh.test")).getByText("Tanpa akses")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Filter Jenis Akun" }));
+    const options = await screen.findAllByRole("menuitemcheckbox");
+    expect(options.map((option) => option.textContent)).toEqual(["Jemaat1", "Pengurus1", "Tanpa akses1"]);
+    await user.click(screen.getByRole("menuitemcheckbox", { name: /^Jemaat/ }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("row", { name: /Contoh Saya/ })).not.toBeInTheDocument();
+    expect(row("Contoh Jemaat")).toBeInTheDocument();
+  });
+
+  it('"Akun Jemaat": no role or name fields, a jemaat is required, and the body says kind "jemaat"', async () => {
+    const user = userEvent.setup();
+    renderManager();
+
+    await user.click(screen.getAllByRole("button", { name: "Undang Pengguna" })[0]!);
+    const dialog = await screen.findByRole("dialog", { name: "Undang Pengguna" });
+    await user.click(within(dialog).getByRole("radio", { name: /Akun Jemaat/ }));
+    expect(within(dialog).queryByLabelText("Role")).not.toBeInTheDocument();
+    expect(within(dialog).queryByLabelText("Nama Lengkap")).not.toBeInTheDocument();
+
+    await user.type(within(dialog).getByLabelText("Email"), "anggota@contoh.test");
+    await user.click(within(dialog).getByRole("button", { name: "Kirim Undangan" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Jemaat wajib dipilih untuk Akun Jemaat.");
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await user.type(within(dialog).getByLabelText("Jemaat (wajib)"), "Contoh");
+    expect(await screen.findByRole("option", { name: /Contoh Jemaat/ })).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("option", { name: /Contoh Bebas/ }));
+
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: "x" } }), { status: 201 }));
+    await user.click(within(dialog).getByRole("button", { name: "Kirim Undangan" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
+      kind: "jemaat",
+      email: "anggota@contoh.test",
+      jemaatId: JEMAAT_FREE,
+    });
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Undangan terkirim"));
   });
 });

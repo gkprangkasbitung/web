@@ -89,9 +89,21 @@ function JemaatPicker({
   );
 }
 
-export type InviteInput = { email: string; fullName: string; roleId: string | null; jemaatId: string | null };
+export type InviteKind = "pengurus" | "jemaat";
+export type InviteInput = {
+  kind: InviteKind;
+  email: string;
+  fullName: string;
+  roleId: string | null;
+  jemaatId: string | null;
+};
 
-/** "Undang Pengguna" (brief §9.11). Remount with a new `key` to reset. */
+const KIND_OPTIONS: { value: InviteKind; label: string; description: string }[] = [
+  { value: "pengurus", label: "Pengurus", description: "Masuk ke admin dengan password." },
+  { value: "jemaat", label: "Akun Jemaat", description: "Masuk ke Portal Jemaat dengan kode email." },
+];
+
+/** "Undang Pengguna" (brief §9.11, stage 11f). Remount with a new `key` to reset. */
 export function InviteUserDialog({
   open,
   onOpenChange,
@@ -107,12 +119,14 @@ export function InviteUserDialog({
   onSubmit: (input: InviteInput) => Promise<void>;
 }) {
   const id = useId();
+  const [kind, setKind] = useState<InviteKind>("pengurus");
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [roleId, setRoleId] = useState<string | null>(null);
   const [jemaatId, setJemaatId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isJemaatKind = kind === "jemaat";
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -120,10 +134,14 @@ export function InviteUserDialog({
       setError("Email wajib diisi.");
       return;
     }
+    if (isJemaatKind && !jemaatId) {
+      setError("Jemaat wajib dipilih untuk Akun Jemaat.");
+      return;
+    }
     setPending(true);
     setError(null);
     try {
-      await onSubmit({ email, fullName, roleId, jemaatId });
+      await onSubmit({ kind, email, fullName, roleId, jemaatId });
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Terjadi kesalahan. Coba lagi.");
     } finally {
@@ -136,9 +154,40 @@ export function InviteUserDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">Undang Pengguna</DialogTitle>
-          <DialogDescription>Undangan dikirim lewat email. Penerima membuat password sendiri.</DialogDescription>
+          <DialogDescription>
+            {isJemaatKind
+              ? "Undangan dikirim lewat email. Penerima langsung masuk ke Portal Jemaat, tanpa password; berikutnya masuk dengan kode lewat email."
+              : "Undangan dikirim lewat email. Penerima membuat password sendiri."}
+          </DialogDescription>
         </DialogHeader>
         <form id={id} noValidate onSubmit={submit} className="flex flex-col gap-4">
+          <fieldset className="flex flex-col gap-2" disabled={pending}>
+            <legend className="mb-2 text-sm leading-none font-medium">Jenis akun</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {KIND_OPTIONS.map((option) => (
+                <label
+                  key={option.value}
+                  className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border p-3 text-sm has-checked:border-primary has-checked:bg-badge-accent has-focus-visible:ring-3 has-focus-visible:ring-ring/50 has-disabled:cursor-not-allowed has-disabled:opacity-60"
+                >
+                  <input
+                    type="radio"
+                    name={`${id}-kind`}
+                    value={option.value}
+                    checked={kind === option.value}
+                    onChange={() => {
+                      setKind(option.value);
+                      setError(null);
+                    }}
+                    className="mt-0.5 size-4 accent-primary"
+                  />
+                  <span className="flex flex-col gap-0.5">
+                    <span className="font-medium">{option.label}</span>
+                    <span className="text-xs text-muted-foreground">{option.description}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${id}-email`}>Email</Label>
             <Input
@@ -153,22 +202,26 @@ export function InviteUserDialog({
               aria-invalid={error === "Email wajib diisi." || undefined}
             />
           </div>
+          {!isJemaatKind && (
+            <>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`${id}-nama`}>Nama Lengkap</Label>
+                <Input
+                  id={`${id}-nama`}
+                  autoComplete="off"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  disabled={pending}
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`${id}-role`}>Role</Label>
+                <RoleSelect id={`${id}-role`} roles={roles} value={roleId} onValueChange={setRoleId} disabled={pending} />
+              </div>
+            </>
+          )}
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`${id}-nama`}>Nama Lengkap</Label>
-            <Input
-              id={`${id}-nama`}
-              autoComplete="off"
-              value={fullName}
-              onChange={(event) => setFullName(event.target.value)}
-              disabled={pending}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${id}-role`}>Role</Label>
-            <RoleSelect id={`${id}-role`} roles={roles} value={roleId} onValueChange={setRoleId} disabled={pending} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor={`${id}-jemaat`}>Jemaat</Label>
+            <Label htmlFor={`${id}-jemaat`}>{isJemaatKind ? "Jemaat (wajib)" : "Jemaat"}</Label>
             <JemaatPicker
               id={`${id}-jemaat`}
               people={people}
@@ -177,6 +230,9 @@ export function InviteUserDialog({
               userId={null}
               disabled={pending}
             />
+            {isJemaatKind && (
+              <p className="text-xs text-muted-foreground">Satu jemaat hanya bisa memiliki satu akun.</p>
+            )}
           </div>
           <FormError id={`${id}-error`} message={error} />
         </form>

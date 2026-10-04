@@ -230,7 +230,8 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# 10 minutes for the Portal Jemaat sign-in code (stage 11f); match it in production.
+otp_expiry = 600
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
@@ -245,8 +246,14 @@ otp_expiry = 3600
 # Invite email (stage 10). Keep it in sync with the production template in the
 # Supabase Dashboard (Authentication > Emails > Invite user).
 [auth.email.template.invite]
-subject = "Undangan ke admin GKP Rangkasbitung"
+subject = "{{ if .Data.portal_jemaat }}Aktivasi Portal Jemaat GKP Rangkasbitung{{ else }}Undangan ke admin GKP Rangkasbitung{{ end }}"
 content_path = "./supabase/templates/invite.html"
+
+# Portal Jemaat sign-in code (stage 11f): {{ .Token }} only, no link. Keep it
+# in sync with production (Authentication > Emails > Magic Link).
+[auth.email.template.magic_link]
+subject = "Kode masuk Portal Jemaat GKP Rangkasbitung"
+content_path = "./supabase/templates/magic-link.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

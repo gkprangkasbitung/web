@@ -25,18 +25,24 @@ export type InviteResult =
   | { ok: true; userId: string }
   | { ok: false; reason: "exists" | "rate_limited" | "failed"; message: string };
 
-/** auth.admin.inviteUserByEmail with `full_name` metadata (brief §6). */
+/**
+ * auth.admin.inviteUserByEmail with `full_name` metadata (brief §6).
+ * `portalJemaat` sets the `portal_jemaat` flag the invite template reads to
+ * word the email for the Portal Jemaat (stage 11f); it grants nothing.
+ */
 export async function inviteUser({
   email,
   fullName,
   redirectTo,
+  portalJemaat = false,
 }: {
   email: string;
   fullName: string | null;
   redirectTo: string;
+  portalJemaat?: boolean;
 }): Promise<InviteResult> {
   const { data, error } = await adminClient().auth.admin.inviteUserByEmail(email, {
-    data: fullName ? { full_name: fullName } : {},
+    data: { ...(fullName ? { full_name: fullName } : {}), ...(portalJemaat ? { portal_jemaat: true } : {}) },
     redirectTo,
   });
   if (error || !data.user) {

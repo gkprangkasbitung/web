@@ -1,18 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { LOGIN_PATH, type PortalArea } from "@/lib/auth/portal";
 import type { Database } from "@/types/database";
 
 import { supabaseEnv } from "./env";
 
-function isAdminPath(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/");
+function protectedArea(pathname: string): PortalArea | null {
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) return "admin";
+  if (pathname === "/jemaat" || pathname.startsWith("/jemaat/")) return "jemaat";
+  return null;
 }
 
 /**
- * Refreshes the Supabase session cookie on every request and sends any
- * /admin request without a session to /login?next={path} (brief §6).
- * Pages still verify the user themselves; this is not the security boundary.
+ * Refreshes the Supabase session cookie on every request and sends a
+ * request without a session to its area's login page with ?next={path}:
+ * /admin → /login (brief §6), /jemaat → /portal/masuk (stage 11f).
+ * Pages still verify the user and their access themselves; this is not the
+ * security boundary.
  */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   const { url, anonKey } = supabaseEnv();
@@ -36,9 +41,10 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims);
 
-  if (!signedIn && isAdminPath(request.nextUrl.pathname)) {
+  const area = protectedArea(request.nextUrl.pathname);
+  if (!signedIn && area) {
     const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = "/login";
+    loginUrl.pathname = LOGIN_PATH[area];
     loginUrl.search = "";
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
 

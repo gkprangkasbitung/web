@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronsUpDownIcon, LogOutIcon, UserIcon } from "lucide-react";
+import { ChevronsUpDownIcon, HomeIcon, LogOutIcon, UserIcon } from "lucide-react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { toast } from "sonner";
@@ -17,7 +17,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export type AccountSummary = { name: string; email: string; roleNames: string[] };
+export type AccountSummary = {
+  name: string;
+  email: string;
+  roleNames: string[];
+  /** Also linked to a jemaat, so the Portal Jemaat is open too (stage 11f). */
+  isJemaat: boolean;
+};
 
 export function AccountMenu({ account, onNavigate }: { account: AccountSummary; onNavigate?: () => void }) {
   const [pending, startTransition] = useTransition();
@@ -25,7 +31,7 @@ export function AccountMenu({ account, onNavigate }: { account: AccountSummary; 
 
   function handleLogout() {
     startTransition(async () => {
-      // On success the action redirects to /login; the router follows it.
+      // On success the action redirects to /portal; the router follows it.
       try {
         await logout();
       } catch {
@@ -56,6 +62,12 @@ export function AccountMenu({ account, onNavigate }: { account: AccountSummary; 
           <UserIcon aria-hidden="true" />
           Profil Saya
         </DropdownMenuItem>
+        {account.isJemaat && (
+          <DropdownMenuItem render={<Link href="/jemaat" onClick={onNavigate} />}>
+            <HomeIcon aria-hidden="true" />
+            Portal Jemaat
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={handleLogout} disabled={pending}>
           <LogOutIcon aria-hidden="true" />
           {pending ? "Keluar…" : "Keluar"}

@@ -4,7 +4,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { logActivity } from "@/lib/activity-log";
+import { isStaff, PORTAL_LABEL } from "@/lib/auth/portal";
 import { safeNextPath } from "@/lib/auth/safe-next";
+import { loadAuthUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginState = { error: string | null; email: string };
@@ -31,12 +33,14 @@ export async function login(_previous: LoginState, formData: FormData): Promise<
   });
   if (error || !data.user) return { error: "Email atau password salah.", email };
 
-  await logActivity({
-    supabase,
-    user: { id: data.user.id, email: data.user.email ?? parsed.data.email },
-    module: "auth",
-    activity: "Login",
-  });
+  // The password proves the account; its roles decide access (stage 11f).
+  const user = await loadAuthUser(supabase);
+  if (!user || !isStaff(user)) {
+    await supabase.auth.signOut({ scope: "local" });
+    return { error: "Akun ini tidak memiliki akses pengurus.", email };
+  }
 
-  redirect(safeNextPath(parsed.data.next));
+  await logActivity({ supabase, user, module: "auth", activity: `Login ke ${PORTAL_LABEL.admin}` });
+
+  redirect(safeNextPath(parsed.data.next, "admin"));
 }

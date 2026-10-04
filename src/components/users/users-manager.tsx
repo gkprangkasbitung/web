@@ -52,6 +52,20 @@ function buildColumns(currentUserId: string) {
         );
       },
     }),
+    helper.accessor("accountKind", {
+      header: "Jenis Akun",
+      meta: { facet: { title: "Jenis Akun" } },
+      cell: ({ getValue }) => {
+        const kind = getValue();
+        if (kind === "Tanpa akses") return <Badge variant="neutral">Tanpa akses</Badge>;
+        return (
+          <span className="flex flex-wrap gap-1">
+            {kind !== "Jemaat" && <Badge variant="accent">Pengurus</Badge>}
+            {kind !== "Pengurus" && <Badge variant="outline-accent">Jemaat</Badge>}
+          </span>
+        );
+      },
+    }),
     helper.accessor("jemaatNama", {
       header: "Jemaat",
       meta: { search: true },
@@ -88,12 +102,16 @@ export function UsersManager({
   async function invite(input: InviteInput) {
     const { warning } = await apiFetchWithWarning("/api/admin/users", {
       method: "POST",
-      body: {
-        email: input.email,
-        fullName: input.fullName,
-        roleId: input.roleId,
-        jemaatId: input.jemaatId,
-      },
+      body:
+        input.kind === "jemaat"
+          ? { kind: "jemaat", email: input.email, jemaatId: input.jemaatId }
+          : {
+              kind: "pengurus",
+              email: input.email,
+              fullName: input.fullName,
+              roleId: input.roleId,
+              jemaatId: input.jemaatId,
+            },
     }).catch((error: unknown) => {
       throw new Error(errorMessage(error));
     });
@@ -140,7 +158,7 @@ export function UsersManager({
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Pengguna"
-        description={`${overview.users.length} akun yang bisa masuk ke admin. Setiap akun memakai satu role.`}
+        description={`${overview.users.length} akun pengurus dan jemaat. Akun pengurus memakai satu role; akun jemaat masuk ke Portal Jemaat.`}
         actions={addAction}
       />
 

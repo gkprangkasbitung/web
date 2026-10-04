@@ -91,7 +91,7 @@ What each permission unlocks:
 - `users:*` is the Pengguna module, super_admin only by design (reassigning roles is privilege-sensitive).
 - `roles:read` shows Roles & Permissions; `roles:create` and `roles:delete` add and remove roles.
 - `activity_log:read` shows Log Aktivitas (super_admin only).
-- Dashboard and Profil Saya are open to every signed-in user.
+- Dashboard and Profil Saya are open to every **staff** account, that is, every account with at least one role (changed in stage 11f, see §15). An account without a role opening anything under `/admin` is sent to `/portal?error=akses`, and every admin and account route answers it with 403.
 
 Server helpers to recreate:
 
@@ -155,12 +155,12 @@ RLS today:
 
 ## 6. Authentication
 
-- `/login` ("Masuk Admin", "Khusus untuk pengurus dan admin GKP Rangkasbitung."): email and password, button "Masuk". Errors: "Email dan password wajib diisi.", "Email atau password salah." After login, go to `?next=` only if it starts with `/admin` (no open redirects), otherwise to `/admin`. A signed-in visitor to `/login` is redirected the same way. Logs "Login".
-- Middleware refreshes the session cookie on every request and sends any `/admin` request without a session to `/login?next={path}`.
+- `/login` ("Masuk Admin", "Khusus untuk pengurus dan admin GKP Rangkasbitung."): email and password, button "Masuk". Errors: "Email dan password wajib diisi.", "Email atau password salah." After login, go to `?next=` only if it starts with `/admin` (no open redirects), otherwise to `/admin`. A signed-in visitor to `/login` is redirected the same way. Logs "Login". Stage 11f (§15): the layout follows docs/design/portal-login-admin.html with links "Pilih portal lain" and "Masuk ke Portal Jemaat"; an account without a role is signed out again with "Akun ini tidak memiliki akses pengurus."; the log line is "Login ke Portal Pengurus".
+- Middleware refreshes the session cookie on every request and sends any `/admin` request without a session to `/login?next={path}`, and any `/jemaat` request without a session to `/portal/masuk?next={path}` (§15).
 - Invitations come from the Pengguna module: the server calls `auth.admin.inviteUserByEmail` with metadata `full_name` and `redirectTo` set to `{origin}/auth/callback?next=/auth/set-password`.
 - `/auth/callback` exchanges the `code` for a session, then redirects to `next` (default `/admin`), or to `/login` on failure.
 - `/auth/set-password` ("Atur Password", "Selamat datang, {email}. Buat password untuk akun kamu."): requires a session; new password and confirmation, at least 8 characters and matching; button "Simpan Password"; then `/admin`.
-- "Keluar" in the account menu logs "Logout", signs out, and returns to `/login`.
+- "Keluar" in the account menu logs "Logout", signs out, and returns to `/login`. Stage 11f (§15): it returns to `/portal`, and the log line is "Logout dari Portal Pengurus".
 
 ## 7. Activity log
 
@@ -328,7 +328,8 @@ Deleting a Tempat or Wilayah clears references to it; deleting a label removes i
 ### 9.11 Pengguna (`/admin/users`, super_admin)
 
 - "Undang Pengguna" dialog: Email (required), Nama Lengkap, Role (a single role or "Tidak ada"), Jemaat (link to a jemaat or "Tidak ada"), button "Kirim Undangan", toast "Undangan terkirim". If the invite works but the role or jemaat step fails, say so explicitly ("Pengguna diundang, tapi gagal set role: …").
-- Table: Nama (initials avatar; sortable, searchable), Email (sortable, searchable), Role (badge, facet), Jemaat (searchable). Row actions:
+  - Stage 11f (§15): a "Jenis akun" choice first, "Pengurus" (everything above) or "Akun Jemaat": Email plus Jemaat (required), no role and no Nama Lengkap (the account takes the jemaat's name). Its link lands on `/jemaat` without a password; afterwards the account signs in with an email code. A jemaat still has at most one account.
+- Table: Nama (initials avatar; sortable, searchable), Email (sortable, searchable), Role (badge, facet), Jenis Akun (badges "Pengurus" and/or "Jemaat", or "Tanpa akses"; facet; stage 11f), Jemaat (searchable). Row actions:
   - "Edit" / "Lihat": a dialog with Role and Jemaat selects and "Simpan". Changing the role replaces all of the user's roles with the chosen one (one role per user in the UI). A jemaat can be linked to at most one account.
   - "Hapus": not offered on your own row, and the server refuses it too ("Tidak bisa menghapus akun sendiri"). Confirm `Hapus akun {email}?` with "Akun ini tidak akan bisa login lagi. Riwayat warta yang pernah dibuat akun ini tetap tersimpan. Tindakan ini tidak bisa dibatalkan." It deletes the auth user; profile and role rows cascade.
 
@@ -480,3 +481,35 @@ Permission `situs`; managing members also requires `warta:read` (members are jem
 - DB rules: a member's jemaat must have status_keanggotaan in (`sidi`, `anggota_penuh`). The pembina must carry the label "Penatua" (label id kept in one setting, not matched by name in code).
 - If a member's status later changes to something ineligible, keep the row but flag it in the admin ("Tidak memenuhi syarat") and hide it from the public site.
 - Public `/komisi` (list) and `/komisi/[slug]` (detail): nama, deskripsi, periode, foto, pembina name, and members as name + jabatan only, ordered by jabatan sort_order then name. Read through a column-limited public function; no other jemaat columns ever reach anon.
+
+## 15. Portal login (stage 11f)
+
+Two portals, one access rule. Which login page someone used never grants anything: access always comes from the account itself, decided on the server.
+
+- **Staff** = the account has at least one role (`user_roles`). Opens `/admin`, Dashboard and Profil Saya included.
+- **Jemaat** = `profiles.jemaat_id` is set. Opens `/jemaat`.
+- An account can be both, and then opens both. RLS is unchanged: an account without a role has no permission, so it reads nothing from `jemaat`, `keluarga`, or the finance tables through the Supabase REST API.
+
+Pages:
+
+- `/portal` (docs/design/portal-pilih.html, portal-pilih-mobile.html): "Masuk ke portal", cards "Portal Jemaat" (→ `/portal/masuk`) and "Pengurus & Admin" (→ `/login`), and "Belum punya akun Portal Jemaat? Hubungi sekretariat untuk aktivasi." A signed-in visitor goes straight on: staff → `/admin`, jemaat only → `/jemaat`. With `?error=akses` it first shows a notice that the account has no access to the page it tried, with buttons to the portals the account does have and "Keluar".
+- `/portal/masuk` (docs/design/portal-login-jemaat.html): two steps, run in a Server Action.
+  1. Email → "Kirim kode masuk": `signInWithOtp` with `shouldCreateUser: false`. The answer is always "Jika email terdaftar, kode masuk telah dikirim.", whether or not the email exists (Supabase's "Signups not allowed" included), so the page never reveals which accounts exist.
+  2. "Cek email Anda": a 6-digit code (`inputmode="numeric"`, `autocomplete="one-time-code"`) → "Masuk": `verifyOtp` with type `email`. "Ganti email", and "Kirim ulang" after a 60-second countdown. A wrong or expired code: "Kode salah atau sudah kedaluwarsa. Periksa kembali kodenya, atau kirim ulang kode baru." An account that isn't a jemaat is signed out again: "Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat."
+  - The server limits sends (1 per minute and 5 per hour per email, 20 per hour per IP) and wrong codes (5 per 15 minutes per email, 30 per IP), on top of Supabase's own limits.
+  - After login, `?next=` only if it is a `/jemaat` path, otherwise `/jemaat`.
+- `/login`: see §6.
+- `/jemaat`: "Selamat datang, {nama of the linked jemaat}", "Portal Jemaat sedang disiapkan.", "Keluar". It reads only the account's own jemaat name.
+- `next` on either login page is accepted only inside that page's own area (`/admin` or `/jemaat`), never with `//`, a scheme, a backslash, or a dot segment.
+- "Keluar" anywhere returns to `/portal`. Activity log (module `auth`): "Login ke Portal Pengurus", "Login ke Portal Jemaat", "Logout dari Portal Pengurus", "Logout dari Portal Jemaat".
+- Supabase settings (sign-up off, the code email template, SMTP, redirect URLs, code lifetime and rate limits) are listed in `docs/deploy-checklist.md`; the app doesn't change them from code.
+
+Acceptance checks:
+
+1. An account linked to a jemaat but without a role: `/admin` → `/portal?error=akses`, every admin route → 403, and `select` on `jemaat` or the finance tables with its own token over Supabase REST returns nothing.
+2. A staff account without a jemaat link: `/jemaat` → `/portal?error=akses`. A staff account that is also a jemaat opens both.
+3. A code request for an unregistered email creates no user in `auth.users`, and the page's answer is identical to that for a registered email.
+4. `/portal/masuk?next=https://example.com` and `?next=/admin` both end on `/jemaat`; `/login?next=//evil.com` ends on `/admin`.
+5. After 5 wrong codes the email is refused for a while, even with the right code.
+6. An "Akun Jemaat" invite end to end: the email arrives, and its link lands on `/jemaat` with no password step.
+

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { logActivity } from "@/lib/activity-log";
+import { homePath, NO_ACCESS_PATH } from "@/lib/auth/portal";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
@@ -31,5 +32,5 @@ export async function setPassword(_previous: SetPasswordState, formData: FormDat
   if (error) return { error: "Gagal menyimpan password. Coba lagi." };
 
   await logActivity({ supabase, user, module: "auth", activity: "Mengatur password awal" });
-  redirect("/admin");
+  redirect(homePath(user) ?? NO_ACCESS_PATH);
 }

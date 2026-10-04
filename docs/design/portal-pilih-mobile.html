@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Portal (HP) | GKP Rangkasbitung</title>
+<script src="../support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Geist',system-ui,sans-serif;color:#1C1917;background:#FAFAF9}
+a{color:inherit;text-decoration:none}a:hover{opacity:.9}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; background: #FAFAF9; font-family: 'Geist', system-ui, sans-serif; color: #1C1917; display: flex; flex-direction: column; box-sizing: border-box">
+
+<header style="height: 60px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 16px; border-bottom: 1px solid #E7E5E4">
+<a href="../umum/Beranda.dc.html" style="font-weight: 600; font-size: 15px">GKP Rangkasbitung</a>
+<a href="../umum/Beranda.dc.html" aria-label="Kembali ke website" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #44403C">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></a>
+</header>
+
+<main style="flex-grow: 1; padding: 32px 16px 24px; display: flex; flex-direction: column; gap: 24px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<h1 style="margin: 0; font-family: 'Newsreader', Georgia, serif; font-weight: 400; font-size: 40px; letter-spacing: -0.02em">Masuk ke portal</h1>
+<p style="margin: 0; font-size: 16px; color: #57534E">Pilih sesuai keperluan Anda.</p>
+</div>
+
+<a href="LoginJemaat.dc.html" style="display: flex; flex-direction: column; gap: 12px; padding: 24px; border-radius: 20px; background: #1F2E29; color: #FAFAF9">
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 28px">Portal Jemaat</span>
+<span style="font-size: 15px; line-height: 1.55; color: #D6E2DD">Profil, data keluarga, dan jadwal pelayanan Anda. Masuk dengan kode lewat email.</span>
+<span style="margin-top: 6px; height: 48px; border-radius: 999px; background: #FAFAF9; color: #1F2E29; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 500">Masuk sebagai Jemaat</span>
+</a>
+
+<a href="LoginAdmin.dc.html" style="display: flex; flex-direction: column; gap: 12px; padding: 24px; border-radius: 20px; background: #FFFFFF; border: 1px solid #E7E5E4">
+<span style="font-family: 'Newsreader', Georgia, serif; font-size: 28px">Pengurus &amp; Admin</span>
+<span style="font-size: 15px; line-height: 1.55; color: #44403C">Kelola warta, jadwal, data jemaat, dan website. Khusus pengurus yang diundang.</span>
+<span style="margin-top: 6px; height: 48px; border-radius: 999px; border: 1.5px solid #1F2E29; color: #1F2E29; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 500">Masuk sebagai Pengurus</span>
+</a>
+
+<p style="margin: auto 0 0; font-size: 14px; line-height: 1.6; color: #57534E; text-align: center">Belum punya akun Portal Jemaat?<br><a href="../umum/Kontak.dc.html" style="color: #1F4D3F; font-weight: 500; text-decoration: underline; text-underline-offset: 3px">Hubungi sekretariat</a> untuk aktivasi.</p>
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

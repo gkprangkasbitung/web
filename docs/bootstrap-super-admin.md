@@ -69,10 +69,13 @@ Invites are sent by the app (`auth.admin.inviteUserByEmail`). Three settings mus
 1. **App environment** (Vercel → Project → Settings → Environment Variables): `SITE_URL` = the site's public origin, for example `https://<domain>` (no path, no trailing slash, https). It is server-only. If it is missing or invalid, "Kirim Undangan" fails with a server error instead of guessing the address from the request.
 2. **Supabase → Authentication → URL Configuration**
    - **Site URL**: the same origin as `SITE_URL`.
-   - **Redirect URLs**: add `https://<domain>/auth/callback**`. The `**` makes the `?next=/auth/set-password` query match.
-3. **Supabase → Authentication → Emails → Invite user**: use the template in `supabase/templates/invite.html` (subject "Undangan ke admin GKP Rangkasbitung"). Its link is
-   `{{ .SiteURL }}/auth/callback?next=/auth/set-password&token_hash={{ .TokenHash }}&type=invite`.
+   - **Redirect URLs**: add `https://<domain>/auth/callback**`. The `**` makes the `?next=/auth/set-password` and `?next=/jemaat` queries match.
+3. **Supabase → Authentication → Emails → Invite user**: use the template in `supabase/templates/invite.html`, with the subject given in `docs/deploy-checklist.md` (section 3). For an admin invite its link is
+   `{{ .SiteURL }}/auth/callback?next=/auth/set-password&token_hash={{ .TokenHash }}&type=invite`;
+   for an "Akun Jemaat" invite (stage 11f), the same with `next=/jemaat`.
    It is built from the Site URL, so the link's domain comes from this setting, never from a request.
+
+The Portal Jemaat (stage 11f) needs more settings: sign-up off, the sign-in code template, SMTP, and rate limits. They are in `docs/deploy-checklist.md`.
 
 Check it: invite a test address, open the email, and follow the link. It should land on "Atur Password", and after saving, on `/admin` with the role you chose.
 

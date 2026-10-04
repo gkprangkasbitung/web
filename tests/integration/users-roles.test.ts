@@ -202,6 +202,7 @@ describe("Pengguna", () => {
       email: inviteEmail,
       fullName: "Uji Undangan",
       redirectTo: "http://127.0.0.1:3000/auth/callback?next=/auth/set-password",
+      portalJemaat: false,
     });
 
     const profile = await userByEmail(inviteEmail);
@@ -542,7 +543,8 @@ describe("Log Aktivitas", () => {
 
 describe("Profil Saya", () => {
   it("saves the full name, an empty value as null, and logs under akun", async () => {
-    const me = await testUser("profil", []);
+    // Profil Saya is for staff accounts only since stage 11f (tests/integration/portal.test.ts).
+    const me = await testUser("profil", ["viewer"]);
     actAs(me.session);
     expect((await call(profileRoute.PATCH, { method: "PATCH", body: { fullName: "  Nama Uji  " } })).status).toBe(200);
     expect((await userByEmail(me.email))!.full_name).toBe("Nama Uji");
@@ -557,7 +559,7 @@ describe("Profil Saya", () => {
   });
 
   it("changes the password only with the right current password, then signs out other sessions", async () => {
-    const me = await testUser("sandi", []);
+    const me = await testUser("sandi", ["viewer"]);
     const otherDevice = await signIn(me.email, TEST_PASSWORD);
     actAs(me.session);
 

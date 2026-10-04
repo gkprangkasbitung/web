@@ -4,11 +4,11 @@ import { z } from "zod";
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/activity-log", () => ({ logActivity: vi.fn() }));
-vi.mock("@/lib/auth/session", () => ({ requirePermissionApi: vi.fn(), requireUserApi: vi.fn() }));
+vi.mock("@/lib/auth/session", () => ({ requirePermissionApi: vi.fn(), requireStaffApi: vi.fn() }));
 
 const { revalidatePath } = await import("next/cache");
 const { logActivity } = await import("@/lib/activity-log");
-const { requirePermissionApi, requireUserApi } = await import("@/lib/auth/session");
+const { requirePermissionApi, requireStaffApi } = await import("@/lib/auth/session");
 const { fail } = await import("@/lib/api");
 const { ApiError, dbError, escapeLike, guardError, mutation, rpcError } = await import("./api-mutation");
 
@@ -168,23 +168,23 @@ describe("mutation", () => {
 });
 
 describe("mutation extras (stage 10)", () => {
-  it('"signed-in" needs only a session, not a permission', async () => {
-    vi.mocked(requireUserApi).mockResolvedValue({ ok: true, user: USER, supabase: SUPABASE } as never);
+  it('"staff" needs only a role, not a permission', async () => {
+    vi.mocked(requireStaffApi).mockResolvedValue({ ok: true, user: USER, supabase: SUPABASE } as never);
     const updateProfile = mutation({
-      permission: "signed-in",
+      permission: "staff",
       schema: z.object({ fullName: z.string() }),
       run: async ({ input }) => ({ data: input, log: { module: "akun" as const, activity: "Mengubah nama lengkap" } }),
     });
     const response = await updateProfile(request({ fullName: "Uji" }, "PATCH"), context());
     expect(response.status).toBe(200);
-    expect(requireUserApi).toHaveBeenCalledOnce();
+    expect(requireStaffApi).toHaveBeenCalledOnce();
     expect(requirePermissionApi).not.toHaveBeenCalled();
   });
 
-  it('"signed-in" still answers 401 without a session', async () => {
-    vi.mocked(requireUserApi).mockResolvedValue({ ok: false, response: fail("Sesi kamu sudah berakhir.", 401) });
+  it('"staff" still answers 401 without a session', async () => {
+    vi.mocked(requireStaffApi).mockResolvedValue({ ok: false, response: fail("Sesi kamu sudah berakhir.", 401) });
     const updateProfile = mutation({
-      permission: "signed-in",
+      permission: "staff",
       run: async () => ({ data: null, log: { module: "akun" as const, activity: "x" } }),
     });
     expect((await updateProfile(request(undefined, "PATCH"), context())).status).toBe(401);

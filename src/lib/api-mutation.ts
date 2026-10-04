@@ -9,7 +9,7 @@ import { logActivity } from "@/lib/activity-log";
 import type { ActivityModule } from "@/lib/activity-modules";
 import { fail, ok, parseBody, parseMultipart, partial } from "@/lib/api";
 import type { Action, Resource } from "@/lib/auth/permissions";
-import { requirePermissionApi, requireUserApi, type AuthUser } from "@/lib/auth/session";
+import { requirePermissionApi, requireStaffApi, type AuthUser } from "@/lib/auth/session";
 import type { ServerSupabase } from "@/lib/supabase/server";
 
 const GENERIC_ERROR = "Terjadi kesalahan di server. Coba lagi.";
@@ -141,8 +141,8 @@ type RouteContext = { params: Promise<Record<string, string | string[] | undefin
  * see; anything else is logged and answered with a generic 500.
  */
 export function mutation<TInput = undefined, TParams = Record<string, never>, TData = unknown>(config: {
-  /** `"signed-in"`: any signed-in user (Profil Saya); otherwise `[resource, action]`. */
-  permission: readonly [Resource, Action] | "signed-in";
+  /** `"staff"`: any account with a role (Profil Saya); otherwise `[resource, action]`. */
+  permission: readonly [Resource, Action] | "staff";
   /** Validates `{ id }` and friends; a mismatch is a 404. */
   params?: z.ZodType<TParams>;
   /** Validates the JSON body (or the multipart fields). Omit for body-less requests (DELETE). */
@@ -160,7 +160,7 @@ export function mutation<TInput = undefined, TParams = Record<string, never>, TD
 }): (request: Request, context: RouteContext) => Promise<NextResponse> {
   return async (request, context) => {
     const auth =
-      config.permission === "signed-in" ? await requireUserApi() : await requirePermissionApi(...config.permission);
+      config.permission === "staff" ? await requireStaffApi() : await requirePermissionApi(...config.permission);
     if (!auth.ok) return auth.response;
 
     let params = {} as TParams;

@@ -1,0 +1,10 @@
+<!-- Portal Jemaat sign-in code (stage 11f). The same template goes into the
+     Supabase Dashboard for production: Authentication > Emails > Magic Link.
+     The app signs in with the 6-digit {{ .Token }} only (verifyOtp, type
+     "email"); there is deliberately no link, so the code can't be used from
+     another device by forwarding a link. -->
+<h2>Kode masuk Portal Jemaat</h2>
+<p>Gunakan kode berikut untuk masuk ke Portal Jemaat GKP Rangkasbitung:</p>
+<p style="font-size: 28px; font-weight: 600; letter-spacing: 0.3em; font-family: monospace;">{{ .Token }}</p>
+<p>Kode ini berlaku 10 menit dan hanya bisa dipakai sekali.</p>
+<p>Kalau Anda tidak meminta kode ini, abaikan email ini. Jangan berikan kode ini kepada siapa pun, termasuk pengurus gereja.</p>

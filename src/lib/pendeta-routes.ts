@@ -4,14 +4,14 @@ import { z } from "zod";
 
 import { quote } from "@/lib/activity-log";
 import { ApiError, dbError, mutation } from "@/lib/api-mutation";
-import { currentYearJakarta, PENDETA_TAHUN_MIN, type PendetaRow } from "@/lib/pendeta";
+import { currentYearJakarta, NO_HP_PATTERN, PENDETA_TAHUN_MIN, type PendetaRow } from "@/lib/pendeta";
 import { deletePhotoObject, PHOTO_FORM_MULTIPART, savePhotoSlot, withPhotoSlot, type StoredPhoto } from "@/lib/situs-photos";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { idParams, optionalText, requiredText } from "@/lib/validation";
 
 const NOT_FOUND = "Pendeta tidak ditemukan.";
 const REVALIDATE = ["/admin/pendeta", { path: "/", type: "layout" }, { path: "/tentang-kami", type: "page" }] as const;
-const COLUMNS = "id, nama, peran, tahun_mulai, tahun_selesai, foto_path, foto_alt, keterangan, tampil";
+const COLUMNS = "id, nama, peran, tahun_mulai, tahun_selesai, foto_path, foto_alt, keterangan, tampil, no_hp, tampil_di_warta";
 
 /**
  * `/admin/pendeta` (brief §9.2, §14.7): a bounded list, loaded whole in the
@@ -61,16 +61,29 @@ const tahunSelesaiField = z
   .transform((value) => value?.trim() || null)
   .transform((value, ctx) => (value === null ? null : parseYear(value, "Tahun selesai tidak valid.", ctx)));
 
+// A multipart field is always a string; empty -> null, same idiom as kegiatan-routes.ts's waktu field.
+const noHpField = z
+  .string()
+  .nullish()
+  .transform((value) => value?.trim() || null)
+  .refine((value) => value === null || NO_HP_PATTERN.test(value), {
+    message: "No. HP hanya boleh berisi angka, 8–15 digit.",
+  });
+
+const boolField = z
+  .string()
+  .nullish()
+  .transform((value) => value === "1" || value === "true");
+
 const fieldsSchema = withPhotoSlot({
   nama: requiredText("Nama wajib diisi.", 200),
   peran: requiredText("Peran wajib diisi.", 200),
   tahunMulai: tahunMulaiField,
   tahunSelesai: tahunSelesaiField,
   keterangan: optionalText(500),
-  tampil: z
-    .string()
-    .nullish()
-    .transform((value) => value === "1" || value === "true"),
+  tampil: boolField,
+  noHp: noHpField,
+  tampilDiWarta: boolField,
 }).refine((input) => input.tahunSelesai === null || input.tahunSelesai >= input.tahunMulai, {
   message: "Tahun selesai tidak boleh sebelum tahun mulai.",
   path: ["tahunSelesai"],
@@ -98,6 +111,8 @@ export const createPendeta = mutation({
             tahun_selesai: input.tahunSelesai,
             keterangan: input.keterangan,
             tampil: input.tampil,
+            no_hp: input.noHp,
+            tampil_di_warta: input.tampilDiWarta,
             foto_path: photo?.path ?? null,
             foto_alt: photo?.alt ?? null,
           })
@@ -143,6 +158,8 @@ export const updatePendeta = mutation({
             tahun_selesai: input.tahunSelesai,
             keterangan: input.keterangan,
             tampil: input.tampil,
+            no_hp: input.noHp,
+            tampil_di_warta: input.tampilDiWarta,
             foto_path: photo?.path ?? null,
             foto_alt: photo?.alt ?? null,
           })

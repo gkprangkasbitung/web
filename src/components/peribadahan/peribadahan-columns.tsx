@@ -125,6 +125,13 @@ function buildFieldColumn(field: PeribadahanField, layout: PeribadahanLayout): D
         meta: { search: true },
         cell: ({ getValue }) => dash(getValue()),
       });
+    case "pnj":
+      return helper.accessor("pnjNama", {
+        id: "pnjNama",
+        header: "Pemandu Nyanyian Jemaat",
+        meta: { search: true },
+        cell: ({ getValue }) => dash(getValue()),
+      });
     case "bahanAlkitab":
       return helper.accessor("bahanAlkitab", {
         id: "bahanAlkitab",

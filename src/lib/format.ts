@@ -11,6 +11,17 @@ export function formatRupiah(value: number): string {
   return `${sign}Rp ${formatThousands(value)}`;
 }
 
+/** IDR without "Rp", for table cells whose header carries it: 1500000 -> "1.500.000", -2500 -> "−2.500". */
+export function formatAmount(value: number): string {
+  const sign = Math.round(value) < 0 ? "−" : "";
+  return `${sign}${formatThousands(value)}`;
+}
+
+/** A stored digits-only phone number in groups of four for print: "081392582221" -> "0813 9258 2221". */
+export function formatPhone(digits: string): string {
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+
 /** Initials of the first and last word: "Maria Magdalena Siahaan" -> "MS". */
 export function getInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);

@@ -138,6 +138,11 @@ export function formatDateLong(date: IsoDate): string {
   return `${DAY_NAMES[weekday(date)]}, ${day} ${MONTH_NAMES[month - 1]} ${year}`;
 }
 
+/** "Minggu", "Senin", … "Sabtu". */
+export function formatDayName(date: IsoDate): string {
+  return DAY_NAMES[weekday(date)]!;
+}
+
 /** "Min", "Sen", … "Sab" — short day name for tight spaces such as day tabs. */
 export function formatDayShort(date: IsoDate): string {
   return DAY_NAMES[weekday(date)]!.slice(0, 3);
@@ -153,6 +158,20 @@ export function formatDayDateShort(date: IsoDate): string {
 export function formatDateShort(date: IsoDate): string {
   const { year, month, day } = parse(date);
   return `${day} ${MONTH_NAMES[month - 1]} ${year}`;
+}
+
+/** "14 Sep" — day and short month, for dated rows inside one known week (the Warta DOCX ledger). */
+export function formatDayMonthShort(date: IsoDate): string {
+  const { month, day } = parse(date);
+  return `${day} ${MONTH_SHORT[month - 1]}`;
+}
+
+/** The clock time of an instant in WIB, without the date: "09.30". */
+export function formatTimeWib(value: string | Date): string {
+  const instant = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(instant.getTime())) throw new RangeError(`Invalid timestamp: ${String(value)}`);
+  const { hour, minute } = jakartaComponents(instant);
+  return `${pad(hour)}.${pad(minute)}`;
 }
 
 /** A timestamp shown in WIB: "14 Sep 2025, 09.30 WIB". */

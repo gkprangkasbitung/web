@@ -14,18 +14,21 @@ export const PERIBADAHAN_FIELDS = [
   "pelayanFirman",
   "liturgos",
   "pemusik",
+  "pnj",
   "bahanAlkitab",
   "smkaGrid",
 ] as const;
 export type PeribadahanField = (typeof PERIBADAHAN_FIELDS)[number];
 
-export const ATTENDANCE_FIELDS = ["lakiLaki", "perempuan", "anak"] as const;
+/** `online` is Kehadiran Online, valid only for `umum` (brief §16.1). */
+export const ATTENDANCE_FIELDS = ["lakiLaki", "perempuan", "anak", "online"] as const;
 export type AttendanceField = (typeof ATTENDANCE_FIELDS)[number];
 
 export const ATTENDANCE_LABELS: Record<AttendanceField, string> = {
   lakiLaki: "Laki-laki",
   perempuan: "Perempuan",
   anak: "Anak-anak",
+  online: "Online",
 };
 
 export type PeribadahanLayout = {
@@ -41,10 +44,15 @@ export type PeribadahanLayout = {
 
 const ALL_ATTENDANCE: readonly AttendanceField[] = ["lakiLaki", "perempuan", "anak"];
 
-/** Unknown category keys use this layout (brief §9.5). */
+/**
+ * Unknown category keys use this layout (brief §9.5). `umum` (Kebaktian
+ * Minggu) is the only category with Pemandu Nyanyian Jemaat, Pemain Musik,
+ * and Kehadiran Online (brief §16.1) — enforced again at the database
+ * (0035's trigger), since this layout is otherwise defense in depth only.
+ */
 export const UMUM_LAYOUT: PeribadahanLayout = {
-  fields: ["waktu", "tempat", "pelayanFirman", "liturgos"],
-  attendance: ALL_ATTENDANCE,
+  fields: ["waktu", "tempat", "pelayanFirman", "liturgos", "pnj", "pemusik"],
+  attendance: [...ALL_ATTENDANCE, "online"],
   notesLabel: "Keterangan",
   liturgosLabel: "Liturgos",
 };

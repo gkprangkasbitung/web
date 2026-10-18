@@ -14,6 +14,7 @@ export type WartaInfoValues = {
   temaKebaktian: string;
   renunganJudul: string;
   renunganKitab: string;
+  renunganAyat: string;
   renunganIsi: string;
   renunganSumber: string;
 };
@@ -27,6 +28,7 @@ export function wartaInfoValues(info?: WartaInfo, defaultTanggal?: IsoDate): War
     temaKebaktian: info?.temaKebaktian ?? "",
     renunganJudul: info?.renunganJudul ?? "",
     renunganKitab: info?.renunganKitab ?? "",
+    renunganAyat: info?.renunganAyat ?? "",
     renunganIsi: info?.renunganIsi ?? "",
     renunganSumber: info?.renunganSumber ?? "",
   };
@@ -148,6 +150,17 @@ export function WartaInfoFields({
         </div>
 
         <div className="flex flex-col gap-2">
+          <Label htmlFor={`${idPrefix}-renungan-ayat`}>Ayat Renungan</Label>
+          <Textarea
+            id={`${idPrefix}-renungan-ayat`}
+            value={values.renunganAyat}
+            onChange={(event) => onValueChange("renunganAyat", event.target.value)}
+            rows={4}
+            maxLength={5000}
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
           <Label htmlFor={`${idPrefix}-renungan-isi`}>Isi Renungan</Label>
           <Textarea
             id={`${idPrefix}-renungan-isi`}
@@ -181,6 +194,7 @@ export function wartaInfoBody(values: WartaInfoValues) {
     temaKebaktian: values.temaKebaktian,
     renunganJudul: values.renunganJudul,
     renunganKitab: values.renunganKitab,
+    renunganAyat: values.renunganAyat,
     renunganIsi: values.renunganIsi,
     renunganSumber: values.renunganSumber,
   };

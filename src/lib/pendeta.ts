@@ -17,7 +17,13 @@ export type PendetaRow = {
   foto_alt: string | null;
   keterangan: string | null;
   tampil: boolean;
+  /** Digits only. Never returned by `public_pendeta()` — admin and Warta DOCX only (brief §16.1). */
+  no_hp: string | null;
+  tampil_di_warta: boolean;
 };
+
+/** Digits only, 8–15 of them — same shape as Profil Gereja's telepon (brief §16.1). */
+export const NO_HP_PATTERN = /^[0-9]{8,15}$/;
 
 export const PENDETA_TAHUN_MIN = 1800;
 

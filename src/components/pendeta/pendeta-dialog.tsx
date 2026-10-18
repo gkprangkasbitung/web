@@ -4,6 +4,7 @@ import { Loader2Icon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { FormError } from "@/components/auth/form-error";
+import { PhoneInput } from "@/components/shared/phone-input";
 import { initialPhotoValue, photoWillExist, PhotoField, type SavedPhoto } from "@/components/shared/photo-field";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -38,7 +39,9 @@ export function PendetaDialog({ row, open, onOpenChange, readOnly, onSaved }: Pe
   const [masihMelayani, setMasihMelayani] = useState(row ? row.tahun_selesai === null : true);
   const [tahunSelesai, setTahunSelesai] = useState(row?.tahun_selesai ? String(row.tahun_selesai) : "");
   const [keterangan, setKeterangan] = useState(row?.keterangan ?? "");
+  const [noHp, setNoHp] = useState(row?.no_hp ?? "");
   const [tampil, setTampil] = useState(row?.tampil ?? true);
+  const [tampilDiWarta, setTampilDiWarta] = useState(row?.tampil_di_warta ?? true);
   const saved: SavedPhoto = row?.foto_path && row.foto_alt ? { url: situsPhotoUrl(row.foto_path), alt: row.foto_alt } : null;
   const [photoValue, setPhotoValue] = useState<PhotoFieldValue>(() => initialPhotoValue(saved));
   const [altTouched, setAltTouched] = useState(false);
@@ -69,6 +72,8 @@ export function PendetaDialog({ row, open, onOpenChange, readOnly, onSaved }: Pe
     form.append("tahunSelesai", masihMelayani ? "" : tahunSelesai);
     form.append("keterangan", keterangan);
     form.append("tampil", tampil ? "1" : "0");
+    form.append("noHp", noHp);
+    form.append("tampilDiWarta", tampilDiWarta ? "1" : "0");
     appendPhotoFields(form, photoValue);
 
     setPending(true);
@@ -201,6 +206,18 @@ export function PendetaDialog({ row, open, onOpenChange, readOnly, onSaved }: Pe
             />
           </div>
 
+          <div className="flex flex-col gap-2">
+            <Label htmlFor={`${formId}-no-hp`}>No. HP</Label>
+            <PhoneInput
+              id={`${formId}-no-hp`}
+              value={noHp}
+              onValueChange={setNoHp}
+              maxLength={15}
+              placeholder="Mis. 081234567890"
+              disabled={readOnly || pending}
+            />
+          </div>
+
           <PhotoField
             label="Foto"
             saved={saved}
@@ -230,6 +247,16 @@ export function PendetaDialog({ row, open, onOpenChange, readOnly, onSaved }: Pe
               disabled={readOnly || pending}
             />
             <Label htmlFor={`${formId}-tampil`}>Tampil di situs</Label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id={`${formId}-tampil-di-warta`}
+              checked={tampilDiWarta}
+              onCheckedChange={(checked) => setTampilDiWarta(checked === true)}
+              disabled={readOnly || pending}
+            />
+            <Label htmlFor={`${formId}-tampil-di-warta`}>Tampilkan di warta</Label>
           </div>
 
           <FormError id={errorId} message={error} />

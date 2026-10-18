@@ -12,12 +12,14 @@ import type { PendetaRow } from "@/lib/pendeta";
 export type ProfilGerejaRow = Database["public"]["Tables"]["profil_gereja"]["Row"];
 export type RekeningRow = Database["public"]["Tables"]["profil_gereja_rekening"]["Row"];
 export type LinimasaRow = { id: string; tahun: string; teks: string; sort_order: number };
+export type JadwalRutinRow = { id: string; nama: string; keterangan_waktu: string; sort_order: number };
 
-/** What `/admin/profil-gereja` loads: both singletons, the timeline, and the Sambutan pastor picker's options. */
+/** What `/admin/profil-gereja` loads: both singletons, the timeline, the routine schedule, and the Sambutan pastor picker's options. */
 export type ProfilGerejaAdminData = {
   profil: ProfilGerejaRow;
   rekening: RekeningRow;
   linimasa: LinimasaRow[];
+  jadwalRutin: JadwalRutinRow[];
   pendeta: PendetaRow[];
 };
 
@@ -87,6 +89,10 @@ export const mapsUrlField = urlField(
   "URL Google Maps harus berawalan https://www.google.com/maps atau https://maps.app.goo.gl/.",
   2000,
 );
+
+/** Any https URL (brief §16.1's website field has no fixed host, unlike Maps/social). */
+export const WEBSITE_URL_PATTERN = new RegExp(String.raw`^https://${TAIL}+$`);
+export const websiteUrlField = urlField(WEBSITE_URL_PATTERN, "URL website harus berupa alamat https.", 500);
 
 export function socialUrlField(platform: SocialPlatform) {
   const { label, pattern, example } = SOCIAL_PLATFORMS[platform];

@@ -274,13 +274,13 @@ isOneToOne: false
                   ]
                 },"pendeta": {
                   Row: {
-                    "created_at": string,"foto_alt": string | null,"foto_path": string | null,"id": string,"keterangan": string | null,"nama": string,"peran": string,"tahun_mulai": number,"tahun_selesai": number | null,"tampil": boolean
+                    "created_at": string,"foto_alt": string | null,"foto_path": string | null,"id": string,"keterangan": string | null,"nama": string,"no_hp": string | null,"peran": string,"tahun_mulai": number,"tahun_selesai": number | null,"tampil": boolean,"tampil_di_warta": boolean
                   }
                   Insert: {
-                    "created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"keterangan"?: string | null,"nama": string,"peran": string,"tahun_mulai": number,"tahun_selesai"?: number | null,"tampil"?: boolean
+                    "created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"keterangan"?: string | null,"nama": string,"no_hp"?: string | null,"peran": string,"tahun_mulai": number,"tahun_selesai"?: number | null,"tampil"?: boolean,"tampil_di_warta"?: boolean
                   }
                   Update: {
-                    "created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"keterangan"?: string | null,"nama"?: string,"peran"?: string,"tahun_mulai"?: number,"tahun_selesai"?: number | null,"tampil"?: boolean
+                    "created_at"?: string,"foto_alt"?: string | null,"foto_path"?: string | null,"id"?: string,"keterangan"?: string | null,"nama"?: string,"no_hp"?: string | null,"peran"?: string,"tahun_mulai"?: number,"tahun_selesai"?: number | null,"tampil"?: boolean,"tampil_di_warta"?: boolean
                   }
                   Relationships: [
                     
@@ -300,13 +300,13 @@ isOneToOne: false
                   ]
                 },"peribadahan_items": {
                   Row: {
-                    "bahan_alkitab": string | null,"catatan": string | null,"category_id": string,"created_at": string,"dpa": string | null,"id": string,"jam": string | null,"kehadiran_anak": number | null,"kehadiran_laki_laki": number | null,"kehadiran_perempuan": number | null,"liturgos_id": string | null,"pelayan_firman_id": string | null,"pemusik_id": string | null,"sort_order": number,"tanggal": string,"tema": string | null,"tempat_id": string | null,"updated_at": string,"wilayah_id": string | null
+                    "bahan_alkitab": string | null,"catatan": string | null,"category_id": string,"created_at": string,"dpa": string | null,"id": string,"jam": string | null,"kehadiran_anak": number | null,"kehadiran_laki_laki": number | null,"kehadiran_online": number | null,"kehadiran_perempuan": number | null,"liturgos_id": string | null,"pelayan_firman_id": string | null,"pemusik_id": string | null,"pnj_id": string | null,"sort_order": number,"tanggal": string,"tema": string | null,"tempat_id": string | null,"updated_at": string,"wilayah_id": string | null
                   }
                   Insert: {
-                    "bahan_alkitab"?: string | null,"catatan"?: string | null,"category_id": string,"created_at"?: string,"dpa"?: string | null,"id"?: string,"jam"?: string | null,"kehadiran_anak"?: number | null,"kehadiran_laki_laki"?: number | null,"kehadiran_perempuan"?: number | null,"liturgos_id"?: string | null,"pelayan_firman_id"?: string | null,"pemusik_id"?: string | null,"sort_order"?: number,"tanggal": string,"tema"?: string | null,"tempat_id"?: string | null,"updated_at"?: string,"wilayah_id"?: string | null
+                    "bahan_alkitab"?: string | null,"catatan"?: string | null,"category_id": string,"created_at"?: string,"dpa"?: string | null,"id"?: string,"jam"?: string | null,"kehadiran_anak"?: number | null,"kehadiran_laki_laki"?: number | null,"kehadiran_online"?: number | null,"kehadiran_perempuan"?: number | null,"liturgos_id"?: string | null,"pelayan_firman_id"?: string | null,"pemusik_id"?: string | null,"pnj_id"?: string | null,"sort_order"?: number,"tanggal": string,"tema"?: string | null,"tempat_id"?: string | null,"updated_at"?: string,"wilayah_id"?: string | null
                   }
                   Update: {
-                    "bahan_alkitab"?: string | null,"catatan"?: string | null,"category_id"?: string,"created_at"?: string,"dpa"?: string | null,"id"?: string,"jam"?: string | null,"kehadiran_anak"?: number | null,"kehadiran_laki_laki"?: number | null,"kehadiran_perempuan"?: number | null,"liturgos_id"?: string | null,"pelayan_firman_id"?: string | null,"pemusik_id"?: string | null,"sort_order"?: number,"tanggal"?: string,"tema"?: string | null,"tempat_id"?: string | null,"updated_at"?: string,"wilayah_id"?: string | null
+                    "bahan_alkitab"?: string | null,"catatan"?: string | null,"category_id"?: string,"created_at"?: string,"dpa"?: string | null,"id"?: string,"jam"?: string | null,"kehadiran_anak"?: number | null,"kehadiran_laki_laki"?: number | null,"kehadiran_online"?: number | null,"kehadiran_perempuan"?: number | null,"liturgos_id"?: string | null,"pelayan_firman_id"?: string | null,"pemusik_id"?: string | null,"pnj_id"?: string | null,"sort_order"?: number,"tanggal"?: string,"tema"?: string | null,"tempat_id"?: string | null,"updated_at"?: string,"wilayah_id"?: string | null
                   }
                   Relationships: [
                     {
@@ -330,6 +330,12 @@ isOneToOne: false
     },{
       foreignKeyName: "peribadahan_items_pemusik_id_fkey"
       columns: ["pemusik_id"]
+isOneToOne: false
+      referencedRelation: "jemaat"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "peribadahan_items_pnj_id_fkey"
+      columns: ["pnj_id"]
 isOneToOne: false
       referencedRelation: "jemaat"
       referencedColumns: ["id"]
@@ -387,13 +393,13 @@ isOneToOne: false
                   ]
                 },"profil_gereja": {
                   Row: {
-                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"sambutan_pendeta_id": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"updated_at": string,"visi": string | null,"youtube_url": string | null
+                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"sambutan_pendeta_id": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"telepon_sekretariat": string | null,"updated_at": string,"visi": string | null,"website_url": string | null,"youtube_url": string | null
                   }
                   Insert: {
-                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"telepon_sekretariat"?: string | null,"updated_at"?: string,"visi"?: string | null,"website_url"?: string | null,"youtube_url"?: string | null
                   }
                   Update: {
-                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"updated_at"?: string,"visi"?: string | null,"youtube_url"?: string | null
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"telepon_sekretariat"?: string | null,"updated_at"?: string,"visi"?: string | null,"website_url"?: string | null,"youtube_url"?: string | null
                   }
                   Relationships: [
                     {
@@ -403,6 +409,19 @@ isOneToOne: false
       referencedRelation: "pendeta"
       referencedColumns: ["id"]
     }
+                  ]
+                },"profil_gereja_jadwal_rutin": {
+                  Row: {
+                    "created_at": string,"id": string,"keterangan_waktu": string,"nama": string,"sort_order": number
+                  }
+                  Insert: {
+                    "created_at"?: string,"id"?: string,"keterangan_waktu": string,"nama": string,"sort_order"?: number
+                  }
+                  Update: {
+                    "created_at"?: string,"id"?: string,"keterangan_waktu"?: string,"nama"?: string,"sort_order"?: number
+                  }
+                  Relationships: [
+                    
                   ]
                 },"profil_gereja_linimasa": {
                   Row: {
@@ -565,13 +584,13 @@ isOneToOne: false
                   ]
                 },"warta": {
                   Row: {
-                    "created_at": string,"created_by": string | null,"id": string,"judul_kebaktian": string,"published_at": string | null,"renungan_isi": string | null,"renungan_judul": string | null,"renungan_kitab": string | null,"renungan_sumber": string | null,"slug": string,"status": string,"tanggal_kebaktian": string,"tema_kebaktian": string | null,"updated_at": string
+                    "created_at": string,"created_by": string | null,"id": string,"judul_kebaktian": string,"nas_pembimbing": string | null,"pembacaan_alkitab": string | null,"pembacaan_mazmur": string | null,"published_at": string | null,"renungan_ayat": string | null,"renungan_isi": string | null,"renungan_judul": string | null,"renungan_kitab": string | null,"renungan_sumber": string | null,"slug": string,"status": string,"tanggal_kebaktian": string,"tata_kebaktian": string | null,"tema_kebaktian": string | null,"updated_at": string
                   }
                   Insert: {
-                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"judul_kebaktian": string,"published_at"?: string | null,"renungan_isi"?: string | null,"renungan_judul"?: string | null,"renungan_kitab"?: string | null,"renungan_sumber"?: string | null,"slug": string,"status"?: string,"tanggal_kebaktian": string,"tema_kebaktian"?: string | null,"updated_at"?: string
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"judul_kebaktian": string,"nas_pembimbing"?: string | null,"pembacaan_alkitab"?: string | null,"pembacaan_mazmur"?: string | null,"published_at"?: string | null,"renungan_ayat"?: string | null,"renungan_isi"?: string | null,"renungan_judul"?: string | null,"renungan_kitab"?: string | null,"renungan_sumber"?: string | null,"slug": string,"status"?: string,"tanggal_kebaktian": string,"tata_kebaktian"?: string | null,"tema_kebaktian"?: string | null,"updated_at"?: string
                   }
                   Update: {
-                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"judul_kebaktian"?: string,"published_at"?: string | null,"renungan_isi"?: string | null,"renungan_judul"?: string | null,"renungan_kitab"?: string | null,"renungan_sumber"?: string | null,"slug"?: string,"status"?: string,"tanggal_kebaktian"?: string,"tema_kebaktian"?: string | null,"updated_at"?: string
+                    "created_at"?: string,"created_by"?: string | null,"id"?: string,"judul_kebaktian"?: string,"nas_pembimbing"?: string | null,"pembacaan_alkitab"?: string | null,"pembacaan_mazmur"?: string | null,"published_at"?: string | null,"renungan_ayat"?: string | null,"renungan_isi"?: string | null,"renungan_judul"?: string | null,"renungan_kitab"?: string | null,"renungan_sumber"?: string | null,"slug"?: string,"status"?: string,"tanggal_kebaktian"?: string,"tata_kebaktian"?: string | null,"tema_kebaktian"?: string | null,"updated_at"?: string
                   }
                   Relationships: [
                     
@@ -614,6 +633,25 @@ isOneToOne: false
       referencedColumns: ["id"]
     },{
       foreignKeyName: "warta_litbang_items_warta_id_fkey"
+      columns: ["warta_id"]
+isOneToOne: false
+      referencedRelation: "warta"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"warta_pujian": {
+                  Row: {
+                    "buku": string,"created_at": string,"id": string,"keterangan": string | null,"nomor": string | null,"urutan": number,"warta_id": string
+                  }
+                  Insert: {
+                    "buku": string,"created_at"?: string,"id"?: string,"keterangan"?: string | null,"nomor"?: string | null,"urutan"?: number,"warta_id": string
+                  }
+                  Update: {
+                    "buku"?: string,"created_at"?: string,"id"?: string,"keterangan"?: string | null,"nomor"?: string | null,"urutan"?: number,"warta_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "warta_pujian_warta_id_fkey"
       columns: ["warta_id"]
 isOneToOne: false
       referencedRelation: "warta"
@@ -665,7 +703,7 @@ isOneToOne: false
 { Args: { "p_buckets": (string)[],"p_record": boolean,"p_subjects": (string)[] }; Returns: number
                            },
 "create_warta":
-{ Args: { "p_judul_kebaktian": string,"p_renungan_isi"?: string,"p_renungan_judul"?: string,"p_renungan_kitab"?: string,"p_renungan_sumber"?: string,"p_slug": string,"p_tanggal_kebaktian": string,"p_tema_kebaktian"?: string }; Returns: string
+{ Args: { "p_judul_kebaktian": string,"p_renungan_ayat"?: string,"p_renungan_isi"?: string,"p_renungan_judul"?: string,"p_renungan_kitab"?: string,"p_renungan_sumber"?: string,"p_slug": string,"p_tanggal_kebaktian": string,"p_tema_kebaktian"?: string }; Returns: string
                            },
 "delete_keluarga":
 { Args: { "p_id": string }; Returns: undefined
@@ -735,6 +773,9 @@ isOneToOne: false
               "bahan_alkitab": string,"catatan": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"kehadiran_anak": number,"kehadiran_laki_laki": number,"kehadiran_perempuan": number,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"smka_kelompok": Json,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string
             }[]
                            },
+"reorder_jadwal_rutin":
+{ Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
 "reorder_komisi":
 { Args: { "p_ids": (string)[] }; Returns: undefined
                            },
@@ -749,6 +790,9 @@ isOneToOne: false
                            },
 "reorder_profil_linimasa":
 { Args: { "p_ids": (string)[] }; Returns: undefined
+                           },
+"reorder_warta_pujian":
+{ Args: { "p_ids": (string)[],"p_warta_id": string }; Returns: undefined
                            },
 "replace_jemaat_labels":
 { Args: { "p_jemaat_id": string,"p_label_ids": (string)[] }; Returns: undefined
@@ -816,10 +860,13 @@ isOneToOne: false
         isSetofReturn: false
       } },
 "update_peribadahan_item":
-{ Args: { "p_bahan_alkitab"?: string,"p_catatan"?: string,"p_dpa"?: string,"p_id": string,"p_jam"?: string,"p_kehadiran_anak"?: number,"p_kehadiran_laki_laki"?: number,"p_kehadiran_perempuan"?: number,"p_liturgos_id"?: string,"p_pelayan_firman_id"?: string,"p_pemusik_id"?: string,"p_smka_kelompok"?: Json,"p_tema"?: string,"p_tempat_id"?: string,"p_wilayah_id"?: string }; Returns: undefined
+{ Args: { "p_bahan_alkitab"?: string,"p_catatan"?: string,"p_dpa"?: string,"p_id": string,"p_jam"?: string,"p_kehadiran_anak"?: number,"p_kehadiran_laki_laki"?: number,"p_kehadiran_online"?: number,"p_kehadiran_perempuan"?: number,"p_liturgos_id"?: string,"p_pelayan_firman_id"?: string,"p_pemusik_id"?: string,"p_pnj_id"?: string,"p_smka_kelompok"?: Json,"p_tema"?: string,"p_tempat_id"?: string,"p_wilayah_id"?: string }; Returns: undefined
                            },
 "update_profil_gereja_rekening":
 { Args: { "p_atas_nama"?: string,"p_nama_bank"?: string,"p_nomor_rekening"?: string,"p_qris_foto_alt"?: string,"p_qris_foto_path"?: string }; Returns: Json
+                           },
+"warta_docx_gereja":
+{ Args: Record<PropertyKey, never>; Returns: Json
                            }
           }
           Enums: {

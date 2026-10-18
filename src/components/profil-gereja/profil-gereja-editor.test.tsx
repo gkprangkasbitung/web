@@ -56,6 +56,8 @@ const PROFIL: ProfilGerejaRow = {
   instagram_url: null,
   youtube_url: null,
   facebook_url: null,
+  website_url: null,
+  telepon_sekretariat: null,
   updated_at: "2026-09-30T00:00:00Z",
 };
 
@@ -73,6 +75,7 @@ const DATA: ProfilGerejaAdminData = {
   profil: PROFIL,
   rekening: REKENING,
   linimasa: [{ id: "l1", tahun: "1950-an", teks: "Awal persekutuan", sort_order: 0 }],
+  jadwalRutin: [{ id: "j1", nama: "Kebaktian Minggu", keterangan_waktu: "Minggu, pkl. 08.00 WIB", sort_order: 0 }],
   pendeta: [
     {
       id: "p1",
@@ -84,6 +87,8 @@ const DATA: ProfilGerejaAdminData = {
       foto_alt: null,
       keterangan: null,
       tampil: true,
+      no_hp: null,
+      tampil_di_warta: true,
     },
   ],
 };

@@ -138,10 +138,14 @@ function filled(value: string | null): value is string {
   return value !== null && value.trim() !== "";
 }
 
+// `kehadiran_online` isn't part of `public_warta_schedule` (brief §8 doesn't
+// list it; it's Warta DOCX-only data, §16.1), so this always resolves to
+// null and `filled()` below hides it — never a real public-site field yet.
 const ATTENDANCE_VALUE: Record<AttendanceField, (row: PublicScheduleRow) => number | null> = {
   lakiLaki: (row) => row.kehadiranLakiLaki,
   perempuan: (row) => row.kehadiranPerempuan,
   anak: (row) => row.kehadiranAnak,
+  online: () => null,
 };
 
 /**

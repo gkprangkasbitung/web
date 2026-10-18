@@ -245,7 +245,7 @@ Categories and their fields (an unknown key uses the `umum` layout):
 
 | key           | Name                    | Fields besides Tanggal                                           | Attendance | Notes field  |
 | ------------- | ----------------------- | ---------------------------------------------------------------- | ---------- | ------------ |
-| umum          | Kebaktian Minggu        | Waktu, Tempat, Pelayan Firman, Liturgos                          | L, P, Anak | "Keterangan" |
+| umum          | Kebaktian Minggu        | Waktu, Tempat, Pelayan Firman, Liturgos, Pemandu Nyanyian Jemaat, Pemain Musik | L, P, Anak, Online (§16.1) | "Keterangan" |
 | smka          | Kebaktian SMKA          | Waktu, Tema, Pelayan Liturgi, Pemusik, Bahan Alkitab, group grid | per group  | none         |
 | krt           | Kebaktian Rumah Tangga  | Waktu, Tempat, Wilayah, DPA, Tema, Pelayan Firman, Liturgos      | L, P, Anak | "Catatan"    |
 | pa            | Pemahaman Alkitab       | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | L, P, Anak | "Catatan"    |
@@ -255,16 +255,16 @@ Categories and their fields (an unknown key uses the `umum` layout):
 | doa_pagi      | Doa Pagi                | Waktu, Tempat                                                    | L, P, Anak | "Catatan"    |
 | pemuda_remaja | Kebaktian Pemuda Remaja | Waktu, Tempat, DPA, Tema, Pelayan Firman, Liturgos               | L, P       | "Catatan"    |
 
-Field details: "Waktu" is a time input (`jam`); "Tempat" and "Wilayah" are selects over their master lists; "Dasar Pemahaman Alkitab (DPA)" and "Tema" are text; attendance fields are "Jumlah Kehadiran (Laki-laki / Perempuan / Anak-anak)", integers of at least 0. For SMKA, "Pelayan Liturgi" is stored in `liturgos_id`.
+Field details: "Waktu" is a time input (`jam`); "Tempat" and "Wilayah" are selects over their master lists; "Dasar Pemahaman Alkitab (DPA)" and "Tema" are text; attendance fields are "Jumlah Kehadiran (Laki-laki / Perempuan / Anak-anak)", integers of at least 0. For SMKA, "Pelayan Liturgi" is stored in `liturgos_id`. For `umum`, "Pemandu Nyanyian Jemaat" is stored in `pnj_id` and "Pemain Musik" in `pemusik_id`; "Kehadiran Online" is an integer of at least 0, like the other attendance fields. Both are rejected (not merely hidden) outside `umum`, enforced at the database (§16.1).
 
 SMKA group grid: 8 fixed rows, saved together with the item and upserted by (item, group). "Kelas Batita", "Kelas Balita", "Kelas Kecil", "Kelas Tanggung", "Kelas Besar", and "Kelas Tunas Remaja" each have PF (a person) plus L and P counts; "Guru Sekolah Minggu" and "Orang Tua" have only L and P.
 
-Person pickers (Pelayan Firman, Liturgos, Pemusik, PF, and elsewhere in the app) are a searchable combobox over all jemaat. Typing matches the name **or any of the person's labels** (typing "Liturgos" lists everyone labelled Liturgos), and each option shows the person's labels.
+Person pickers (Pelayan Firman, Liturgos, Pemusik, Pemandu Nyanyian Jemaat, PF, and elsewhere in the app) are a searchable combobox over all jemaat. Typing matches the name **or any of the person's labels** (typing "Liturgos" lists everyone labelled Liturgos), and each option shows the person's labels.
 
 Pages:
 
 - `/admin/peribadahan` (all categories, newest date first): Tanggal (long date, sortable), Waktu (sortable), Jenis (category name, searchable), Ringkasan (Tempat · Wilayah · Tema · DPA joined, searchable), row actions. Toolbar: Wilayah and Tempat facets across all categories, a server-side search over tema, DPA, catatan, and bahan alkitab ("Cari tema/DPA/catatan..."), and a date-range filter.
-- `/admin/peribadahan/[key]` (one category): Tanggal, Waktu, then that category's own columns (Tempat, Wilayah, DPA, Tema, Pelayan Firman, Liturgos, as applicable; SMKA shows Tema, Liturgos, Pemusik, Bahan Alkitab). The Tempat and Wilayah facets appear only when the category has those fields.
+- `/admin/peribadahan/[key]` (one category): Tanggal, Waktu, then that category's own columns (Tempat, Wilayah, DPA, Tema, Pelayan Firman, Liturgos, as applicable; SMKA shows Tema, Liturgos, Pemusik, Bahan Alkitab; `umum` additionally shows Pemandu Nyanyian Jemaat and Pemusik). The Tempat and Wilayah facets appear only when the category has those fields.
 
 Actions:
 
@@ -448,6 +448,7 @@ Reorderable cards like Litbang (§9.6): nama (required), deskripsi, jadwal (free
 Reorderable list: nama (required), jabatan (required), foto, aktif. Free text, not linked to `jemaat`.
 
 ### 14.4 Kegiatan (`/admin/kegiatan`) — calendar edition
+
 - `kategori_kegiatan` (master, `/admin/kegiatan/kategori`): nama (unique), warna (one key from a fixed palette defined in code with light and dark variants, never a free hex), sort_order. Seed: Ibadah khusus, Pemuda & Remaja, Anak, Diakonia, Rapat & organisasi.
 - `kegiatan`: judul (required), slug (unique, immutable), kategori_id (required, restrict), tanggal_mulai (required), tanggal_selesai (required, ≥ tanggal_mulai, span ≤ 31 days), waktu_mulai, waktu_selesai (optional; empty = all-day), tempat, maps_url (Google Maps hosts only), deskripsi, info_pendaftaran, foto, penyelenggara_komisi_id (optional, FK komisi, set null), status (`draft`/`published`).
 - Public `/kegiatan?bulan=YYYY-MM` (default: current month in Asia/Jakarta): month grid starting on Minggu, a list view, and a category legend. Multi-day events appear on every day they cover, labelled "(n/total)". Data comes from a public function that takes one month and returns only published events that overlap it.
@@ -513,3 +514,30 @@ Acceptance checks:
 5. After 5 wrong codes the email is refused for a while, even with the right code.
 6. An "Akun Jemaat" invite end to end: the email arrives, and its link lands on `/jemaat` with no password step.
 
+## 16. Warta document (DOCX) generation
+
+Admins generate a printable Warta (.docx) from a warta's data using the Word template in `templates/warta/warta.docx` (docxtemplater syntax). The tag contract is documented in `docs/warta-template.md`; the template is trusted repo content and is never uploaded by users.
+
+### 16.1 New data
+
+- Peribadahan `umum`: add Pemandu Nyanyian Jemaat (`pnj_id`, jemaat, set null) and Pemain Musik (existing `pemusik_id`) to the category layout; add `kehadiran_online` (integer ≥ 0) for `umum`.
+- Warta: `renungan_ayat` (multi-line verse text); "Bahan Bacaan & Nyanyian" section: tata_kebaktian, nas_pembimbing, pembacaan_alkitab, pembacaan_mazmur, and an ordered `warta_pujian` list (buku: KJ | PKJ | NKB | Lainnya, nomor, keterangan bait/ayat).
+- Profil Gereja: `jadwal_rutin` ordered list (nama, keterangan waktu, e.g. "Minggu, pkl. 08.00 WIB"), plus website URL and telepon sekretariat if missing.
+- Pendeta (§14.7): `no_hp` (digits only, never shown on the public website) and `tampil_di_warta` (default true for currently serving pastors).
+
+### 16.2 Content rules
+
+- Service week = tanggal_kebaktian … +6; finance week = −7 … −1 (§11).
+- Every Peribadahan category section loops over that category's rows in the service week (ordered by date, sort_order) and is hidden when empty. KRT rows carry their own wilayah, DPA and tema.
+- Litbang loops over the warta's own `warta_litbang_items`.
+- Sarana & Dana per item: Saldo Awal at the start of the finance week, every penerimaan and pengeluaran row in range (tanggal singkat, keterangan, jumlah), totals, and Saldo Akhir; numbers must equal the core report function (§9.7).
+- Persembahan Bulanan: names only, never amounts; a transaction without a jemaat shows "NN".
+- Kehadiran: every Peribadahan row in the finance week that has attendance data, with L/P/Anak, Online where present, a per-service total, and the SMKA group breakdown.
+- Left column: jadwal_rutin, sekretariat contact, social links, current pastors with tampil_di_warta (name + no_hp), and rekening from Profil Gereja.
+- Money formatted id-ID without "Rp" inside tables (column headers carry it); dates per §2.
+- 
+### 16.3 Preview and download
+- `GET /api/admin/warta/[id]/docx?mode=preview|download` (requires `warta:read`; drafts allowed). Node runtime, `Cache-Control: no-store`. The server builds the view model, computes `contentHash` = SHA-256 of the canonical JSON of the view model plus the template version, and returns it in the `X-Warta-Hash` header.
+- Preview: "Pratinjau Warta" in the warta editor opens a full-screen dialog that renders the returned DOCX in the browser with `docx-preview` (loaded client-side only, on demand), page by page at the template's page size, with zoom. A side panel shows "Kelengkapan Warta" (missing data, each item linking to the editor section that fixes it) and "Dibuat pukul HH.mm". Previews are not logged.
+- Download: the "Unduh Warta (.docx)" button lives only inside the preview dialog. It requests `mode=download&hash=<contentHash>`; if the current data hashes differently, the server returns 409 ("Data warta berubah sejak pratinjau dibuat. Muat ulang pratinjau.") instead of a file. On success: attachment `warta-YYYY-MM-DD[-DRAFT].docx`, and the activity log records "Mengunduh warta "…"" under module `warta`.
+- URLs that end up as hyperlinks in the document (website, social links) must be http(s) only.

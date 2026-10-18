@@ -8,19 +8,24 @@ import { isoDateSchema } from "@/lib/dates";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { idParams, optionalText, requiredText } from "@/lib/validation";
 import {
+  PUJIAN_BUKU,
   randomSlugSuffix,
+  STANDARD_PUJIAN_URUTAN,
   WARTA_STATUS,
   wartaSlug,
+  type PujianBuku,
   type WartaDetail,
   type WartaKesaksianItemRow,
   type WartaListRow,
   type WartaLitbangItemRow,
+  type WartaPujianRow,
   type WartaStatus,
 } from "@/lib/warta";
 
 const NOT_FOUND = "Warta tidak ditemukan.";
 const LITBANG_NOT_FOUND = "Litbang tidak ditemukan.";
 const KESAKSIAN_NOT_FOUND = "Item kesaksian tidak ditemukan.";
+const PUJIAN_NOT_FOUND = "Pujian tidak ditemukan.";
 const CONFLICT =
   "Warta ini sudah diubah orang lain sejak kamu membukanya. Muat ulang halaman untuk melihat versi terbaru, lalu simpan lagi.";
 
@@ -90,14 +95,19 @@ export type WartaEditorData = {
   warta: WartaDetail;
   litbang: WartaLitbangItemRow[];
   kesaksian: WartaKesaksianItemRow[];
+  pujian: WartaPujianRow[];
 };
+
+function toPujianRow(row: { id: string; urutan: number; buku: string; nomor: string | null; keterangan: string | null }): WartaPujianRow {
+  return { id: row.id, urutan: row.urutan, buku: row.buku as PujianBuku, nomor: row.nomor, keterangan: row.keterangan };
+}
 
 /** `/admin/warta/[id]`. `data: null, error: null` means no such warta; the page 404s. */
 export async function loadWartaEditor(
   supabase: ServerSupabase,
   id: string,
 ): Promise<{ data: WartaEditorData | null; error: string | null }> {
-  const [wartaRes, litbangRes, kesaksianRes] = await Promise.all([
+  const [wartaRes, litbangRes, kesaksianRes, pujianRes] = await Promise.all([
     supabase.from("warta").select("*").eq("id", id).maybeSingle(),
     supabase
       .from("warta_litbang_items")
@@ -111,8 +121,14 @@ export async function loadWartaEditor(
       .eq("warta_id", id)
       .order("sort_order")
       .order("id"),
+    supabase
+      .from("warta_pujian")
+      .select("id, urutan, buku, nomor, keterangan")
+      .eq("warta_id", id)
+      .order("urutan")
+      .order("id"),
   ]);
-  const error = wartaRes.error ?? litbangRes.error ?? kesaksianRes.error;
+  const error = wartaRes.error ?? litbangRes.error ?? kesaksianRes.error ?? pujianRes.error;
   if (error) return { data: null, error: error.message };
   if (!wartaRes.data) return { data: null, error: null };
 
@@ -130,11 +146,17 @@ export async function loadWartaEditor(
         temaKebaktian: w.tema_kebaktian,
         renunganJudul: w.renungan_judul,
         renunganKitab: w.renungan_kitab,
+        renunganAyat: w.renungan_ayat,
         renunganIsi: w.renungan_isi,
         renunganSumber: w.renungan_sumber,
+        tataKebaktian: w.tata_kebaktian,
+        nasPembimbing: w.nas_pembimbing,
+        pembacaanAlkitab: w.pembacaan_alkitab,
+        pembacaanMazmur: w.pembacaan_mazmur,
       },
       litbang: litbangRes.data ?? [],
       kesaksian: kesaksianRes.data ?? [],
+      pujian: (pujianRes.data ?? []).map(toPujianRow),
     },
     error: null,
   };
@@ -150,6 +172,7 @@ const infoSchema = z.object({
   temaKebaktian: optionalText(300),
   renunganJudul: optionalText(200),
   renunganKitab: optionalText(200),
+  renunganAyat: optionalText(5000),
   renunganIsi: optionalText(20000),
   renunganSumber: optionalText(300),
 });
@@ -163,6 +186,7 @@ function infoColumns(input: InfoInput) {
     tema_kebaktian: input.temaKebaktian,
     renungan_judul: input.renunganJudul,
     renungan_kitab: input.renunganKitab,
+    renungan_ayat: input.renunganAyat,
     renungan_isi: input.renunganIsi,
     renungan_sumber: input.renunganSumber,
   };
@@ -193,6 +217,7 @@ export const createWarta = mutation({
         p_tema_kebaktian: input.temaKebaktian ?? undefined,
         p_renungan_judul: input.renunganJudul ?? undefined,
         p_renungan_kitab: input.renunganKitab ?? undefined,
+        p_renungan_ayat: input.renunganAyat ?? undefined,
         p_renungan_isi: input.renunganIsi ?? undefined,
         p_renungan_sumber: input.renunganSumber ?? undefined,
       });
@@ -360,6 +385,213 @@ export const updateWartaLitbangItem = mutation({
     return {
       data,
       log: { module: "warta", activity: `Mengubah litbang ${quote(data.name)} pada warta ${wartaLabel(warta)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Bahan Bacaan & Nyanyian: four text fields on `warta` itself (no
+// concurrency control, same stance as Litbang deskripsi/Kesaksian items),
+// plus the ordered Pujian list.
+// ---------------------------------------------------------------------------
+
+const bahanBacaanSchema = z.object({
+  tataKebaktian: optionalText(2000),
+  nasPembimbing: optionalText(500),
+  pembacaanAlkitab: optionalText(500),
+  pembacaanMazmur: optionalText(500),
+});
+
+/** PATCH /api/admin/warta/[id]/bahan-bacaan. */
+export const updateWartaBahanBacaan = mutation({
+  permission: ["warta", "update"],
+  params: idParams,
+  schema: bahanBacaanSchema,
+  notFound: NOT_FOUND,
+  async run({ input, params, supabase }) {
+    const { data, error } = await supabase
+      .from("warta")
+      .update({
+        tata_kebaktian: input.tataKebaktian,
+        nas_pembimbing: input.nasPembimbing,
+        pembacaan_alkitab: input.pembacaanAlkitab,
+        pembacaan_mazmur: input.pembacaanMazmur,
+      })
+      .eq("id", params.id)
+      .select("id, judul_kebaktian, tanggal_kebaktian, tata_kebaktian, nas_pembimbing, pembacaan_alkitab, pembacaan_mazmur")
+      .maybeSingle();
+    if (error) throw dbError(error, { notFound: NOT_FOUND });
+    if (!data) throw new ApiError(404, NOT_FOUND);
+
+    return {
+      data: {
+        tataKebaktian: data.tata_kebaktian,
+        nasPembimbing: data.nas_pembimbing,
+        pembacaanAlkitab: data.pembacaan_alkitab,
+        pembacaanMazmur: data.pembacaan_mazmur,
+      },
+      log: { module: "warta", activity: `Mengubah bahan bacaan & nyanyian pada warta ${wartaLabel(data)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+const pujianSchema = z.object({
+  buku: z.enum(PUJIAN_BUKU, "Buku tidak valid."),
+  nomor: optionalText(20),
+  keterangan: optionalText(200),
+});
+
+/** New rows go last: max(urutan) + 1 within the warta (stage 4's max+1 convention). */
+async function nextPujianUrutan(supabase: ServerSupabase, wartaId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("warta_pujian")
+    .select("urutan")
+    .eq("warta_id", wartaId)
+    .order("urutan", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw dbError(error);
+  return data ? data.urutan + 1 : 0;
+}
+
+function pujianLabel(row: { buku: string; nomor: string | null }): string {
+  return quote(row.nomor ? `${row.buku} ${row.nomor}` : row.buku);
+}
+
+/** POST /api/admin/warta/[id]/pujian. */
+export const createPujianItem = mutation({
+  permission: ["warta", "update"],
+  params: idParams,
+  schema: pujianSchema,
+  status: 201,
+  notFound: NOT_FOUND,
+  async run({ input, params, supabase }) {
+    const warta = await loadWartaForChild(supabase, params.id);
+    const urutan = await nextPujianUrutan(supabase, params.id);
+
+    const { data, error } = await supabase
+      .from("warta_pujian")
+      .insert({ warta_id: params.id, buku: input.buku, nomor: input.nomor, keterangan: input.keterangan, urutan })
+      .select("id, urutan, buku, nomor, keterangan")
+      .single();
+    if (error) throw dbError(error, { notFound: NOT_FOUND });
+
+    return {
+      data: toPujianRow(data),
+      log: { module: "warta", activity: `Menambah pujian ${pujianLabel(data)} pada warta ${wartaLabel(warta)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/** PATCH /api/admin/warta/[id]/pujian/[itemId]. */
+export const updatePujianItem = mutation({
+  permission: ["warta", "update"],
+  params: itemParams,
+  schema: pujianSchema,
+  notFound: PUJIAN_NOT_FOUND,
+  async run({ input, params, supabase }) {
+    const warta = await loadWartaForChild(supabase, params.id);
+
+    const { data, error } = await supabase
+      .from("warta_pujian")
+      .update({ buku: input.buku, nomor: input.nomor, keterangan: input.keterangan })
+      .eq("id", params.itemId)
+      .eq("warta_id", params.id)
+      .select("id, urutan, buku, nomor, keterangan")
+      .maybeSingle();
+    if (error) throw dbError(error, { notFound: PUJIAN_NOT_FOUND });
+    if (!data) throw new ApiError(404, PUJIAN_NOT_FOUND);
+
+    return {
+      data: toPujianRow(data),
+      log: { module: "warta", activity: `Mengubah pujian ${pujianLabel(data)} pada warta ${wartaLabel(warta)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/** DELETE /api/admin/warta/[id]/pujian/[itemId]. */
+export const deletePujianItem = mutation({
+  permission: ["warta", "update"],
+  params: itemParams,
+  notFound: PUJIAN_NOT_FOUND,
+  async run({ params, supabase }) {
+    const warta = await loadWartaForChild(supabase, params.id);
+
+    const { data, error } = await supabase
+      .from("warta_pujian")
+      .delete()
+      .eq("id", params.itemId)
+      .eq("warta_id", params.id)
+      .select("id, buku, nomor")
+      .maybeSingle();
+    if (error) throw dbError(error, { notFound: PUJIAN_NOT_FOUND });
+    if (!data) throw new ApiError(404, PUJIAN_NOT_FOUND);
+
+    return {
+      data: { id: data.id },
+      log: { module: "warta", activity: `Menghapus pujian ${pujianLabel(data)} dari warta ${wartaLabel(warta)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/** POST /api/admin/warta/[id]/pujian/reorder: the atomic RPC rejects a stale list, scoped to this warta. */
+export const reorderPujian = mutation({
+  permission: ["warta", "update"],
+  params: idParams,
+  schema: z.object({ ids: z.array(z.uuid()) }),
+  notFound: NOT_FOUND,
+  async run({ input, params, supabase }) {
+    const warta = await loadWartaForChild(supabase, params.id);
+
+    const { error } = await supabase.rpc("reorder_warta_pujian", { p_warta_id: params.id, p_ids: input.ids });
+    if (error) throw rpcError(error);
+
+    return {
+      data: { ok: true },
+      log: { module: "warta", activity: `Mengubah urutan pujian pada warta ${wartaLabel(warta)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/**
+ * POST /api/admin/warta/[id]/pujian/standar ("Isi urutan standar"): adds the
+ * 9 template rows (brief §16.1), but only when the list is still empty —
+ * checked here, not only hidden client-side, since a signed-in user could
+ * otherwise call this endpoint directly and overwrite a filled-in list.
+ */
+export const fillStandardPujian = mutation({
+  permission: ["warta", "update"],
+  params: idParams,
+  status: 201,
+  notFound: NOT_FOUND,
+  async run({ params, supabase }) {
+    const warta = await loadWartaForChild(supabase, params.id);
+
+    const existing = await supabase.from("warta_pujian").select("id", { count: "exact", head: true }).eq("warta_id", params.id);
+    if (existing.error) throw dbError(existing.error);
+    if ((existing.count ?? 0) > 0) {
+      throw new ApiError(400, "Daftar pujian sudah terisi. Hapus semua baris dahulu untuk mengisi urutan standar.");
+    }
+
+    const rows = STANDARD_PUJIAN_URUTAN.map((buku, index) => ({
+      warta_id: params.id,
+      urutan: index,
+      buku,
+      nomor: null,
+      keterangan: null,
+    }));
+    const { data, error } = await supabase.from("warta_pujian").insert(rows).select("id, urutan, buku, nomor, keterangan");
+    if (error) throw dbError(error, { notFound: NOT_FOUND });
+
+    return {
+      data: (data ?? []).map(toPujianRow),
+      log: { module: "warta", activity: `Mengisi urutan standar pujian pada warta ${wartaLabel(warta)}` },
       revalidate: REVALIDATE,
     };
   },

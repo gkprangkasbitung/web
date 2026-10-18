@@ -12,6 +12,8 @@ import {
   nomorRekeningField,
   socialUrlField,
   teleponField,
+  websiteUrlField,
+  type JadwalRutinRow,
   type LinimasaRow,
   type ProfilGerejaAdminData,
   type ProfilGerejaRow,
@@ -32,6 +34,7 @@ type ProfilUpdate = Database["public"]["Tables"]["profil_gereja"]["Update"];
 
 const SINGLETON_ID = 1;
 const LINIMASA_NOT_FOUND = "Linimasa tidak ditemukan.";
+const JADWAL_RUTIN_NOT_FOUND = "Jadwal rutin tidak ditemukan.";
 
 /**
  * The admin page, plus every public page: Beranda, Tentang Kami, and Kontak
@@ -41,22 +44,29 @@ const LINIMASA_NOT_FOUND = "Linimasa tidak ditemukan.";
  */
 const REVALIDATE: readonly RevalidateTarget[] = ["/admin/profil-gereja", { path: "/", type: "layout" }];
 
-/** `/admin/profil-gereja`: both singletons and the timeline, in order. */
+/** `/admin/profil-gereja`: both singletons, the timeline, and the routine schedule, in order. */
 export async function loadProfilGerejaAdmin(
   supabase: ServerSupabase,
 ): Promise<{ data: ProfilGerejaAdminData; error: null } | { data: null; error: unknown }> {
-  const [profil, rekening, linimasa, pendeta] = await Promise.all([
+  const [profil, rekening, linimasa, jadwalRutin, pendeta] = await Promise.all([
     supabase.from("profil_gereja").select("*").eq("id", SINGLETON_ID).maybeSingle(),
     supabase.from("profil_gereja_rekening").select("*").eq("id", SINGLETON_ID).maybeSingle(),
     loadLinimasa(supabase),
+    loadJadwalRutin(supabase),
     loadPendetaList(supabase),
   ]);
-  const error = profil.error ?? rekening.error ?? linimasa.error ?? pendeta.error;
-  if (error || !profil.data || !rekening.data || !linimasa.data || !pendeta.data) {
+  const error = profil.error ?? rekening.error ?? linimasa.error ?? jadwalRutin.error ?? pendeta.error;
+  if (error || !profil.data || !rekening.data || !linimasa.data || !jadwalRutin.data || !pendeta.data) {
     return { data: null, error: error ?? "profil_gereja row missing" };
   }
   return {
-    data: { profil: profil.data, rekening: rekening.data, linimasa: linimasa.data, pendeta: pendeta.data },
+    data: {
+      profil: profil.data,
+      rekening: rekening.data,
+      linimasa: linimasa.data,
+      jadwalRutin: jadwalRutin.data,
+      pendeta: pendeta.data,
+    },
     error: null,
   };
 }
@@ -65,6 +75,15 @@ function loadLinimasa(supabase: ServerSupabase) {
   return supabase
     .from("profil_gereja_linimasa")
     .select("id, tahun, teks, sort_order")
+    .order("sort_order")
+    .order("created_at")
+    .order("id");
+}
+
+function loadJadwalRutin(supabase: ServerSupabase) {
+  return supabase
+    .from("profil_gereja_jadwal_rutin")
+    .select("id, nama, keterangan_waktu, sort_order")
     .order("sort_order")
     .order("created_at")
     .order("id");
@@ -200,6 +219,8 @@ const kontakSchema = z.object({
     .pipe(z.email("Alamat email tidak valid.").max(254, "Maksimal 254 karakter.").nullable()),
   jamSekretariat: optionalText(200),
   mapsUrl: mapsUrlField,
+  websiteUrl: websiteUrlField,
+  teleponSekretariat: teleponField,
 });
 
 /** PATCH /api/admin/profil-gereja/kontak (JSON). */
@@ -213,6 +234,8 @@ export const updateKontak = mutation({
       email: input.email,
       jam_sekretariat: input.jamSekretariat,
       maps_url: input.mapsUrl,
+      website_url: input.websiteUrl,
+      telepon_sekretariat: input.teleponSekretariat,
     });
     return {
       data,
@@ -445,6 +468,114 @@ export const reorderLinimasa = mutation({
     return {
       data: { ok: true },
       log: { module: "situs", activity: "Mengubah urutan linimasa" },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Jadwal Kebaktian Rutin (brief §16.1): same shape as Linimasa above.
+// ---------------------------------------------------------------------------
+
+const jadwalRutinSchema = z.object({
+  nama: requiredText("Nama wajib diisi.", 200),
+  keteranganWaktu: requiredText("Keterangan waktu wajib diisi.", 200),
+});
+
+function jadwalRutinLabel(row: { nama: string; keterangan_waktu: string }): string {
+  return quote(`${row.nama} · ${row.keterangan_waktu}`);
+}
+
+/** POST /api/admin/profil-gereja/jadwal-rutin. New items go last (stage 4's max + 1). */
+export const createJadwalRutin = mutation({
+  permission: ["situs", "create"],
+  schema: jadwalRutinSchema,
+  status: 201,
+  async run({ input, supabase }) {
+    const last = await supabase
+      .from("profil_gereja_jadwal_rutin")
+      .select("sort_order")
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (last.error) throw dbError(last.error);
+
+    const { data, error } = await supabase
+      .from("profil_gereja_jadwal_rutin")
+      .insert({
+        nama: input.nama,
+        keterangan_waktu: input.keteranganWaktu,
+        sort_order: last.data ? last.data.sort_order + 1 : 0,
+      })
+      .select("id, nama, keterangan_waktu, sort_order")
+      .single();
+    if (error) throw dbError(error);
+
+    return {
+      data: data as JadwalRutinRow,
+      log: { module: "situs", activity: `Menambah jadwal rutin ${jadwalRutinLabel(data)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/** PATCH /api/admin/profil-gereja/jadwal-rutin/[id]. */
+export const updateJadwalRutin = mutation({
+  permission: ["situs", "update"],
+  params: idParams,
+  schema: jadwalRutinSchema,
+  notFound: JADWAL_RUTIN_NOT_FOUND,
+  async run({ input, params, supabase }) {
+    const { data, error } = await supabase
+      .from("profil_gereja_jadwal_rutin")
+      .update({ nama: input.nama, keterangan_waktu: input.keteranganWaktu })
+      .eq("id", params.id)
+      .select("id, nama, keterangan_waktu, sort_order")
+      .maybeSingle();
+    if (error) throw dbError(error, { notFound: JADWAL_RUTIN_NOT_FOUND });
+    if (!data) throw new ApiError(404, JADWAL_RUTIN_NOT_FOUND);
+
+    return {
+      data: data as JadwalRutinRow,
+      log: { module: "situs", activity: `Mengubah jadwal rutin ${jadwalRutinLabel(data)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/** DELETE /api/admin/profil-gereja/jadwal-rutin/[id] (situs:delete). */
+export const deleteJadwalRutin = mutation({
+  permission: ["situs", "delete"],
+  params: idParams,
+  notFound: JADWAL_RUTIN_NOT_FOUND,
+  async run({ params, supabase }) {
+    const { data, error } = await supabase
+      .from("profil_gereja_jadwal_rutin")
+      .delete()
+      .eq("id", params.id)
+      .select("id, nama, keterangan_waktu")
+      .maybeSingle();
+    if (error) throw dbError(error, { notFound: JADWAL_RUTIN_NOT_FOUND });
+    if (!data) throw new ApiError(404, JADWAL_RUTIN_NOT_FOUND);
+
+    return {
+      data: { id: data.id },
+      log: { module: "situs", activity: `Menghapus jadwal rutin ${jadwalRutinLabel(data)}` },
+      revalidate: REVALIDATE,
+    };
+  },
+});
+
+/** POST /api/admin/profil-gereja/jadwal-rutin/reorder: the atomic RPC rejects a stale list (stage 8's pattern). */
+export const reorderJadwalRutin = mutation({
+  permission: ["situs", "update"],
+  schema: z.object({ ids: z.array(z.uuid()) }),
+  async run({ input, supabase }) {
+    const { error } = await supabase.rpc("reorder_jadwal_rutin", { p_ids: input.ids });
+    if (error) throw rpcError(error);
+    return {
+      data: { ok: true },
+      log: { module: "situs", activity: "Mengubah urutan jadwal rutin" },
       revalidate: REVALIDATE,
     };
   },

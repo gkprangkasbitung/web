@@ -4,6 +4,7 @@ import type { SavedPhoto } from "@/components/shared/photo-field";
 import { SOCIAL_PLATFORMS, type ProfilGerejaAdminData, type ProfilGerejaRow, type RekeningRow } from "@/lib/profil-gereja";
 import { situsPhotoUrl } from "@/lib/situs-photo";
 
+import { JadwalRutinSection } from "./jadwal-rutin-section";
 import { LinimasaSection } from "./linimasa-section";
 import { ProfilFormSection, type FieldConfig, type FormValues } from "./profil-form-section";
 import { SambutanSection } from "./sambutan-section";
@@ -75,6 +76,15 @@ const KONTAK_FIELDS: FieldConfig[] = [
     maxLength: 2000,
     help: "Salin dari tombol Bagikan di Google Maps: https://maps.app.goo.gl/… atau https://www.google.com/maps/…",
   },
+  { key: "websiteUrl", label: "Website", kind: "url", maxLength: 500, placeholder: "https://gkprangkasbitung.org" },
+  {
+    key: "teleponSekretariat",
+    label: "Telepon sekretariat",
+    kind: "phone",
+    maxLength: 15,
+    placeholder: "Mis. 081234567890",
+    help: "Angka saja. Dipakai di Warta, boleh berbeda dari Telepon/WhatsApp di atas.",
+  },
 ];
 const kontakValues = (row: ProfilGerejaRow): FormValues => ({
   alamat: text(row.alamat),
@@ -82,6 +92,8 @@ const kontakValues = (row: ProfilGerejaRow): FormValues => ({
   email: text(row.email),
   jamSekretariat: text(row.jam_sekretariat),
   mapsUrl: text(row.maps_url),
+  websiteUrl: text(row.website_url),
+  teleponSekretariat: text(row.telepon_sekretariat),
 });
 
 const SOSIAL_FIELDS: FieldConfig[] = (["instagram", "youtube", "facebook"] as const).map((platform) => ({
@@ -166,6 +178,11 @@ export function ProfilGerejaEditor({ data, access }: { data: ProfilGerejaAdminDa
         readOnlyNote={readOnlyNote}
         successMessage="Bagian Kontak disimpan"
         fromResponse={(row) => ({ values: kontakValues(row) })}
+      />
+
+      <JadwalRutinSection
+        items={data.jadwalRutin}
+        access={{ canCreate: access.canCreate, canUpdate: access.canUpdate, canDelete: access.canDelete }}
       />
 
       <ProfilFormSection<ProfilGerejaRow>

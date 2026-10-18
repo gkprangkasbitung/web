@@ -37,6 +37,8 @@ function baseForm(overrides: Record<string, string> = {}) {
   form.append("tahunSelesai", overrides.tahunSelesai ?? "");
   form.append("keterangan", overrides.keterangan ?? "");
   form.append("tampil", overrides.tampil ?? "1");
+  form.append("noHp", overrides.noHp ?? "");
+  form.append("tampilDiWarta", overrides.tampilDiWarta ?? "1");
   form.append("foto_alt", overrides.foto_alt ?? "");
   return form;
 }
@@ -195,5 +197,28 @@ describe("Pendeta", () => {
 
     const direct = await anon.from("pendeta").select("*");
     expect(direct.error?.code).toBe("42501");
+  });
+
+  it("no_hp (brief §16.1) saves through the route but never reaches any anon-callable function", async () => {
+    actAs(editor);
+    const add = await callForm(pendetaCollection.POST, {
+      method: "POST",
+      form: baseForm({ nama: `${RUN} no hp`, noHp: "081234567890" }),
+    });
+    expect(add.status).toBe(201);
+    const row = add.body.data as unknown as { id: string; no_hp: string | null };
+    createdPendeta.push(row.id);
+    expect(row.no_hp).toBe("081234567890");
+
+    const { data } = await anon.rpc("public_pendeta");
+    const match = (data as Record<string, unknown>[]).find((r) => r.nama === `${RUN} no hp`);
+    expect(match).toBeDefined();
+    expect(match).not.toHaveProperty("no_hp");
+
+    const badFormat = await callForm(pendetaCollection.POST, {
+      method: "POST",
+      form: baseForm({ nama: `${RUN} no hp salah`, noHp: "bukan-nomor" }),
+    });
+    expect(badFormat.status).toBe(400);
   });
 });

@@ -22,6 +22,11 @@ const nextConfig: NextConfig = {
   // production build doesn't see them as pages at all.
   pageExtensions: process.env.NODE_ENV === "production" ? DEFAULT_EXTENSIONS : [...DEFAULT_EXTENSIONS, "dev.tsx"],
   images: situsImages(),
+  // The Warta DOCX route reads its Word template from disk (brief §16); make
+  // sure the file ships with that route's server bundle.
+  outputFileTracingIncludes: {
+    "/api/admin/warta/[id]/docx": ["./templates/warta/warta.docx"],
+  },
 };
 
 export default nextConfig;

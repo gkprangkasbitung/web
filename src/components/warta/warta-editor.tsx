@@ -13,19 +13,30 @@ import { formatDateLong, type DateRange } from "@/lib/dates";
 import type { PersonOptionRow } from "@/lib/jemaat-routes";
 import type { PeribadahanOverview } from "@/lib/peribadahan-routes";
 import type { WartaFinanceItem } from "@/lib/sarana-dana-routes";
-import { WARTA_DELETE_DESCRIPTION, type WartaDetail, type WartaKesaksianItemRow, type WartaLitbangItemRow } from "@/lib/warta";
+import {
+  WARTA_DELETE_DESCRIPTION,
+  type WartaDetail,
+  type WartaKesaksianItemRow,
+  type WartaLitbangItemRow,
+  type WartaPujianRow,
+} from "@/lib/warta";
 
+import { WARTA_EDITOR_SECTIONS as SECTION } from "@/lib/warta-docx";
+
+import { WartaDocxPreviewDialog } from "./warta-docx-preview-dialog";
 import { WartaFinanceSection } from "./warta-finance-section";
 import { WartaInfoSection } from "./warta-info-section";
 import { WartaKesaksianSection } from "./warta-kesaksian-section";
 import { WartaLitbangSection } from "./warta-litbang-section";
 import { WartaPeribadahanSection } from "./warta-peribadahan-section";
+import { WartaPujianSection } from "./warta-pujian-section";
 import { WartaStatusBadge } from "./warta-status-badge";
 
 export type WartaEditorProps = {
   warta: WartaDetail;
   litbang: WartaLitbangItemRow[];
   kesaksian: WartaKesaksianItemRow[];
+  pujian: WartaPujianRow[];
   serviceWeek: DateRange;
   schedule: PeribadahanOverview;
   financeWeek: DateRange;
@@ -42,6 +53,7 @@ export function WartaEditor({
   warta,
   litbang,
   kesaksian,
+  pujian,
   serviceWeek,
   schedule,
   financeWeek,
@@ -101,33 +113,45 @@ export function WartaEditor({
           <p className="font-mono text-xs text-muted-foreground">{warta.slug}</p>
         </div>
 
-        {(canWrite || canDelete) && (
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {canDelete && (
-              <Button variant="outline" onClick={() => setDeleteOpen(true)} disabled={statusPending} focusableWhenDisabled>
-                Hapus Warta
-              </Button>
-            )}
-            {canWrite && (
-              <Button onClick={toggleStatus} disabled={statusPending} focusableWhenDisabled>
-                {statusPending && <Loader2Icon aria-hidden className="motion-safe:animate-spin" />}
-                {isPublished ? "Tarik ke Draft" : "Terbitkan"}
-              </Button>
-            )}
-          </div>
-        )}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <WartaDocxPreviewDialog wartaId={warta.id} />
+          {canDelete && (
+            <Button variant="outline" onClick={() => setDeleteOpen(true)} disabled={statusPending} focusableWhenDisabled>
+              Hapus Warta
+            </Button>
+          )}
+          {canWrite && (
+            <Button onClick={toggleStatus} disabled={statusPending} focusableWhenDisabled>
+              {statusPending && <Loader2Icon aria-hidden className="motion-safe:animate-spin" />}
+              {isPublished ? "Tarik ke Draft" : "Terbitkan"}
+            </Button>
+          )}
+        </div>
       </div>
 
-      <WartaInfoSection warta={warta} canWrite={canWrite} />
-      <WartaPeribadahanSection
-        range={serviceWeek}
-        schedule={schedule}
-        peopleOptions={peopleOptions}
-        canWrite={canWrite}
-      />
-      <WartaLitbangSection wartaId={warta.id} items={litbang} canWrite={canWrite} />
-      <WartaFinanceSection range={financeWeek} items={finance} peopleOptions={peopleOptions} canWrite={canWrite} />
-      <WartaKesaksianSection wartaId={warta.id} items={kesaksian} canWrite={canWrite} />
+      <SectionAnchor id={SECTION.informasi}>
+        <WartaInfoSection warta={warta} canWrite={canWrite} />
+      </SectionAnchor>
+      <SectionAnchor id={SECTION.peribadahan}>
+        <WartaPeribadahanSection
+          range={serviceWeek}
+          schedule={schedule}
+          peopleOptions={peopleOptions}
+          canWrite={canWrite}
+        />
+      </SectionAnchor>
+      <SectionAnchor id={SECTION.litbang}>
+        <WartaLitbangSection wartaId={warta.id} items={litbang} canWrite={canWrite} />
+      </SectionAnchor>
+      <SectionAnchor id={SECTION.saranaDana}>
+        <WartaFinanceSection range={financeWeek} items={finance} peopleOptions={peopleOptions} canWrite={canWrite} />
+      </SectionAnchor>
+      <SectionAnchor id={SECTION.kesaksian}>
+        <WartaKesaksianSection wartaId={warta.id} items={kesaksian} canWrite={canWrite} />
+      </SectionAnchor>
+      <SectionAnchor id={SECTION.bahanBacaan}>
+        <WartaPujianSection wartaId={warta.id} bahanBacaan={warta} pujian={pujian} canWrite={canWrite} />
+      </SectionAnchor>
 
       <ConfirmDialog
         open={deleteOpen}
@@ -136,6 +160,15 @@ export function WartaEditor({
         description={WARTA_DELETE_DESCRIPTION}
         onConfirm={remove}
       />
+    </div>
+  );
+}
+
+/** A target for the preview's "Kelengkapan Warta" links: focusable (and so scrolled to) after the dialog closes. */
+function SectionAnchor({ id, children }: { id: string; children: React.ReactNode }) {
+  return (
+    <div id={id} tabIndex={-1} className="scroll-mt-20 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      {children}
     </div>
   );
 }

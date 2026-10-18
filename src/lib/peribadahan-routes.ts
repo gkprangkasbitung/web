@@ -37,6 +37,8 @@ export type PeribadahanItemRow = {
   liturgosNama: string | null;
   pemusikId: string | null;
   pemusikNama: string | null;
+  pnjId: string | null;
+  pnjNama: string | null;
   tema: string | null;
   dpa: string | null;
   catatan: string | null;
@@ -44,6 +46,7 @@ export type PeribadahanItemRow = {
   kehadiranLakiLaki: number | null;
   kehadiranPerempuan: number | null;
   kehadiranAnak: number | null;
+  kehadiranOnline: number | null;
   sortOrder: number;
 };
 
@@ -126,6 +129,8 @@ function toItemRow(
     liturgosNama: item.liturgos_id ? (jemaatMap.get(item.liturgos_id) ?? null) : null,
     pemusikId: item.pemusik_id,
     pemusikNama: item.pemusik_id ? (jemaatMap.get(item.pemusik_id) ?? null) : null,
+    pnjId: item.pnj_id,
+    pnjNama: item.pnj_id ? (jemaatMap.get(item.pnj_id) ?? null) : null,
     tema: item.tema,
     dpa: item.dpa,
     catatan: item.catatan,
@@ -133,6 +138,7 @@ function toItemRow(
     kehadiranLakiLaki: item.kehadiran_laki_laki,
     kehadiranPerempuan: item.kehadiran_perempuan,
     kehadiranAnak: item.kehadiran_anak,
+    kehadiranOnline: item.kehadiran_online,
     sortOrder: item.sort_order,
   };
 }
@@ -335,12 +341,14 @@ const updateSchema = z.object({
   pelayanFirmanId: z.uuid().nullish(),
   liturgosId: z.uuid().nullish(),
   pemusikId: z.uuid().nullish(),
+  pnjId: z.uuid().nullish(),
   tema: optionalText(200),
   dpa: optionalText(300),
   catatan: optionalText(1000),
   kehadiranLakiLaki: attendanceSchema,
   kehadiranPerempuan: attendanceSchema,
   kehadiranAnak: attendanceSchema,
+  kehadiranOnline: attendanceSchema,
   bahanAlkitab: optionalText(200),
   smkaKelompok: z.array(smkaKelompokInputSchema).length(8).nullish(),
 });
@@ -434,6 +442,8 @@ export const updatePeribadahanItem = mutation({
       p_kehadiran_anak: (hasAttendance(key, "anak") ? input.kehadiranAnak : null) ?? undefined,
       p_bahan_alkitab: (hasField(key, "bahanAlkitab") ? input.bahanAlkitab : null) ?? undefined,
       p_smka_kelompok: hasField(key, "smkaGrid") && input.smkaKelompok ? toSmkaJson(input.smkaKelompok) : undefined,
+      p_pnj_id: (hasField(key, "pnj") ? input.pnjId : null) ?? undefined,
+      p_kehadiran_online: (hasAttendance(key, "online") ? input.kehadiranOnline : null) ?? undefined,
     };
 
     const { error } = await supabase.rpc("update_peribadahan_item", args);

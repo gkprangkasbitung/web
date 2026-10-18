@@ -58,18 +58,37 @@ export type WartaInfo = {
   temaKebaktian: string | null;
   renunganJudul: string | null;
   renunganKitab: string | null;
+  renunganAyat: string | null;
   renunganIsi: string | null;
   renunganSumber: string | null;
 };
 
-export type WartaDetail = WartaInfo & {
-  id: string;
-  slug: string;
-  status: WartaStatus;
-  publishedAt: string | null;
-  updatedAt: string;
+/** The "Bahan Bacaan & Nyanyian" section's four text fields (brief §16.1): own endpoint, no concurrency control. */
+export type WartaBahanBacaan = {
+  tataKebaktian: string | null;
+  nasPembimbing: string | null;
+  pembacaanAlkitab: string | null;
+  pembacaanMazmur: string | null;
 };
+
+export type WartaDetail = WartaInfo &
+  WartaBahanBacaan & {
+    id: string;
+    slug: string;
+    status: WartaStatus;
+    publishedAt: string | null;
+    updatedAt: string;
+  };
 
 export type WartaLitbangItemRow = { id: string; name: string; deskripsi: string | null };
 
 export type WartaKesaksianItemRow = { id: string; judul: string; deskripsi: string | null };
+
+/** "Bahan Bacaan & Nyanyian"'s ordered hymn/song list (brief §16.1). */
+export const PUJIAN_BUKU = ["KJ", "PKJ", "NKB", "Lainnya"] as const;
+export type PujianBuku = (typeof PUJIAN_BUKU)[number];
+
+export type WartaPujianRow = { id: string; urutan: number; buku: PujianBuku; nomor: string | null; keterangan: string | null };
+
+/** "Isi urutan standar" (brief §16.1): KJ, PKJ, PKJ, KJ, KJ, KJ, Lainnya, NKB, PKJ. Only added when the list is still empty. */
+export const STANDARD_PUJIAN_URUTAN: readonly PujianBuku[] = ["KJ", "PKJ", "PKJ", "KJ", "KJ", "KJ", "Lainnya", "NKB", "PKJ"];

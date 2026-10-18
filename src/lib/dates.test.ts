@@ -6,12 +6,15 @@ import {
   financeWeek,
   formatDateCompact,
   formatDayDateShort,
+  formatDayMonthShort,
+  formatDayName,
   formatDateLong,
   formatDateRangeLong,
   formatDateRangeShort,
   formatDateShort,
   formatMonthLong,
   formatTimestamp,
+  formatTimeWib,
   isoDateSchema,
   isoDateToLocalDate,
   isValidIsoDate,
@@ -207,5 +210,14 @@ describe("month helpers (brief §14.4, the kalender kegiatan)", () => {
     expect(formatDateRangeLong("2026-10-16", "2026-10-16")).toBe("Jumat, 16 Oktober 2026");
     expect(formatDateRangeLong("2026-10-16", "2026-10-18")).toBe("Jumat, 16 – Minggu, 18 Oktober 2026");
     expect(formatDateRangeLong("2026-10-30", "2026-11-02")).toBe("Jumat, 30 Oktober 2026 – Senin, 2 November 2026");
+  });
+
+  it("formatDayName, formatDayMonthShort, formatTimeWib (Warta DOCX)", () => {
+    expect(formatDayName("2026-10-04")).toBe("Minggu");
+    expect(formatDayName("2026-10-10")).toBe("Sabtu");
+    expect(formatDayMonthShort("2026-09-27")).toBe("27 Sep");
+    // 23.30 UTC is already 06.30 the next morning in WIB.
+    expect(formatTimeWib("2026-10-03T23:30:00Z")).toBe("06.30");
+    expect(() => formatTimeWib("bukan")).toThrow(RangeError);
   });
 });

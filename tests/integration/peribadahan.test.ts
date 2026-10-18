@@ -160,6 +160,54 @@ describe("Mengubah jadwal", () => {
     expect(await logRows(`Mengubah jadwal Kebaktian Pria tanggal ${TANGGAL}`)).toHaveLength(1);
   });
 
+  it("Pemandu Nyanyian Jemaat and Kehadiran Online (brief §16.1) save on umum, and are rejected (not just nulled) elsewhere", async () => {
+    actAs(editor);
+    const { data: pf } = await superadmin.supabase.from("jemaat").select("id").limit(1).single();
+
+    const umum = await call(collection.POST, { method: "POST", body: { categoryKey: "umum", tanggal: TANGGAL } });
+    const umumId = (umum.body.data as unknown as { id: string }).id;
+    createdItems.push(umumId);
+    const umumEdit = await call(item.PATCH, {
+      method: "PATCH",
+      body: { pnjId: pf!.id, kehadiranOnline: 12 },
+      params: { id: umumId },
+    });
+    expect(umumEdit.status).toBe(200);
+    const { data: umumRow } = await superadmin.supabase
+      .from("peribadahan_items")
+      .select("pnj_id, kehadiran_online")
+      .eq("id", umumId)
+      .single();
+    expect(umumRow).toEqual({ pnj_id: pf!.id, kehadiran_online: 12 });
+
+    const pria = await call(collection.POST, { method: "POST", body: { categoryKey: "pria", tanggal: TANGGAL } });
+    const priaId = (pria.body.data as unknown as { id: string }).id;
+    createdItems.push(priaId);
+    // Through the app's own route, pnjId/kehadiranOnline are nulled by the
+    // TS layer before the RPC runs, same as every other category-layout
+    // field (brief §9.5/stage 6's defense-in-depth stance) -- so this still
+    // answers 200, with those two fields silently dropped.
+    const priaEdit = await call(item.PATCH, {
+      method: "PATCH",
+      body: { pnjId: pf!.id, kehadiranOnline: 12, kehadiranLakiLaki: 5 },
+      params: { id: priaId },
+    });
+    expect(priaEdit.status).toBe(200);
+    const { data: priaRow } = await superadmin.supabase
+      .from("peribadahan_items")
+      .select("pnj_id, kehadiran_online, kehadiran_laki_laki")
+      .eq("id", priaId)
+      .single();
+    expect(priaRow).toEqual({ pnj_id: null, kehadiran_online: null, kehadiran_laki_laki: 5 });
+
+    // The DB itself still refuses a *direct* write outside umum (a signed-in
+    // user can call the Supabase REST API directly, CLAUDE.md) -- this is
+    // the one field pair that's a hard DB rejection, not just app-level
+    // nulling; pgTAP (warta_docx_data.test.sql) covers it in full.
+    const direct = await editor.supabase.from("peribadahan_items").update({ pnj_id: pf!.id }).eq("id", priaId);
+    expect(direct.error?.code).toBe("22023");
+  });
+
   it("rejects a negative attendance count with a plain message", async () => {
     actAs(editor);
     const add = await call(collection.POST, { method: "POST", body: { categoryKey: "umum", tanggal: TANGGAL } });

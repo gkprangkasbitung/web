@@ -22,6 +22,11 @@ const item = await import("@/app/api/admin/warta/[id]/route");
 const litbang = await import("@/app/api/admin/warta/[id]/litbang/[itemId]/route");
 const kesaksian = await import("@/app/api/admin/warta/[id]/kesaksian/route");
 const kesaksianItem = await import("@/app/api/admin/warta/[id]/kesaksian/[itemId]/route");
+const bahanBacaan = await import("@/app/api/admin/warta/[id]/bahan-bacaan/route");
+const pujian = await import("@/app/api/admin/warta/[id]/pujian/route");
+const pujianItem = await import("@/app/api/admin/warta/[id]/pujian/[itemId]/route");
+const pujianReorder = await import("@/app/api/admin/warta/[id]/pujian/reorder/route");
+const pujianStandar = await import("@/app/api/admin/warta/[id]/pujian/standar/route");
 const peribadahan = await import("@/app/api/admin/peribadahan/route");
 const peribadahanItem = await import("@/app/api/admin/peribadahan/[id]/route");
 const transactions = await import("@/app/api/admin/sarana-dana/[id]/transactions/route");
@@ -95,6 +100,12 @@ describe("auth", () => {
       await call(kesaksian.POST, { method: "POST", body: { judul: "x" }, params }),
       await call(kesaksianItem.PATCH, { method: "PATCH", body: { judul: "x" }, params }),
       await call(kesaksianItem.DELETE, { method: "DELETE", params }),
+      await call(bahanBacaan.PATCH, { method: "PATCH", body: {}, params }),
+      await call(pujian.POST, { method: "POST", body: { buku: "KJ" }, params }),
+      await call(pujianItem.PATCH, { method: "PATCH", body: { buku: "KJ" }, params }),
+      await call(pujianItem.DELETE, { method: "DELETE", params }),
+      await call(pujianReorder.POST, { method: "POST", body: { ids: [] }, params }),
+      await call(pujianStandar.POST, { method: "POST", params }),
     ]) {
       expect(response.status).toBe(401);
     }
@@ -118,6 +129,10 @@ describe("auth", () => {
       await call(item.DELETE, { method: "DELETE", params }),
       await call(litbang.PATCH, { method: "PATCH", body: { deskripsi: "Viewer" }, params }),
       await call(kesaksian.POST, { method: "POST", body: { judul: "Viewer" }, params }),
+      await call(bahanBacaan.PATCH, { method: "PATCH", body: { tataKebaktian: "Viewer" }, params }),
+      await call(pujian.POST, { method: "POST", body: { buku: "KJ" }, params }),
+      await call(pujianReorder.POST, { method: "POST", body: { ids: [] }, params }),
+      await call(pujianStandar.POST, { method: "POST", params }),
     ]) {
       expect(response.status).toBe(403);
       expect(response.body.error).toBe("Kamu tidak punya akses untuk tindakan ini.");
@@ -384,6 +399,107 @@ describe("Kesaksian", () => {
 
     const missing = await call(kesaksianItem.DELETE, { method: "DELETE", params: { id: warta.id, itemId: secondId } });
     expect(missing.status).toBe(404);
+  });
+});
+
+describe("Bahan Bacaan & Nyanyian (brief §16.1)", () => {
+  it("saves the four text fields without touching warta.updated_at (no concurrency control)", async () => {
+    const tanggal = addDays(SUNDAY, 56);
+    const warta = await createWarta(editor, { tanggalKebaktian: tanggal, judulKebaktian: `E2E ${RUN} bahan bacaan` });
+    const before = await readWarta(warta.id);
+
+    actAs(editor);
+    const save = await call(bahanBacaan.PATCH, {
+      method: "PATCH",
+      params: { id: warta.id },
+      body: { tataKebaktian: "Votum", nasPembimbing: "Mazmur 100", pembacaanAlkitab: "Yohanes 3:16", pembacaanMazmur: "Mazmur 23" },
+    });
+    expect(save.status).toBe(200);
+    expect(save.body.data).toMatchObject({
+      tataKebaktian: "Votum",
+      nasPembimbing: "Mazmur 100",
+      pembacaanAlkitab: "Yohanes 3:16",
+      pembacaanMazmur: "Mazmur 23",
+    });
+
+    const after = await readWarta(warta.id);
+    expect(after!.updated_at).toBe(before!.updated_at);
+  });
+
+  it("adds pujian last, edits, reorders atomically (scoped to this warta), and deletes, logging one row each", async () => {
+    const tanggal = addDays(SUNDAY, 63);
+    const warta = await createWarta(editor, { tanggalKebaktian: tanggal, judulKebaktian: `E2E ${RUN} pujian` });
+    const other = await createWarta(editor, { tanggalKebaktian: addDays(tanggal, 7), judulKebaktian: `E2E ${RUN} pujian lain` });
+    const label = `"E2E ${RUN} pujian" (${tanggal})`;
+
+    actAs(editor);
+    const first = await call(pujian.POST, { method: "POST", params: { id: warta.id }, body: { buku: "KJ", nomor: "1" } });
+    const second = await call(pujian.POST, { method: "POST", params: { id: warta.id }, body: { buku: "PKJ", nomor: "2" } });
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    const firstId = (first.body.data as unknown as { id: string }).id;
+    const secondId = (second.body.data as unknown as { id: string }).id;
+    const otherRow = await call(pujian.POST, { method: "POST", params: { id: other.id }, body: { buku: "NKB", nomor: "3" } });
+    const otherId = (otherRow.body.data as unknown as { id: string }).id;
+
+    expect(await logRows(`Menambah pujian "PKJ 2" pada warta ${label}`)).toHaveLength(1);
+
+    // Atomic, scoped to this warta: a list naming a row from a different warta is rejected, nothing changes.
+    const crossWarta = await call(pujianReorder.POST, {
+      method: "POST",
+      params: { id: warta.id },
+      body: { ids: [secondId, otherId] },
+    });
+    expect(crossWarta.status).toBe(400);
+
+    const reorder = await call(pujianReorder.POST, {
+      method: "POST",
+      params: { id: warta.id },
+      body: { ids: [secondId, firstId] },
+    });
+    expect(reorder.status).toBe(200);
+    const { data: order } = await superadmin.supabase
+      .from("warta_pujian")
+      .select("id")
+      .eq("warta_id", warta.id)
+      .order("urutan");
+    expect(order!.map((r) => r.id)).toEqual([secondId, firstId]);
+    expect(await logRows(`Mengubah urutan pujian pada warta ${label}`)).toHaveLength(1);
+
+    const edit = await call(pujianItem.PATCH, {
+      method: "PATCH",
+      params: { id: warta.id, itemId: firstId },
+      body: { buku: "Lainnya", nomor: "", keterangan: "bait 1" },
+    });
+    expect(edit.status).toBe(200);
+    expect(edit.body.data).toMatchObject({ buku: "Lainnya", nomor: null, keterangan: "bait 1" });
+
+    const remove = await call(pujianItem.DELETE, { method: "DELETE", params: { id: warta.id, itemId: secondId } });
+    expect(remove.status).toBe(200);
+    expect(await logRows(`Menghapus pujian "PKJ 2" dari warta ${label}`)).toHaveLength(1);
+
+    // The other warta's row was never touched by any of the above.
+    const { data: untouched } = await superadmin.supabase.from("warta_pujian").select("id").eq("id", otherId).maybeSingle();
+    expect(untouched?.id).toBe(otherId);
+  });
+
+  it('"Isi urutan standar" only fills an empty list, never overwrites one that already has rows', async () => {
+    const tanggal = addDays(SUNDAY, 70);
+    const warta = await createWarta(editor, { tanggalKebaktian: tanggal, judulKebaktian: `E2E ${RUN} urutan standar` });
+
+    actAs(editor);
+    const filled = await call(pujianStandar.POST, { method: "POST", params: { id: warta.id } });
+    expect(filled.status).toBe(201);
+    expect(filled.body.data).toHaveLength(9);
+
+    const again = await call(pujianStandar.POST, { method: "POST", params: { id: warta.id } });
+    expect(again.status).toBe(400);
+
+    const { count } = await superadmin.supabase
+      .from("warta_pujian")
+      .select("id", { count: "exact", head: true })
+      .eq("warta_id", warta.id);
+    expect(count).toBe(9);
   });
 });
 

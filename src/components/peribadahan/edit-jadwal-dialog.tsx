@@ -27,12 +27,14 @@ type EditValues = {
   pelayanFirmanId: string | null;
   liturgosId: string | null;
   pemusikId: string | null;
+  pnjId: string | null;
   tema: string;
   dpa: string;
   catatan: string;
   kehadiranLakiLaki: number | null;
   kehadiranPerempuan: number | null;
   kehadiranAnak: number | null;
+  kehadiranOnline: number | null;
   bahanAlkitab: string;
   smkaKelompok: SmkaGroupValue[];
 };
@@ -45,12 +47,14 @@ function valuesFromRow(row: PeribadahanItemRow, smkaKelompok: readonly SmkaKelom
     pelayanFirmanId: row.pelayanFirmanId,
     liturgosId: row.liturgosId,
     pemusikId: row.pemusikId,
+    pnjId: row.pnjId,
     tema: row.tema ?? "",
     dpa: row.dpa ?? "",
     catatan: row.catatan ?? "",
     kehadiranLakiLaki: row.kehadiranLakiLaki,
     kehadiranPerempuan: row.kehadiranPerempuan,
     kehadiranAnak: row.kehadiranAnak,
+    kehadiranOnline: row.kehadiranOnline,
     bahanAlkitab: row.bahanAlkitab ?? "",
     smkaKelompok: row.categoryKey === SMKA_KEY ? smkaGridFromRows(smkaKelompok) : emptySmkaGrid(),
   };
@@ -122,12 +126,14 @@ export function EditJadwalDialog({
           pelayanFirmanId: values.pelayanFirmanId,
           liturgosId: values.liturgosId,
           pemusikId: values.pemusikId,
+          pnjId: values.pnjId,
           tema: values.tema || null,
           dpa: values.dpa || null,
           catatan: values.catatan || null,
           kehadiranLakiLaki: values.kehadiranLakiLaki,
           kehadiranPerempuan: values.kehadiranPerempuan,
           kehadiranAnak: values.kehadiranAnak,
+          kehadiranOnline: values.kehadiranOnline,
           bahanAlkitab: values.bahanAlkitab || null,
           smkaKelompok: has("smkaGrid") ? values.smkaKelompok : undefined,
         },
@@ -278,6 +284,19 @@ export function EditJadwalDialog({
             </div>
           )}
 
+          {has("pnj") && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`${formId}-pnj`}>Pemandu Nyanyian Jemaat</Label>
+              <PersonPicker
+                id={`${formId}-pnj`}
+                people={peopleOptions}
+                value={values.pnjId}
+                onValueChange={(id) => set("pnjId", id)}
+                disabled={disabled}
+              />
+            </div>
+          )}
+
           {has("bahanAlkitab") && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${formId}-bahan`}>Bahan Alkitab</Label>
@@ -290,11 +309,16 @@ export function EditJadwalDialog({
             </div>
           )}
 
-          {(["lakiLaki", "perempuan", "anak"] as const)
+          {(["lakiLaki", "perempuan", "anak", "online"] as const)
             .filter((field) => hasAttendance(field))
             .map((field) => {
               const key = (
-                { lakiLaki: "kehadiranLakiLaki", perempuan: "kehadiranPerempuan", anak: "kehadiranAnak" } as const
+                {
+                  lakiLaki: "kehadiranLakiLaki",
+                  perempuan: "kehadiranPerempuan",
+                  anak: "kehadiranAnak",
+                  online: "kehadiranOnline",
+                } as const
               )[field];
               return (
                 <div key={field} className="flex flex-col gap-2">
@@ -365,12 +389,14 @@ function emptyValues(): EditValues {
     pelayanFirmanId: null,
     liturgosId: null,
     pemusikId: null,
+    pnjId: null,
     tema: "",
     dpa: "",
     catatan: "",
     kehadiranLakiLaki: null,
     kehadiranPerempuan: null,
     kehadiranAnak: null,
+    kehadiranOnline: null,
     bahanAlkitab: "",
     smkaKelompok: emptySmkaGrid(),
   };

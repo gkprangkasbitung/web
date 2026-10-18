@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatRupiah, formatThousands, getInitials } from "./format";
+import { formatAmount, formatPhone, formatRupiah, formatThousands, getInitials } from "./format";
 
 describe("formatRupiah()", () => {
   it("formats IDR without decimals", () => {
@@ -21,5 +21,18 @@ describe("getInitials()", () => {
     expect(getInitials("Maria Magdalena Siahaan")).toBe("MS");
     expect(getInitials("  budi  ")).toBe("B");
     expect(getInitials("")).toBe("?");
+  });
+});
+
+describe("formatAmount() and formatPhone()", () => {
+  it("formats money without Rp, keeping the sign", () => {
+    expect(formatAmount(1_500_000)).toBe("1.500.000");
+    expect(formatAmount(0)).toBe("0");
+    expect(formatAmount(-2500)).toBe("−2.500");
+  });
+
+  it("groups a stored phone number by four digits", () => {
+    expect(formatPhone("081392582221")).toBe("0813 9258 2221");
+    expect(formatPhone("0252202416")).toBe("0252 2024 16");
   });
 });

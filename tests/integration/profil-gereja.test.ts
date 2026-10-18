@@ -23,6 +23,9 @@ const persembahan = await import("@/app/api/admin/profil-gereja/persembahan/rout
 const linimasa = await import("@/app/api/admin/profil-gereja/linimasa/route");
 const linimasaItem = await import("@/app/api/admin/profil-gereja/linimasa/[id]/route");
 const linimasaReorder = await import("@/app/api/admin/profil-gereja/linimasa/reorder/route");
+const jadwalRutin = await import("@/app/api/admin/profil-gereja/jadwal-rutin/route");
+const jadwalRutinItem = await import("@/app/api/admin/profil-gereja/jadwal-rutin/[id]/route");
+const jadwalRutinReorder = await import("@/app/api/admin/profil-gereja/jadwal-rutin/reorder/route");
 const { sweepSitusOrphans } = await import("@/lib/situs-photos");
 const { revalidatePath } = await import("next/cache");
 
@@ -36,6 +39,7 @@ let viewer: Session;
 let admin: Session;
 let superadmin: Session;
 const createdLinimasa: string[] = [];
+const createdJadwalRutin: string[] = [];
 
 async function objectPaths(): Promise<string[]> {
   const { data, error } = await storage.list("profil", { limit: 1000 });
@@ -128,6 +132,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await resetProfil();
   for (const id of createdLinimasa) await service.from("profil_gereja_linimasa").delete().eq("id", id);
+  for (const id of createdJadwalRutin) await service.from("profil_gereja_jadwal_rutin").delete().eq("id", id);
   // Nothing refers to any object any more: remove what this run uploaded.
   const leftovers = await objectPaths();
   if (leftovers.length > 0) await storage.remove(leftovers);
@@ -383,6 +388,58 @@ describe("Kontak and Sosial Media", () => {
     expect(saved.status).toBe(200);
     expect(await profil()).toMatchObject({ telepon: "081234567890", maps_url: "https://maps.app.goo.gl/Uji1" });
     expect(await logCount("Mengubah profil gereja bagian Kontak")).toBeGreaterThan(0);
+  });
+
+  it("validates website_url (https only) and telepon_sekretariat (digits only, brief §16.1)", async () => {
+    actAs(editor);
+    expect((await call(kontak.PATCH, { method: "PATCH", body: { websiteUrl: "http://tidak-https.test" } })).status).toBe(400);
+    expect((await call(kontak.PATCH, { method: "PATCH", body: { teleponSekretariat: "021-555-0000" } })).status).toBe(400);
+
+    const saved = await call(kontak.PATCH, {
+      method: "PATCH",
+      body: { websiteUrl: "https://gkprangkasbitung.test", teleponSekretariat: "0215550000" },
+    });
+    expect(saved.status).toBe(200);
+    // new URL(...).href normalizes a bare host to add a trailing slash.
+    expect(await profil()).toMatchObject({ website_url: "https://gkprangkasbitung.test/", telepon_sekretariat: "0215550000" });
+  });
+});
+
+describe("Jadwal Kebaktian Rutin (brief §16.1)", () => {
+  it("editor adds, edits, and reorders; only situs:delete may delete", async () => {
+    actAs(editor);
+    const a = await call(jadwalRutin.POST, { method: "POST", body: { nama: `${RUN} minggu`, keteranganWaktu: "Minggu, pkl. 08.00 WIB" } });
+    const b = await call(jadwalRutin.POST, { method: "POST", body: { nama: `${RUN} remaja`, keteranganWaktu: "Sabtu, pkl. 16.00 WIB" } });
+    expect([a.status, b.status]).toEqual([201, 201]);
+    const idA = (a.body.data as unknown as { id: string }).id;
+    const idB = (b.body.data as unknown as { id: string }).id;
+    createdJadwalRutin.push(idA, idB);
+    expect(await logCount(`Menambah jadwal rutin "${RUN} remaja · Sabtu, pkl. 16.00 WIB"`)).toBe(1);
+
+    expect(
+      (
+        await call(jadwalRutinItem.PATCH, {
+          method: "PATCH",
+          params: { id: idA },
+          body: { nama: `${RUN} minggu (diubah)`, keteranganWaktu: "Minggu, pkl. 08.00 WIB" },
+        })
+      ).status,
+    ).toBe(200);
+
+    const { data: all } = await service.from("profil_gereja_jadwal_rutin").select("id").order("sort_order");
+    const ids = (all ?? []).map((row) => row.id);
+    const reordered = [idB, ...ids.filter((id) => id !== idB)];
+    expect((await call(jadwalRutinReorder.POST, { method: "POST", body: { ids: reordered } })).status).toBe(200);
+    const stale = await call(jadwalRutinReorder.POST, { method: "POST", body: { ids: [idB] } });
+    expect(stale).toEqual({
+      status: 400,
+      body: { error: "Daftar jadwal rutin sudah berubah. Muat ulang halaman lalu coba lagi." },
+    });
+
+    expect((await call(jadwalRutinItem.DELETE, { method: "DELETE", params: { id: idA } })).status).toBe(403);
+
+    actAs(admin);
+    expect((await call(jadwalRutinItem.DELETE, { method: "DELETE", params: { id: idA } })).status).toBe(200);
   });
 });
 

@@ -14,14 +14,16 @@ describe("layoutFor", () => {
   });
 
   it("matches the brief's table of fields besides Tanggal per category", () => {
-    expect(layoutFor("umum").fields).toEqual(["waktu", "tempat", "pelayanFirman", "liturgos"]);
+    // umum gained Pemandu Nyanyian Jemaat + Pemain Musik (brief §16.1, stage 12a).
+    expect(layoutFor("umum").fields).toEqual(["waktu", "tempat", "pelayanFirman", "liturgos", "pnj", "pemusik"]);
     expect(layoutFor("smka").fields).toEqual(["waktu", "tema", "liturgos", "pemusik", "bahanAlkitab", "smkaGrid"]);
     expect(layoutFor("krt").fields).toEqual(["waktu", "tempat", "wilayah", "dpa", "tema", "pelayanFirman", "liturgos"]);
     expect(layoutFor("doa_pagi").fields).toEqual(["waktu", "tempat"]);
   });
 
   it("matches the brief's table of attendance fields per category", () => {
-    expect(layoutFor("umum").attendance).toEqual(["lakiLaki", "perempuan", "anak"]);
+    // umum gained Kehadiran Online (brief §16.1, stage 12a).
+    expect(layoutFor("umum").attendance).toEqual(["lakiLaki", "perempuan", "anak", "online"]);
     expect(layoutFor("smka").attendance).toEqual([]);
     expect(layoutFor("lansia").attendance).toEqual(["lakiLaki", "perempuan"]);
     expect(layoutFor("perempuan").attendance).toEqual(["perempuan"]);

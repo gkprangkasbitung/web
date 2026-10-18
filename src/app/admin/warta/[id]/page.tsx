@@ -41,7 +41,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   if (!editorRes.data) notFound();
 
   // Both weeks come from tanggal kebaktian (brief §11), the same arithmetic as the public page.
-  const { warta, litbang, kesaksian } = editorRes.data;
+  const { warta, litbang, kesaksian, pujian } = editorRes.data;
   const service = serviceWeek(warta.tanggalKebaktian);
   const finance = financeWeek(warta.tanggalKebaktian);
 
@@ -62,6 +62,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       warta={warta}
       litbang={litbang}
       kesaksian={kesaksian}
+      pujian={pujian}
       serviceWeek={service}
       schedule={{
         ...scheduleRes.data,

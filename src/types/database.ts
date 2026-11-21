@@ -3,7 +3,66 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type Database = {
   
-  "public": {
+  "portal": {
+          Tables: {
+            [_ in never]: never
+          }
+          Views: {
+            [_ in never]: never
+          }
+          Functions: {
+            "_jemaat_id_saya":
+{ Args: Record<PropertyKey, never>; Returns: string
+                           },
+"ajukan_perubahan":
+{ Args: { "data": Json }; Returns: string
+                           },
+"batalkan_pengajuan":
+{ Args: { "id": string }; Returns: undefined
+                           },
+"keluarga_saya":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "hubungan_keluarga": string,"nama": string,"status_keanggotaan": string
+            }[]
+                           },
+"komisi_saya":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "jabatan_nama": string,"komisi_nama": string,"komisi_slug": string,"periode": string
+            }[]
+                           },
+"pelayanan_saya":
+{ Args: { "dari": string,"sampai": string }; Returns: {
+              "jam": string,"kategori_key": string,"kategori_nama": string,"peran": string,"smka_kelompok": string,"tanggal": string,"tempat_nama": string
+            }[]
+                           },
+"pengajuan_saya":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "catatan_admin": string,"created_at": string,"data": Json,"ditinjau_pada": string,"id": string,"status": string
+            }[]
+                           },
+"pengaturan_portal":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "tampilkan_persembahan": boolean
+            }[]
+                           },
+"persembahan_saya":
+{ Args: { "tahun": number }; Returns: {
+              "jumlah": number,"tanggal": string
+            }[]
+                           },
+"profil_saya":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "alamat": string,"hubungan_keluarga": string,"jenis_kelamin": string,"keluarga_nama": string,"nama": string,"no_hp": string,"nomor_anggota": string,"pekerjaan": string,"status_keanggotaan": string,"tanggal_lahir": string,"tanggal_masuk": string,"wilayah_nama": string
+            }[]
+                           }
+          }
+          Enums: {
+            [_ in never]: never
+          }
+          CompositeTypes: {
+            [_ in never]: never
+          }
+        },"public": {
           Tables: {
             "activity_logs": {
                   Row: {
@@ -97,6 +156,25 @@ isOneToOne: false
       columns: ["label_id"]
 isOneToOne: false
       referencedRelation: "label_jemaat"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"jemaat_pengajuan_perubahan": {
+                  Row: {
+                    "catatan_admin": string | null,"created_at": string,"data": NonNullable<Json>,"diajukan_oleh": string | null,"ditinjau_oleh": string | null,"ditinjau_pada": string | null,"id": string,"jemaat_id": string,"status": string,"updated_at": string
+                  }
+                  Insert: {
+                    "catatan_admin"?: string | null,"created_at"?: string,"data": NonNullable<Json>,"diajukan_oleh"?: string | null,"ditinjau_oleh"?: string | null,"ditinjau_pada"?: string | null,"id"?: string,"jemaat_id": string,"status"?: string,"updated_at"?: string
+                  }
+                  Update: {
+                    "catatan_admin"?: string | null,"created_at"?: string,"data"?: NonNullable<Json>,"diajukan_oleh"?: string | null,"ditinjau_oleh"?: string | null,"ditinjau_pada"?: string | null,"id"?: string,"jemaat_id"?: string,"status"?: string,"updated_at"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "jemaat_pengajuan_perubahan_jemaat_id_fkey"
+      columns: ["jemaat_id"]
+isOneToOne: false
+      referencedRelation: "jemaat"
       referencedColumns: ["id"]
     }
                   ]
@@ -393,13 +471,13 @@ isOneToOne: false
                   ]
                 },"profil_gereja": {
                   Row: {
-                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"sambutan_pendeta_id": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"telepon_sekretariat": string | null,"updated_at": string,"visi": string | null,"website_url": string | null,"youtube_url": string | null
+                    "alamat": string | null,"email": string | null,"facebook_url": string | null,"hero_foto_alt": string | null,"hero_foto_path": string | null,"hero_judul": string | null,"hero_subjudul": string | null,"id": number,"instagram_url": string | null,"jam_sekretariat": string | null,"maps_url": string | null,"misi": (string)[],"portal_tampilkan_persembahan": boolean,"sambutan_pendeta_id": string | null,"sambutan_teks": string | null,"sejarah": string | null,"sejarah_foto_alt": string | null,"sejarah_foto_path": string | null,"telepon": string | null,"telepon_sekretariat": string | null,"updated_at": string,"visi": string | null,"website_url": string | null,"youtube_url": string | null
                   }
                   Insert: {
-                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"telepon_sekretariat"?: string | null,"updated_at"?: string,"visi"?: string | null,"website_url"?: string | null,"youtube_url"?: string | null
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"portal_tampilkan_persembahan"?: boolean,"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"telepon_sekretariat"?: string | null,"updated_at"?: string,"visi"?: string | null,"website_url"?: string | null,"youtube_url"?: string | null
                   }
                   Update: {
-                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"telepon_sekretariat"?: string | null,"updated_at"?: string,"visi"?: string | null,"website_url"?: string | null,"youtube_url"?: string | null
+                    "alamat"?: string | null,"email"?: string | null,"facebook_url"?: string | null,"hero_foto_alt"?: string | null,"hero_foto_path"?: string | null,"hero_judul"?: string | null,"hero_subjudul"?: string | null,"id"?: number,"instagram_url"?: string | null,"jam_sekretariat"?: string | null,"maps_url"?: string | null,"misi"?: (string)[],"portal_tampilkan_persembahan"?: boolean,"sambutan_pendeta_id"?: string | null,"sambutan_teks"?: string | null,"sejarah"?: string | null,"sejarah_foto_alt"?: string | null,"sejarah_foto_path"?: string | null,"telepon"?: string | null,"telepon_sekretariat"?: string | null,"updated_at"?: string,"visi"?: string | null,"website_url"?: string | null,"youtube_url"?: string | null
                   }
                   Relationships: [
                     {
@@ -841,8 +919,14 @@ isOneToOne: false
 "set_user_role":
 { Args: { "p_role_id"?: string,"p_user_id": string }; Returns: undefined
                            },
+"setujui_pengajuan":
+{ Args: { "p_id": string }; Returns: string
+                           },
 "situs_referenced_photo_paths":
 { Args: Record<PropertyKey, never>; Returns: string[]
+                           },
+"tolak_pengajuan":
+{ Args: { "p_catatan": string,"p_id": string }; Returns: string
                            },
 "update_komisi_anggota_jabatan":
 { Args: { "p_jabatan_id": string,"p_jemaat_id": string,"p_komisi_id": string }; Returns: {
@@ -984,7 +1068,11 @@ export type CompositeTypes<
   : never
 
 export const Constants = {
-  "public": {
+  "portal": {
+          Enums: {
+            
+          }
+        },"public": {
           Enums: {
             
           }

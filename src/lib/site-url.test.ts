@@ -36,4 +36,10 @@ describe("inviteRedirectUrl", () => {
       "https://gkp.example.org/auth/callback?next=/auth/set-password",
     );
   });
+
+  it("a jemaat invite lands on the same Atur Password, with a portal=jemaat hint for a failed link", () => {
+    expect(inviteRedirectUrl("https://gkp.example.org", "jemaat")).toBe(
+      "https://gkp.example.org/auth/callback?next=/auth/set-password&portal=jemaat",
+    );
+  });
 });

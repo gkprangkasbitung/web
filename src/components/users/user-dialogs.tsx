@@ -100,7 +100,7 @@ export type InviteInput = {
 
 const KIND_OPTIONS: { value: InviteKind; label: string; description: string }[] = [
   { value: "pengurus", label: "Pengurus", description: "Masuk ke admin dengan password." },
-  { value: "jemaat", label: "Akun Jemaat", description: "Masuk ke Portal Jemaat dengan kode email." },
+  { value: "jemaat", label: "Akun Jemaat", description: "Masuk ke Portal Jemaat dengan password." },
 ];
 
 /** "Undang Pengguna" (brief §9.11, stage 11f). Remount with a new `key` to reset. */
@@ -156,7 +156,7 @@ export function InviteUserDialog({
           <DialogTitle className="text-lg font-semibold">Undang Pengguna</DialogTitle>
           <DialogDescription>
             {isJemaatKind
-              ? "Undangan dikirim lewat email. Penerima langsung masuk ke Portal Jemaat, tanpa password; berikutnya masuk dengan kode lewat email."
+              ? "Undangan dikirim lewat email. Penerima membuat password sendiri, lalu masuk ke Portal Jemaat."
               : "Undangan dikirim lewat email. Penerima membuat password sendiri."}
           </DialogDescription>
         </DialogHeader>

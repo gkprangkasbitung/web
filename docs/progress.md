@@ -21,6 +21,9 @@
 - [x] 11g. Header publik: satu konfigurasi menu, dropdown Tentang Kami, menu HP, tombol Portal
 - [x] 12a. Data tambahan untuk Warta DOCX (§16.1)
 - [x] 12b. Template + generator Warta DOCX (§16.2–16.3)
+- [x] 13a. Portal backend: schema portal, fungsi kepemilikan, pengajuan perubahan (§17.1–17.2, §17.4)
+- [x] 13b. Portal UI /jemaat (§17.3)
+- [ ] 13c. Admin: Pengajuan Perubahan + pengaturan portal (§17.2)
 
 ## Notes / decisions
 
@@ -1683,3 +1686,132 @@ Scope note: data only, per the brief's own split (§16.1 vs. §16.2–16.3). No 
 - Visual check: no LibreOffice in this sandbox, so the rendered fixture was looked at through macOS Quick Look thumbnails, page by page (the body cut at each section), next to the original. Layout, fonts, tables, and the logo match. The automatic heading numbering behaves as described above.
 - **Not verified yet**: the dialog in a real browser (docx-preview's rendering fidelity, zoom, the Kelengkapan → section focus, 360px), and opening a downloaded file in Microsoft Word itself (only Quick Look, which uses Apple's own renderer).
 
+### Stage 13a (Portal backend), 2026-10-18
+
+No UI this stage (13b builds /jemaat, 13c the admin page).
+
+**Before deploying to production**
+
+- Push migration `0037_portal_jemaat_data.sql` together with 0018–0036.
+- Add `portal` to Supabase → Project Settings → Data API → Exposed schemas (`docs/deploy-checklist.md` §8). Without it every portal call is `PGRST106`. Locally it's in `supabase/config.toml` (`[api] schemas`), which needs a `supabase stop && supabase start` to take effect.
+
+**Decisions approved before starting (plan and questions asked, then "sesuai saran")**
+
+- **Role labels live in one place.** `pelayanan_saya` returns keys (`kategori_key`, `peran` = `pelayan_firman|liturgos|pemusik|pnj|smka_pf`, `smka_kelompok`) instead of a label column, and `lib/portal` labels them from `lib/peribadahan.ts` (`layoutFor(key).liturgosLabel` → "Pelayan Liturgi" for SMKA; `SMKA_GROUPS` → "Pelayan Firman Kelas Batita"). This departs from §17.1's literal "role label" column; the brief was updated.
+- **Columns the brief didn't name** (brief §17.1 updated): `profil_saya` (no ids, labels, or legacy `sudah_baptis`/`sudah_sidi`), `komisi_saya` (komisi_nama, komisi_slug, periode, jabatan_nama; the public site's visibility: `tampil` komisi and eligible members only, plus a "Pembina" row), `pengajuan_saya` (no `ditinjau_oleh`: a staff id never reaches the jemaat). `keluarga_saya` includes the caller.
+- **Extra function `portal.pengaturan_portal()`** → `tampilkan_persembahan`, because `persembahan_saya` can't tell "off" from "no rows", and §17.3 hides /jemaat/persembahan while off.
+- **The setting is a `profil_gereja` column** (`portal_tampilkan_persembahan`, default false), changed through that table's existing `situs:update` policy. `persembahan_saya` checks it inside the function.
+- **no_hp is digits only, 8–15** (§17.2 and the stage prompt), not the admin form's free text ≤ 30. `alamat` ≤ 500 and `pekerjaan` ≤ 200 match the admin form.
+- **Activity log**: `ajukanPerubahan`/`batalkanPengajuan` log under module `jemaat` (where 13c's approval goes), naming the jemaat and the fields, never the values: `Mengajukan perubahan data "Nama": No. HP, Pekerjaan`, `Membatalkan pengajuan perubahan data "Nama"`.
+- **Account deletion logs before deleting** (module `akun`, `Menghapus akun login Portal Jemaat "Nama"`). Afterwards nothing can write a row for that user: RLS needs `user_id = auth.uid()`, the FK needs the user, 0028's trigger takes the email from `auth.users`, and the service role is reserved for invites/deletes (§3). A failed delete adds `Gagal menghapus akun login Portal Jemaat "Nama"`. The FK then sets `user_id` null; the email stays.
+- **Tolak needs a catatan** (1–500 characters). A waiting request stays waiting when the jemaat deletes their login (`diajukan_oleh` → null).
+
+**0037 migration**
+
+- `private.pengajuan_data_error(jsonb)`: the one definition of a valid request (object, ≥ 1 key, keys ⊆ no_hp/alamat/pekerjaan, values null or a trimmed non-empty string, formats/lengths), used by the table CHECK and by `ajukan_perubahan` for its message.
+- `jemaat_pengajuan_perubahan`: §17.2's columns plus `ditinjau_pada`, `updated_at` (`private.touch_updated_at`). CHECKs: status values, data valid, `ditinjau_pada` set exactly when disetujui/ditolak, `catatan_admin` exactly when ditolak. Partial unique index (one `menunggu` per jemaat). RLS on, a single select policy (`warta:read`), no write policy; all privileges revoked from anon, authenticated keeps `select` only.
+- Schema `portal`: usage for authenticated only; `alter default privileges … revoke execute on functions from public`; execute granted per function (nine), never on `_jemaat_id_saya`.
+- `portal._jemaat_id_saya()`: `profiles.jemaat_id` of `auth.uid()`, else `PT403` "Akun ini belum terhubung ke data jemaat." PostgREST turns `PTxxx` into HTTP xxx, so REST answers 403 with `code: "PT403"`. Every function calls it first (plpgsql `declare … := portal._jemaat_id_saya()`), so the error fires even when a query would match no rows.
+- All portal functions are plpgsql, `security definer`, `set search_path = ''`, fully qualified, and take no id except `batalkan_pengajuan(id)` (a request id, checked against the caller's jemaat). Parameter names follow §17.1 (`dari`, `sampai`, `tahun`, `data`, `id`); where they clash with column names they are referenced as `fn.param`.
+- `pelayanan_saya`: null dates, `dari > sampai`, or more than 400 days (`sampai − dari + 1`) → `22023`. One row per role (A as PF of two SMKA groups = two rows), ordered by tanggal, jam, sort_order, then role.
+- `ajukan_perubahan`: refused (`23505`) while a request is waiting, checked first and again by the unique index (race → same message). Trims, turns "" into null, validates, then keeps only the fields that differ from the current jemaat data; nothing left → "Tidak ada perubahan dari data saat ini."
+- `batalkan_pengajuan`: someone else's request answers exactly like a missing one (`P0002`); a closed one → `22023`.
+- `public.setujui_pengajuan(p_id)` / `public.tolak_pengajuan(p_id, p_catatan)`: definer (the table has no write policy), `has_permission(auth.uid(), 'warta', 'update')` checked first (`42501`), the row locked `for update`, `P0002`/`22023` for missing/closed. Approval closes the request (`ditinjau_oleh = auth.uid()`) and then updates only the requested jemaat fields, in one call; both return the jemaat's name for 13c's log line.
+- Not-found errors use `P0002` like every earlier RPC. PostgREST answers `P0002` with HTTP 500; the app maps the code (`rpcError` → 404, `lib/portal` → `tidak_ditemukan`).
+
+**App code**
+
+- `src/lib/portal/types.ts` (client-safe): one Zod row schema per function, built by `portalRow(fn, shape)`, whose keys must equal the generated `Database["portal"]` return columns at compile time (renaming one column in the schema fails `tsc` with 13 errors, checked); Zod fixes the nullability the generator gets wrong. camelCase types, `peranLabel()`, `PENGAJUAN_FIELDS`/labels/status labels, and `pengajuanInputSchema` (strict, mirrors the SQL rules; for the 13b form too).
+- `src/lib/portal/data.ts` (server-only): `loadProfilSaya`, `loadKeluargaSaya`, `loadPelayananSaya`, `loadKomisiSaya`, `loadPersembahanSaya`, `loadPengaturanPortal`, `loadPengajuanSaya`, all via `supabase.schema("portal").rpc(…)` on the caller's session client. Errors become `PortalError` with a `reason` (`bukan_jemaat`, `tidak_valid`, `tidak_ditemukan`, `bentrok`, `akses`, `gagal`); only the hand-written SQL messages are shown, anything else is logged and generic.
+- `src/lib/portal/mutations.ts` (server-only): `ajukanPerubahan({ supabase, user }, input)` and `batalkanPengajuan(…, id)`: Zod, RPC, then the log (the logged fields are read back from what was stored).
+- `src/app/jemaat/actions.ts`: `hapusAkunLogin()`: `getAuthenticatedUser()` (verified with `getUser`), refuses staff ("Akun pengurus tidak bisa dihapus dari Portal Jemaat. Hubungi super admin.") and non-jemaat accounts, logs, `deleteAuthUser()` (existing service-role module, `lib/supabase/admin.ts`), clears the cookies with `signOut({ scope: "local" })`, redirects to `/portal`. Returns `{ error }` otherwise. 13b adds the confirmation dialog.
+- `package.json` `db:types` → `--schema public,portal`; `src/types/database.ts` regenerated (112-line diff, additions only, plus the new `profil_gereja` column).
+
+**Verification (stage 13a)**
+
+- `tsc`, `eslint`, and `next build` pass. `pnpm test`: 336 tests, 48 files (one fixture gained the new `profil_gereja` column).
+- `pnpm test:db`: 23 files, 777 tests. New `portal_data.test.sql` (94):
+  - catalog, looping over `pg_proc` so later additions are covered: every portal function definer with `search_path=""`; anon has no schema usage and no execute; no PUBLIC grant; `_jemaat_id_saya` not executable by authenticated; exactly the nine functions executable; no parameter named jemaat/keluarga/user/uid; no source mentions `catatan_pastoral`; no output column named like a pastoral-note field; `keluarga_saya` returns exactly its three columns;
+  - RLS on, select-only policy, table CHECKs (whitelist, catatan on ditolak), the one-waiting index;
+  - anon refused; a staff account without a jemaat gets `PT403` from all nine;
+  - as jemaat A: exact `profil_saya`, `keluarga_saya` (no family no_hp/alamat/birth date), `pelayanan_saya` (PF, PNJ, Liturgos on SMKA, two SMKA PF groups; none of B's rows; out-of-range excluded; 400 days accepted, 401 refused), `komisi_saya` (pembina + own membership; not B's komisi, not a hidden one); zero rows from `jemaat`, `keluarga`, transactions, pastoral notes, change requests; direct insert/update refused;
+  - ajukan: status_keanggotaan, nomor_anggota, non-digit and short no_hp, long alamat/pekerjaan, non-string, non-object, empty, and unchanged data refused; only changed fields stored; second waiting refused; B's request can't be cancelled; cancel, cancel again refused, resubmit;
+  - persembahan off → empty; on → A's own only (not her son's, not B's);
+  - all output of all functions as A, as one text: none of B's markers, no pastoral content;
+  - setujui/tolak by a jemaat and a viewer → `42501`; by admin → applied and closed with `ditinjau_oleh`; closed ones refused; catatan required and ≤ 500; atomic: a temporary trigger that fails the jemaat update leaves the request `menunggu` and the jemaat unchanged;
+  - deleting A's auth user keeps the jemaat and her waiting request (`diajukan_oleh` null).
+- `pnpm test:integration`: 16 files, 203 tests. New `portal-data.test.ts` (15): over real REST with A's JWT, every read function (setting off and on) has none of B's markers, no family giving, no pastoral marker; A can't cancel B's request over REST; `keluarga_saya` keys exactly three; the anon key → 401 `42501` for all nine; staff without jemaat → 403 `PT403` for all nine; direct REST select on the five tables → `[]`, insert/PATCH → 403; the loaders (labels "Pelayan Firman", "Pemandu Nyanyian Jemaat", "Pelayan Liturgi"); persembahan off/on; ajukan/batalkan with log rows; the admin RPCs; Hapus akun: staff and staff + jemaat refused and still present, no session refused; a jemaat's auth user and profile gone, jemaat and waiting request kept, the `akun` log row with the email and `user_id` null, cookies cleared, the old token refused by GoTrue.
+- Mutation checks: dropping the setting check from `persembahan_saya` and granting anon execute on `komisi_saya` failed pgTAP tests 40 and 5 (restored, passing again); removing the staff refusal from `hapusAkunLogin` failed the integration test.
+- Local stack: Docker was down at the start; started it and `supabase start`, applied 0037 with `migration up --local`, restarted the stack for the exposed schema. `pnpm` is still broken here (corepack), so commands ran from `node_modules/.bin`, with a throwaway `pnpm` shim on `PATH` for the integration harness.
+- **Not verified yet**: production (exposed schema and push are manual, see the checklist). No UI exists to check in a browser until 13b.
+
+### Stage 13b (Portal UI /jemaat), 2026-10-18
+
+No migration. Every page reads through `lib/portal` (stage 13a) with the signed-in user's own session; no client-side fetch, no service role (the single exception, per §17.4, is `hapusAkunLogin`'s existing `deleteAuthUser`, unchanged from 13a).
+
+**Decisions approved before starting ("Eksekusi sesuai saran dan rekomendasi")**
+
+- **Mobile bottom nav keeps to exactly the 4 instructed items** (Beranda, Pelayanan, Profil, Akun). Komisi and Persembahan (when its setting is on) are not dropped — they're full desktop sidebar entries and gain a "Lainnya" list on the Akun page, so a phone reaches them in at most two taps and the page itself is always navigable even with zero data (unlike, say, a card on Beranda that only appears once a komisi membership exists).
+- **One nav config, `lib/jemaat-portal-nav.ts`** (client-safe, no `server-only` — mirrors `lib/public/nav.ts`'s role): `jemaatNav(tampilkanPersembahan)` is the single source for the desktop sidebar, the bottom bar (`items.filter(i => i.bottom)`), and Akun's "Lainnya" (`items.filter(i => !i.bottom)`). It couldn't live in the existing `lib/jemaat-portal.ts` (that file is `server-only`; the shell is a client component and needs the plain data).
+- **Every page re-calls `requireJemaat()` itself**, even though `layout.tsx` already does — the same defense-in-depth the admin side already practices (its own pages re-call `requireStaff()`/`requirePermission()` despite the layout). `getAuthenticatedUser()` is `cache()`-wrapped per request, so this costs nothing extra.
+- **Controls are 48px (`h-12`) and 16px text that never shrinks on desktop** (`control-classes.ts`'s `jemaatFieldClass`/`jemaatButtonClass`), unlike the admin's 36px/`md:text-sm` convention — the explicit instruction, because many jemaat are older and on a phone.
+- **"Hapus akun login" reuses the shared `ConfirmDialog`** (a plain `await action(); if (error) { toast; throw; }` `onConfirm`), the same shape the admin's own "Keluar" (`AccountMenu.handleLogout`) already uses for an action that calls `redirect()` on success. Read the actual Next.js source (`server-action-reducer.js`) to confirm this is safe before relying on it: a Server Action's `redirect()` is applied by the router's own dispatch/reducer before the rejected promise ever reaches the caller's `catch`, so swallowing that rejection (as `ConfirmDialog.confirm()`'s generic `catch {}` does) doesn't block the navigation — confirmed against `AccountMenu`'s already-shipped, working behavior, not merely assumed. This avoided a tempting but wrong fix (teaching the shared `ConfirmDialog` to call the undocumented-elsewhere `unstable_rethrow`), which would have broken several existing manager tests that fully replace `next/navigation` with a `{ useRouter }`-only mock lacking that export.
+- **Pelayanan's role label stays computed once**, in `lib/portal/types.ts`'s `peranLabel()` (built in stage 13a): `pelayanan-list.tsx` only renders it, never re-derives it from `kategoriKey`.
+- **Riwayat is newest-first by reversing date *groups*, not raw rows** (`PelayananList`'s new `order` prop): a day with two roles (e.g. Pelayan Firman + PNJ) keeps those two in their original order; only the day-to-day order flips.
+- **Komisi lists are presented, not edited** — read-only, matching the brief's "Komisi Saya" (a list), with no admin-style actions.
+- **Persembahan's year navigation is two plain `<Link>`s** (`?tahun=`), no client state: consistent with "no client fetch" and with `/kegiatan?bulan=`'s existing GET-param pattern. The "next year" link is replaced with a disabled-looking span once at the current year (the page's own ceiling, not just a UI nicety — `parseTahun` clamps server-side too).
+- **"Buka halaman admin" moved from the page into the shared shell** (every /jemaat page now shows it for a staff+jemaat account, not only Beranda) — the existing stage 11f integration test asserted it via `jemaatPage()` alone; updated to check `jemaatLayout()`'s own `isStaffToo` prop instead of rendering the shell's HTML (the shell is `"use client"` with `usePathname()`, which has no app-router context outside a real Next request and can't be safely `renderToStaticMarkup`'d — covered instead by a proper component test, `jemaat-shell.test.tsx`, with `usePathname` mocked).
+
+**New library code**
+
+- `lib/jemaat-portal-nav.ts`: `JemaatNavItem`, `jemaatNav()`, `isActiveJemaatNav()`.
+- `lib/public/site-content.ts`: `loadKegiatanMendatangList(limit)`, a thin wrapper Beranda's own "Kegiatan mendatang" already duplicates the shape of (`loadKegiatanLainnya` does the same); not a refactor of `loadBerandaContent`, which stays untouched.
+
+**UI**
+
+- `components/jemaat-portal/`: `jemaat-shell.tsx` (desktop sidebar + mobile bottom nav + mobile top header, all public design tokens — serif brand mark, `--primary`, card surfaces, never the admin's sidebar/topbar look), `control-classes.ts`, `pelayanan-list.tsx` (+ `groupPelayananByTanggal`), `pelayanan-tabs.tsx`, `pengajuan-section.tsx`, `hapus-akun-button.tsx`.
+- `app/jemaat/layout.tsx` (new): the shell + `requireJemaat()` + `jemaatNav()`. `app/jemaat/loading.tsx` (new): one shared skeleton, mirroring `app/admin/loading.tsx`'s exact pattern (a single `loading.tsx` per route-group, not one per page).
+- `app/jemaat/page.tsx` (Beranda, rewritten): greeting, "Pelayanan saya minggu ini" (`weekContaining()`, same "minggu ini" convention as Jadwal Ibadah), "Warta terbaru" (`loadLatestPublicWarta`), "Kegiatan mendatang" (`loadKegiatanMendatangList`, reusing the existing public `ActivityGrid`) — the public functions already built for the public site, called with the anon client since none of it is personal data.
+- `app/jemaat/profil/page.tsx` (+ `actions.ts`): data diri (read-only `<dl>`, `font-mono` on No. Anggota/No. HP per brief §2), "Anggota Keluarga" (hidden only when the function returns nothing, i.e. no family link at all — not merely "one row", so a childless Kepala Keluarga still sees their own row), then `PengajuanSection`.
+- `app/jemaat/pelayanan/page.tsx`: "Akan Datang" (today … +59, 60 days) and "Riwayat" (−90 … −1, so the ranges never overlap), both loaded once server-side and simply switched by `PelayananTabs`.
+- `app/jemaat/komisi/page.tsx`, `app/jemaat/persembahan/page.tsx` (`notFound()` when the setting is off, checked again here independently of the nav), `app/jemaat/akun/page.tsx` (+ `HapusAkunButton`).
+
+**Verification (stage 13b)**
+
+- `tsc`, `eslint`, and `next build` all pass; all six `/jemaat/*` routes are in the build's route list.
+- `pnpm test`: 347 tests, 50 files. New: `jemaat-shell.test.tsx` (5: exactly the 4 bottom items in order, every bottom link ≥48px tall (`min-h-12`) and keyboard-reachable — tabbing forward from the bar's own first link, since jsdom has no layout engine and can't hide the CSS-`lg:hidden` desktop sidebar the way a real browser would; the desktop sidebar lists all 6 with `aria-current` on the active one; Persembahan absent everywhere when its setting is off; "Buka halaman admin" only for `isStaffToo`); `pengajuan-section.test.tsx` (6: `PhoneInput` strips a dash as you type so a too-short *digit* value is what actually reaches validation — "0812-3456" never reaches state as typed, confirmed directly; a valid submit toasts, refreshes, and closes; a server-side failure keeps the dialog open with its message; "Ajukan perubahan data" disabled with a status badge + Batalkan while `menunggu`; a `ditolak` request shows its catatan admin and no Batalkan; Batalkan calls the action and refreshes). One existing fixture (`profil-gereja-editor.test.tsx`'s `PROFIL`) already needed `portal_tampilkan_persembahan` from 13a's type change; untouched otherwise.
+- `pnpm test:integration`: 17 files, 214 tests. New `jemaat-portal-pages.test.ts` (11): every page rendered twice — a jemaat with data (this week's own schedule row with its role, the rejected pengajuan's status + catatan + field name, never the requested value, the komisi membership, the account email) and a jemaat with none (every page's own empty-state line, no "Anggota Keluarga" section, no pengajuan status) — plus persembahan 404ing while off (`NEXT_HTTP_ERROR_FALLBACK;404`) and showing the right rows/total once on. Two existing files needed a `connection()` mock (stage 9b's own pattern from `public-site.test.ts`) once Beranda started calling the public warta/kegiatan loaders outside a real Next request: `portal.test.ts` (whose `jemaatPage()` calls predate this stage) and the new file itself; `portal.test.ts`'s two "Buka halaman admin" assertions were moved from rendering `jemaatPage()`'s HTML to reading `jemaatLayout()`'s own `isStaffToo` prop (unrendered element, no client-component hook risk), per the decision above.
+- Mutation checks: removing the staff-account refusal from `HapusAkunButton`'s caller isn't applicable here (that check lives in the already-tested 13a action); instead verified narrowly — a temporarily-wrong `parseTahun` ceiling (allowing a future year) was caught by the persembahan test failing against the real page before being fixed, and the client no_hp regex test was corrected after discovering `PhoneInput` already strips non-digits (confirmed by first writing the naive version, watching it fail with the *real* reason, then fixing the test, not assuming it would work).
+- Local stack: Docker/`supabase start` were already up from 13a; no new migration, so no `migration up`/`db:types` needed this stage.
+- **HTTP**, `next build` + `next start` on :3109 (:3107/:3108 held by earlier sessions, left alone) with env overrides to the local stack: every `/jemaat/*` path, signed out, correctly 307s to `/portal/masuk?next=…` with the right path — confirming the real route tree and proxy wiring, not just the unit-level `updateSession` tests. A full authenticated HTTP round trip was not attempted: Next's Server Actions require the `Next-Action` protocol (a raw `curl` POST to `/portal/masuk` is silently ignored, confirmed directly rather than assumed), and hand-rolling `@supabase/ssr`'s cookie encoding to fake a session was judged not worth it — the same ground is already covered with full fidelity by `jemaat-portal-pages.test.ts` (the real page functions, the real local Postgres, real RLS) and by `portal.test.ts`'s existing real OTP-through-Mailpit flow.
+- **Not verified yet**: an actual browser (no browser tool in this session, consistent with every prior stage) — in particular the 360px layout and the `lg` sidebar/bottom-nav breakpoint switch itself (jsdom has no layout engine to check against), both themes, and the dialogs' focus behavior on a real device.
+
+### Follow-up: Portal Jemaat login switched from an email code to email + password, 2026-10-18
+
+On request, right after stage 13b. Brief §15 conflicted with this (its stage 11f design was deliberately code-only, with its own rate-limit migration); flagged per CLAUDE.md, then the two open questions (invite flow, forgot password) were put to the user and answered before implementing: "Akun Jemaat" invites now go through "Atur Password" like a Pengurus invite, and there is no "forgot password" page — a jemaat who forgets asks the secretariat, who resets access through Pengguna like any other account.
+
+**Decisions**
+
+- **`/portal/masuk` is now structurally `/login` for jemaat**: `signInWithPassword`, then `isJemaat` decides access (checked *after* signing in, never before — brief's own enumeration-safety shape, carried over from the OTP design: a wrong password and an account that isn't a jemaat both end up signed out with a plain, generic-sounding message, so a visitor can't tell which failed).
+- **Both invite kinds land on `/auth/set-password`** (brief §9.11 updated): that page already redirected to `homePath(user)` (added in stage 11f precisely so it wouldn't need touching for a case like this), so a jemaat invite needs no new page, only a different `redirectTo`.
+- **A jemaat invite's `redirectTo` carries an extra `&portal=jemaat` hint**, not folded into `next`: once both kinds share `next=/auth/set-password`, `/auth/callback` has no account to read `isJemaat` from if the link itself is bad (expired/reused) — the hint is the only way a *failed* jemaat link still lands back on `/portal/masuk?error=tautan` instead of `/login`. Verified both directions with two integration tests (a bad jemaat-hinted link → `/portal/masuk?error=tautan`; a bad Pengurus link, no hint → `/login`), not just the happy path.
+- **The OTP throttle migration (0034) stays as written** — it isn't in the protected 0001–0017 range, but rewriting an already-applied, already-tested migration for a pure app-code change was judged out of scope; `auth_throttle` and its table simply go uncalled now. `lib/auth/portal-otp.ts` and `lib/auth/portal-copy.ts` were deleted outright instead (plain TS, no applied-migration risk, and genuinely dead once the action was rewritten). `supabase/templates/magic-link.html` and its `config.toml` entry were removed too, since both existed for no other reason than the code email.
+- **No app-level rate limiting on jemaat password login**, matching `/login`'s own stance exactly (Supabase's own limits only) — consistent, and the brief's old OTP-specific limits (per-email/per-IP send and wrong-code buckets) no longer apply to a password form.
+- **Copy updated everywhere it described the old mechanism**: `/portal` (the "Masuk dengan kode lewat email, tanpa password" line and its icon), Pengguna's "Undang Pengguna" dialog (`user-dialogs.tsx`'s "Jenis akun" description and jemaat-kind blurb), the invite email template, and `docs/rebuild-brief.md` §15 / §9.11, `docs/deploy-checklist.md`, `docs/bootstrap-super-admin.md`.
+
+**App code**
+
+- `lib/site-url.ts`: `inviteRedirectUrl(origin, kind)` — both kinds now `/auth/set-password`, jemaat adds `&portal=jemaat`.
+- `app/auth/callback/route.ts`: dropped the stage-11f override that skipped "Atur Password" for a jemaat-only account landing on `next=/auth/set-password`, and the now-unreachable "Login ke Portal Jemaat" log at the callback step (accepting an invite was never logged as a "Login" for Pengurus either — only `setPassword`'s own "Mengatur password awal" — jemaat now matches). Failure routing reads the new `portal=jemaat` query hint alongside the existing `next.startsWith("/jemaat")` check.
+- `app/portal/masuk/actions.ts` + `portal-login-form.tsx` + `page.tsx`: rewritten to the same shape as `app/login`'s own action/form/page (email, password, show/hide toggle, `PortalFormHeading` moved into the page). `PortalLoginState` is now `{ error, email }`, matching `LoginState`.
+- Deleted: `lib/auth/portal-otp.ts`, `lib/auth/portal-copy.ts`.
+- `components/users/user-dialogs.tsx`, `supabase/templates/invite.html`, `supabase/config.toml` (removed the magic-link template block and the OTP-era `otp_expiry` override).
+
+**Verification**
+
+- `tsc`, `eslint`, `next build` all pass.
+- `pnpm test`: 348 tests, 50 files. `portal-login-form.test.tsx` rewritten (3: submits email/password/next and shows the server's error; the show/hide toggle; the Kontak link). `site-url.test.ts` gained the jemaat-kind `inviteRedirectUrl` case.
+- `pnpm test:db`: unchanged, 23 files, 777 tests (no migration touched).
+- `pnpm test:integration`: 17 files, 213 tests. `portal.test.ts`'s OTP describe block replaced with password-based tests (same `?next=` cases as before, a wrong password vs. a non-jemaat account answering alike, a missing password refused without calling Supabase); the "Akun Jemaat" invite test now follows the link to "Atur Password", calls `setPassword` for real, confirms the `/jemaat` redirect and the `Mengatur password awal` log, then signs out and back in with that same password through `portalLogin` — proving the whole loop, not just the invite step; a second new test confirms a bad Pengurus link (no `portal` hint) still goes to `/login`.
+- Local stack: `supabase stop && start` to pick up the `config.toml` template removal; `pnpm test:db` and `pnpm test:integration` both reconfirmed green afterward (not assumed safe from the config change alone).
+- **Not verified yet**: an actual browser (consistent with every prior note) — the password show/hide toggle and the updated `/portal` card copy, both themes, 360px.

@@ -448,3 +448,9 @@ export async function loadKegiatanLainnya(excludeId: string, limit = 3): Promise
   const result = await loadKegiatanMendatang(limit, excludeId);
   return (result.data ?? []).map(toKegiatanItem);
 }
+
+/** Beranda's own "Kegiatan mendatang" cards (brief §14.4), and Portal Jemaat's (brief §17.3). */
+export async function loadKegiatanMendatangList(limit = 3): Promise<KegiatanItem[]> {
+  const result = await loadKegiatanMendatang(limit);
+  return (result.data ?? []).map(toKegiatanItem);
+}

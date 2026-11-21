@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:db": "supabase test db --local",
     "test:integration": "vitest run --config vitest.integration.config.ts",
-    "db:types": "supabase gen types typescript --local --schema public > src/types/database.ts"
+    "db:types": "supabase gen types typescript --local --schema public,portal > src/types/database.ts"
   },
   "engines": {
     "node": ">=20.9.0"

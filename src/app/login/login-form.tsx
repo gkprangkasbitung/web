@@ -45,6 +45,7 @@ export function LoginForm({ next }: { next: string }) {
             name="password"
             type={showPassword ? "text" : "password"}
             autoComplete="current-password"
+            placeholder="••••••••"
             aria-invalid={invalid || undefined}
             aria-describedby="login-error"
             required

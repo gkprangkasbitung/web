@@ -26,7 +26,14 @@ export function siteOrigin(value: string | undefined = process.env.SITE_URL): st
   return url.origin;
 }
 
-/** redirectTo for auth.admin.inviteUserByEmail (brief §6); "Akun Jemaat" invites land on /jemaat (stage 11f). */
+/**
+ * redirectTo for auth.admin.inviteUserByEmail (brief §6). Both kinds of
+ * invite land on /auth/set-password now (jemaat login switched from an
+ * email code to email + password); the `portal=jemaat` hint lets
+ * /auth/callback send a *failed* jemaat link back to /portal/masuk instead
+ * of /login, since by then the account itself can't be loaded to tell.
+ */
 export function inviteRedirectUrl(origin: string, kind: "pengurus" | "jemaat" = "pengurus"): string {
-  return `${origin}/auth/callback?next=${kind === "jemaat" ? "/jemaat" : "/auth/set-password"}`;
+  const hint = kind === "jemaat" ? "&portal=jemaat" : "";
+  return `${origin}/auth/callback?next=/auth/set-password${hint}`;
 }

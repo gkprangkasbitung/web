@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
-import { PortalSplitLayout } from "@/components/portal/portal-split-layout";
+import { PortalAlert } from "@/components/portal/portal-alert";
+import { PortalFormHeading, PortalSplitLayout } from "@/components/portal/portal-split-layout";
 import { isJemaat } from "@/lib/auth/portal";
 import { safeNextPath } from "@/lib/auth/safe-next";
 import { getAuthenticatedUser } from "@/lib/auth/session";
@@ -10,7 +11,7 @@ import { PortalLoginForm } from "./portal-login-form";
 
 export const metadata: Metadata = { title: "Masuk Portal Jemaat" };
 
-/** Portal Jemaat sign-in with an email code (docs/design/portal-login-jemaat.html, stage 11f). */
+/** Portal Jemaat sign-in with email + password (docs/design/portal-login-jemaat.html). */
 export default async function PortalMasukPage({
   searchParams,
 }: {
@@ -29,9 +30,18 @@ export default async function PortalMasukPage({
       variant="jemaat"
       eyebrow="Portal Jemaat"
       headline="Selamat datang kembali"
-      description="Masuk tanpa perlu mengingat password. Kami akan mengirim kode 6 digit ke email Anda yang terdaftar di sekretariat."
+      description="Masuk dengan email dan password akun Portal Jemaat Anda."
     >
-      <PortalLoginForm next={next} linkExpired={error === "tautan"} />
+      <PortalFormHeading title="Masuk Portal Jemaat">
+        <p>Masukkan email dan password akun Portal Jemaat Anda.</p>
+      </PortalFormHeading>
+      {error === "tautan" && (
+        <PortalAlert tone="info">
+          Tautan aktivasi tidak valid atau sudah kedaluwarsa. Masuk di bawah ini, atau minta undangan baru ke
+          sekretariat.
+        </PortalAlert>
+      )}
+      <PortalLoginForm next={next} />
     </PortalSplitLayout>
   );
 }

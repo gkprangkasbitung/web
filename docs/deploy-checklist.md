@@ -1,4 +1,4 @@
-# Deploy checklist: Portal Jemaat and auth settings (stage 11f)
+# Deploy checklist: Portal Jemaat and auth settings (stages 11f, 13a; jemaat login switched to email + password, follow-up)
 
 These are settings in the Supabase Dashboard and the hosting environment. The app never changes them from code. Do them before deploying stage 11f, in this order, on the **production** project.
 
@@ -6,73 +6,63 @@ For the first super_admin and the basic invite setup, see `docs/bootstrap-super-
 
 ## 1. Database
 
-- Push migration `0034_portal_jemaat.sql` together with the earlier unpushed ones (0018–0033).
-- Without it, the Portal Jemaat fails closed: `auth_throttle` is missing, so every "Kirim kode masuk" answers "Tunggu 60 detik…" and no code is sent, and `/jemaat` greets people by email instead of by name.
+- Push migration `0034_portal_jemaat.sql` together with the earlier unpushed ones (0018–0033). (The `auth_throttle` function it adds is no longer called by the app — it was for the email sign-in code, removed in favor of email + password below — but the migration stays as-is; nothing depends on removing it.)
 
 ## 2. Supabase → Authentication → Sign In / Providers
 
 - **Allow new users to sign up: off.** Accounts only come from invites (Pengguna → Undang Pengguna). Invites keep working with sign-up off, because they go through the admin API.
-- The app also sends `shouldCreateUser: false` on every code request, so an unknown email never gets an account even if this switch is turned on by mistake. The switch is the second layer, not the only one.
 - **Email provider: on**, with **Confirm email** left as it is (invited accounts are confirmed by accepting the invite).
 
 ## 3. Supabase → Authentication → Emails
-
-### Magic Link template (the sign-in code)
-
-- Subject: `Kode masuk Portal Jemaat GKP Rangkasbitung`
-- Body: copy `supabase/templates/magic-link.html`. It must contain `{{ .Token }}` (the 6-digit code). It has no link on purpose: the app signs in with the code only.
 
 ### Invite user template
 
 - Subject (one line):
   `{{ if .Data.portal_jemaat }}Aktivasi Portal Jemaat GKP Rangkasbitung{{ else }}Undangan ke admin GKP Rangkasbitung{{ end }}`
-- Body: copy `supabase/templates/invite.html`. It replaces the stage 10 version. The same template serves both kinds of invite:
-  - an admin invite links to `{{ .SiteURL }}/auth/callback?next=/auth/set-password&…` ("Atur Password");
-  - an "Akun Jemaat" invite links to `{{ .SiteURL }}/auth/callback?next=/jemaat&…` and needs no password.
-- The `portal_jemaat` metadata flag only picks the wording and the landing page. Access is decided by the server from the account's roles and its jemaat link.
+- Body: copy `supabase/templates/invite.html`. The same template serves both kinds of invite, and both now land on "Atur Password":
+  - an admin invite links to `{{ .SiteURL }}/auth/callback?next=/auth/set-password&…`;
+  - an "Akun Jemaat" invite links to `{{ .SiteURL }}/auth/callback?next=/auth/set-password&portal=jemaat&…` — the `portal=jemaat` hint is only so an *expired or reused* link still lands back on `/portal/masuk` instead of `/login`.
+- The `portal_jemaat` metadata flag only picks the wording. Access is decided by the server from the account's roles and its jemaat link.
 
-### Confirm signup template
+### Magic Link / Confirm signup templates
 
-- Not used: sign-up is off. Leave it as it is.
+- Not used: sign-up is off, and jemaat sign-in is email + password (no email code). Leave them as they are.
 
 ## 4. SMTP
 
 - **Production must use your own SMTP** (Authentication → Emails → SMTP Settings): for example Resend, Postmark, Brevo, Amazon SES, or the domain's mail provider.
-- Supabase's built-in sender is for development only: it sends only a handful of emails per hour, to team addresses only. With it, jemaat would often get no code at all.
-- Use a sender address on the church's domain (for example `noreply@<domain>`) with SPF and DKIM set up at the domain's DNS, so codes don't land in Spam.
-- After setting SMTP, raise **Rate Limits → Rate limit for sending emails** (see section 6).
+- Supabase's built-in sender is for development only: it sends only a handful of emails per hour, to team addresses only. With it, an invited jemaat might not get their activation email at all.
+- Use a sender address on the church's domain (for example `noreply@<domain>`) with SPF and DKIM set up at the domain's DNS, so invites don't land in Spam.
 
 ## 5. Supabase → Authentication → URL Configuration
 
 - **Site URL**: the site's public origin, the same value as the app's `SITE_URL` (for example `https://<domain>`).
-- **Redirect URLs**: `https://<domain>/auth/callback**` must be in the list. The `**` matches both `?next=/auth/set-password` and `?next=/jemaat`.
+- **Redirect URLs**: `https://<domain>/auth/callback**` must be in the list. The `**` matches `?next=/auth/set-password` with or without `&portal=jemaat`.
 - If there is a preview or staging domain that should accept invites, add its `/auth/callback**` too. Don't add wildcards for other domains.
 
-## 6. Code lifetime and rate limits
+## 6. Rate limits
 
-Suggested values (Authentication → Sign In / Providers → Email, and Authentication → Rate Limits):
-
-| Setting                                        | Suggested                    | Why                                                                                                                                                                                                     |
-| ---------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Email OTP expiration                           | **600 seconds** (10 minutes) | The sign-in page and the email both say "Kode berlaku 10 menit". The default is 1 hour.                                                                                                                 |
-| Email OTP length                               | **6**                        | The code field accepts exactly 6 digits.                                                                                                                                                                |
-| Minimum interval between emails (per user)     | **60 seconds**               | Matches the page's "Kirim ulang" countdown. The app enforces the same limit itself, for every email alike.                                                                                              |
-| Rate limit for sending emails (project-wide)   | **30–60 per hour**           | Enough for a Sunday rush once custom SMTP is on. Only adjustable with custom SMTP.                                                                                                                      |
-| Rate limit for token verifications (per IP)    | **raise to 150 per 5 min**   | See the note on IPs below.                                                                                                                                                                              |
-| Rate limit for sign-ups and sign-ins (per IP)  | **raise to 150 per 5 min**   | Same note. This also covers admin password logins and code requests.                                                                                                                                    |
-
-**Note on IPs.** Every sign-in request reaches Supabase from the app server (the Server Actions run there), so Supabase sees the server's IP for every visitor. Its per-IP limits therefore count the whole congregation as one visitor. That is why the app keeps its own limits per visitor IP and per email (migration `0034`):
-
-- sending a code: 1 per minute and 5 per hour per email, 20 per hour per IP;
-- wrong codes: 5 per 15 minutes per email (then even the right code is refused until the window passes), 30 per 15 minutes per IP.
-
-Raise Supabase's per-IP limits as above so they don't trip before the app's own limits. On Vercel the visitor IP comes from `x-forwarded-for`, which Vercel sets itself. Before moving to other hosting, read "Client IP (brief §7) and hosting" in `docs/progress.md` (stage 10).
+Supabase's own sign-in and password-recovery rate limits (Authentication → Rate Limits) are enough; the app adds no limits of its own on top (same as the admin's `/login`, which this now matches). On Vercel the visitor IP comes from `x-forwarded-for`, which Vercel sets itself. Before moving to other hosting, read "Client IP (brief §7) and hosting" in `docs/progress.md` (stage 10).
 
 ## 7. Check it after deploying
 
 1. Open `/portal`: both cards show, on a phone too.
-2. Pengguna → Undang Pengguna → **Akun Jemaat**: pick a test jemaat and a test address you can read. The email's subject is "Aktivasi Portal Jemaat GKP Rangkasbitung"; its link lands on `/jemaat` with the jemaat's name, with no password step.
-3. Keluar, then `/portal/masuk` with that address: a 6-digit code arrives within a minute. Enter it, and you're on `/jemaat`.
-4. `/portal/masuk` with an address that has no account: the page says exactly the same "Jika email terdaftar, kode masuk telah dikirim." and no email arrives. Authentication → Users shows no new user.
+2. Pengguna → Undang Pengguna → **Akun Jemaat**: pick a test jemaat and a test address you can read. The email's subject is "Aktivasi Portal Jemaat GKP Rangkasbitung"; its link lands on "Atur Password", and setting one lands on `/jemaat` with the jemaat's name.
+3. Keluar, then `/portal/masuk` with that address and the password just set: you're on `/jemaat`.
+4. `/portal/masuk` with a wrong password, or with an address that has no account: both say "Email atau password salah." (no enumeration).
 5. Signed in as that jemaat account, open `/admin`: you land on `/portal` with the notice that the account has no access.
 6. Log Aktivitas shows "Login ke Portal Jemaat" and "Logout dari Portal Jemaat" for the test account. Delete the test account afterwards (Pengguna → Hapus).
+
+## 8. Portal Jemaat data (stage 13a)
+
+- Push migration `0037_portal_jemaat_data.sql` together with the earlier unpushed ones (0018–0036).
+- **Supabase → Project Settings → Data API → Exposed schemas: add `portal`.** Keep `public` and `graphql_public`, and never add `private`. Without `portal`, every portal call answers `PGRST106` ("The schema must be one of the following…"), and the /jemaat pages (stage 13b) load nothing. Local development has it in `supabase/config.toml` (`[api] schemas`).
+- Exposing the schema grants nothing by itself: anon has no usage on `portal`, and `authenticated` may execute only the nine portal functions, not the internal `_jemaat_id_saya`.
+- "Hapus akun login" (§17.4) deletes the jemaat's auth user with `SUPABASE_SERVICE_ROLE_KEY`. It must be set as a server-only variable in the hosting environment (already needed for invites since stage 10).
+- The new setting `profil_gereja.portal_tampilkan_persembahan` starts off. Turn it on only when the church has decided jemaat may see their own Persembahan Bulanan.
+
+Check it after deploying:
+
+1. With the anon key: `POST {SUPABASE_URL}/rest/v1/rpc/profil_saya` with the headers `apikey: <anon key>` and `Content-Profile: portal` → 401 with `"code":"42501"` ("permission denied for schema portal").
+2. The same call with the access token of a staff account that has no jemaat link (`Authorization: Bearer <token>`) → 403 with `"code":"PT403"` ("Akun ini belum terhubung ke data jemaat.").
+3. The same call with a jemaat account's token → 200 with only that jemaat's own row.

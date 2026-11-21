@@ -1,4 +1,4 @@
-import { ArrowLeftIcon, ArrowRightIcon, LockIcon, MailIcon, ShieldCheckIcon, UserIcon, XIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowRightIcon, LockIcon, ShieldCheckIcon, UserIcon, XIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -104,14 +104,14 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
             </span>
             <span className="font-serif text-[28px] leading-[1.1] sm:text-4xl">Portal Jemaat</span>
             <span className="text-[15px] leading-[1.55] text-brand-foreground/85 sm:hidden">
-              Profil, data keluarga, dan jadwal pelayanan Anda. Masuk dengan kode lewat email.
+              Profil, data keluarga, dan jadwal pelayanan Anda.
             </span>
             <span className="hidden text-base leading-relaxed text-brand-foreground/85 sm:block">
               Lihat profil dan data keluarga, jadwal pelayanan Anda, serta informasi jemaat.
             </span>
             <span className="hidden items-center gap-2 text-sm text-brand-muted sm:flex">
-              <MailIcon aria-hidden="true" className="size-4" />
-              Masuk dengan kode lewat email, tanpa password
+              <LockIcon aria-hidden="true" className="size-4" />
+              Masuk dengan email dan password akun Anda
             </span>
             <span className={`${cardButtonClass} bg-brand-foreground text-brand`}>
               Masuk sebagai Jemaat

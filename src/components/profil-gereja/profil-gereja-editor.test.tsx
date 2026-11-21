@@ -58,6 +58,7 @@ const PROFIL: ProfilGerejaRow = {
   facebook_url: null,
   website_url: null,
   telepon_sekretariat: null,
+  portal_tampilkan_persembahan: false,
   updated_at: "2026-09-30T00:00:00Z",
 };
 

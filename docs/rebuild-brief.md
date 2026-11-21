@@ -328,7 +328,7 @@ Deleting a Tempat or Wilayah clears references to it; deleting a label removes i
 ### 9.11 Pengguna (`/admin/users`, super_admin)
 
 - "Undang Pengguna" dialog: Email (required), Nama Lengkap, Role (a single role or "Tidak ada"), Jemaat (link to a jemaat or "Tidak ada"), button "Kirim Undangan", toast "Undangan terkirim". If the invite works but the role or jemaat step fails, say so explicitly ("Pengguna diundang, tapi gagal set role: …").
-  - Stage 11f (§15): a "Jenis akun" choice first, "Pengurus" (everything above) or "Akun Jemaat": Email plus Jemaat (required), no role and no Nama Lengkap (the account takes the jemaat's name). Its link lands on `/jemaat` without a password; afterwards the account signs in with an email code. A jemaat still has at most one account.
+  - Stage 11f (§15): a "Jenis akun" choice first, "Pengurus" (everything above) or "Akun Jemaat": Email plus Jemaat (required), no role and no Nama Lengkap (the account takes the jemaat's name). Its link lands on "Atur Password", like a Pengurus invite; afterwards the account signs in with email and that password. A jemaat still has at most one account.
 - Table: Nama (initials avatar; sortable, searchable), Email (sortable, searchable), Role (badge, facet), Jenis Akun (badges "Pengurus" and/or "Jemaat", or "Tanpa akses"; facet; stage 11f), Jemaat (searchable). Row actions:
   - "Edit" / "Lihat": a dialog with Role and Jemaat selects and "Simpan". Changing the role replaces all of the user's roles with the chosen one (one role per user in the UI). A jemaat can be linked to at most one account.
   - "Hapus": not offered on your own row, and the server refuses it too ("Tidak bisa menghapus akun sendiri"). Confirm `Hapus akun {email}?` with "Akun ini tidak akan bisa login lagi. Riwayat warta yang pernah dibuat akun ini tetap tersimpan. Tindakan ini tidak bisa dibatalkan." It deletes the auth user; profile and role rows cascade.
@@ -483,7 +483,7 @@ Permission `situs`; managing members also requires `warta:read` (members are jem
 - If a member's status later changes to something ineligible, keep the row but flag it in the admin ("Tidak memenuhi syarat") and hide it from the public site.
 - Public `/komisi` (list) and `/komisi/[slug]` (detail): nama, deskripsi, periode, foto, pembina name, and members as name + jabatan only, ordered by jabatan sort_order then name. Read through a column-limited public function; no other jemaat columns ever reach anon.
 
-## 15. Portal login (stage 11f)
+## 15. Portal login (stage 11f; jemaat login switched to email + password, follow-up)
 
 Two portals, one access rule. Which login page someone used never grants anything: access always comes from the account itself, decided on the server.
 
@@ -494,25 +494,23 @@ Two portals, one access rule. Which login page someone used never grants anythin
 Pages:
 
 - `/portal` (docs/design/portal-pilih.html, portal-pilih-mobile.html): "Masuk ke portal", cards "Portal Jemaat" (→ `/portal/masuk`) and "Pengurus & Admin" (→ `/login`), and "Belum punya akun Portal Jemaat? Hubungi sekretariat untuk aktivasi." A signed-in visitor goes straight on: staff → `/admin`, jemaat only → `/jemaat`. With `?error=akses` it first shows a notice that the account has no access to the page it tried, with buttons to the portals the account does have and "Keluar".
-- `/portal/masuk` (docs/design/portal-login-jemaat.html): two steps, run in a Server Action.
-  1. Email → "Kirim kode masuk": `signInWithOtp` with `shouldCreateUser: false`. The answer is always "Jika email terdaftar, kode masuk telah dikirim.", whether or not the email exists (Supabase's "Signups not allowed" included), so the page never reveals which accounts exist.
-  2. "Cek email Anda": a 6-digit code (`inputmode="numeric"`, `autocomplete="one-time-code"`) → "Masuk": `verifyOtp` with type `email`. "Ganti email", and "Kirim ulang" after a 60-second countdown. A wrong or expired code: "Kode salah atau sudah kedaluwarsa. Periksa kembali kodenya, atau kirim ulang kode baru." An account that isn't a jemaat is signed out again: "Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat."
-  - The server limits sends (1 per minute and 5 per hour per email, 20 per hour per IP) and wrong codes (5 per 15 minutes per email, 30 per IP), on top of Supabase's own limits.
-  - After login, `?next=` only if it is a `/jemaat` path, otherwise `/jemaat`.
+- `/portal/masuk` (docs/design/portal-login-jemaat.html): email + password, the same shape as `/login` (§6), run in a Server Action. The password proves the account; `signInWithPassword` then the account's link to a jemaat decides access, checked after signing in — a wrong password and an account that isn't a jemaat answer the same visible way ("Email atau password salah." / signed out again with "Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat."), so a visitor can't tell which is which. After login, `?next=` only if it is a `/jemaat` path, otherwise `/jemaat`.
 - `/login`: see §6.
 - `/jemaat`: "Selamat datang, {nama of the linked jemaat}", "Portal Jemaat sedang disiapkan.", "Keluar". It reads only the account's own jemaat name.
 - `next` on either login page is accepted only inside that page's own area (`/admin` or `/jemaat`), never with `//`, a scheme, a backslash, or a dot segment.
 - "Keluar" anywhere returns to `/portal`. Activity log (module `auth`): "Login ke Portal Pengurus", "Login ke Portal Jemaat", "Logout dari Portal Pengurus", "Logout dari Portal Jemaat".
-- Supabase settings (sign-up off, the code email template, SMTP, redirect URLs, code lifetime and rate limits) are listed in `docs/deploy-checklist.md`; the app doesn't change them from code.
+- Invites: both a "Pengurus" and an "Akun Jemaat" invite (brief §9.11) land on `/auth/set-password` ("Atur Password") and are confirmed/accepted the same way; `/auth/set-password` redirects to the account's own home afterward (`/admin` or `/jemaat`). A jemaat invite's link carries an extra hint so a *failed or expired* link still lands back on `/portal/masuk?error=tautan` instead of `/login` — by then there's no session to tell which portal the link was for.
+- Supabase settings (sign-up off, the invite template, SMTP, redirect URLs) are listed in `docs/deploy-checklist.md`; the app doesn't change them from code.
+- No "forgot password" page for jemaat: someone who forgets theirs asks the secretariat, who resets access the same way as any other account (Pengguna).
 
 Acceptance checks:
 
 1. An account linked to a jemaat but without a role: `/admin` → `/portal?error=akses`, every admin route → 403, and `select` on `jemaat` or the finance tables with its own token over Supabase REST returns nothing.
 2. A staff account without a jemaat link: `/jemaat` → `/portal?error=akses`. A staff account that is also a jemaat opens both.
-3. A code request for an unregistered email creates no user in `auth.users`, and the page's answer is identical to that for a registered email.
-4. `/portal/masuk?next=https://example.com` and `?next=/admin` both end on `/jemaat`; `/login?next=//evil.com` ends on `/admin`.
-5. After 5 wrong codes the email is refused for a while, even with the right code.
-6. An "Akun Jemaat" invite end to end: the email arrives, and its link lands on `/jemaat` with no password step.
+3. `/portal/masuk?next=https://example.com` and `?next=/admin` both end on `/jemaat`; `/login?next=//evil.com` ends on `/admin`.
+4. A password login for an account that isn't a jemaat is signed out again; the account is never told whether the problem was the password or the jemaat link.
+5. An "Akun Jemaat" invite end to end: the email arrives, its link lands on "Atur Password", and setting a password lands on `/jemaat`.
+6. An expired or reused jemaat invite link lands on `/portal/masuk?error=tautan`, not `/login`.
 
 ## 16. Warta document (DOCX) generation
 
@@ -541,3 +539,34 @@ Admins generate a printable Warta (.docx) from a warta's data using the Word tem
 - Preview: "Pratinjau Warta" in the warta editor opens a full-screen dialog that renders the returned DOCX in the browser with `docx-preview` (loaded client-side only, on demand), page by page at the template's page size, with zoom. A side panel shows "Kelengkapan Warta" (missing data, each item linking to the editor section that fixes it) and "Dibuat pukul HH.mm". Previews are not logged.
 - Download: the "Unduh Warta (.docx)" button lives only inside the preview dialog. It requests `mode=download&hash=<contentHash>`; if the current data hashes differently, the server returns 409 ("Data warta berubah sejak pratinjau dibuat. Muat ulang pratinjau.") instead of a file. On success: attachment `warta-YYYY-MM-DD[-DRAFT].docx`, and the activity log records "Mengunduh warta "…"" under module `warta`.
 - URLs that end up as hyperlinks in the document (website, social links) must be http(s) only.
+
+## 17. Portal Jemaat (v1)
+
+Signed-in accounts with `profiles.jemaat_id` (isJemaat, §11f) use `/jemaat`. Staff roles are irrelevant here; access is by ownership only.
+
+### 17.1 Data access
+- A dedicated Postgres schema `portal` holds only `security definer` functions (`set search_path = ''`, fully qualified names). Every function derives the caller's jemaat from `auth.uid()` → `profiles.jemaat_id` and never takes a jemaat id, keluarga id or user id as a parameter. `execute` is granted to `authenticated` only; `anon` gets nothing.
+- Functions return only the columns the page shows. No portal function ever reads `jemaat_catatan_pastoral`.
+- Functions (return columns settled in stage 13a):
+  - `profil_saya()`: nama, nomor_anggota, jenis_kelamin, status_keanggotaan, wilayah_nama, keluarga_nama, hubungan_keluarga, tanggal_lahir, tanggal_masuk, pekerjaan, alamat, no_hp.
+  - `keluarga_saya()`: the members, the caller included: nama, hubungan_keluarga, status_keanggotaan only.
+  - `pelayanan_saya(dari date, sampai date)`: range capped at 400 days, both ends included; rows where the caller is pelayan_firman, liturgos, pemusik, pnj, or SMKA PF, with category name, date, time, and place. The role comes back as a key (`peran`, with `kategori_key` and `smka_kelompok`), and the app labels it from the category config (e.g. "Pelayan Liturgi" for SMKA), so the labels live in one place.
+  - `komisi_saya()`: komisi_nama, komisi_slug, periode, jabatan_nama, with the public site's visibility (komisi with tampil, eligible members only), plus a "Pembina" row where the caller is the komisi's pembina.
+  - `persembahan_saya(tahun int)`: own Persembahan Bulanan rows only: tanggal + jumlah; returns nothing unless the site setting `portal_tampilkan_persembahan` is true.
+  - `pengaturan_portal()`: `tampilkan_persembahan`, so the portal can hide `/jemaat/persembahan` while the setting is off.
+  - `pengajuan_saya()`: id, data, status, catatan_admin, created_at, ditinjau_pada (not who reviewed it).
+  - `ajukan_perubahan(data jsonb)`, `batalkan_pengajuan(id)`.
+- The setting lives in Profil Gereja (`profil_gereja.portal_tampilkan_persembahan`, default false).
+
+### 17.2 Change requests
+- Table `jemaat_pengajuan_perubahan`: jemaat_id, diajukan_oleh (auth uid), data (jsonb), status (`menunggu` | `disetujui` | `ditolak` | `dibatalkan`), catatan_admin, ditinjau_oleh, timestamps. At most one `menunggu` row per jemaat (partial unique index).
+- Allowed fields (whitelist enforced in the function): no_hp (digits only, 8–15), alamat (≤ 500), pekerjaan (≤ 200). Anything else is rejected. An empty value clears the field; only the fields that differ from the current data are stored.
+- Jemaat cannot insert or update the table directly (no RLS write policies); only through the portal functions.
+- Admin page "Pengajuan Perubahan" (under Data Jemaat, `warta:read` to view, `warta:update` to decide): old vs new values, Setujui / Tolak (with catatan). Approval applies the change to `jemaat` and closes the request in one RPC, and is logged under module `jemaat`. Tolak requires a catatan (1–500 characters). Sidebar badge with the count of `menunggu`.
+- The jemaat's own submissions and cancellations are logged under module `jemaat` too. A waiting request stays waiting when the jemaat deletes their login (§17.4).
+
+### 17.3 Pages
+`/jemaat` (Beranda), `/jemaat/profil`, `/jemaat/pelayanan`, `/jemaat/komisi`, `/jemaat/persembahan` (hidden while the setting is off), `/jemaat/akun`. Mobile-first (most jemaat use phones), large tap targets, plain Indonesian.
+
+### 17.4 Account deletion
+"Hapus akun login" on `/jemaat/akun`: confirmation, then the server deletes the auth user (service role, server-only). The jemaat record stays; `profiles.jemaat_id` disappears with the profile. Staff accounts cannot be deleted from here.

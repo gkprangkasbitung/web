@@ -1,22 +1,30 @@
 /**
  * Stage 11f against the local stack: the two portals and the access split.
+ * Jemaat sign-in was switched from an email code to email + password
+ * (follow-up): `/portal/masuk` is now structurally the same as `/login`.
  *
  * Covers: a jemaat account without a role is refused every /admin page
  * (→ /portal?error=akses) and admin route (403), and reads nothing over
  * Supabase REST with its own token; a staff account without a jemaat link
- * is refused /jemaat; staff + jemaat opens both; signInWithOtp for an
- * unknown email creates no user and answers exactly like a registered one;
- * `next` can't leave the portal's area (/portal/masuk?next=https://… or
- * /admin → /jemaat, /login?next=//evil.com → /admin, §13 #15); 5 wrong
- * codes lock the email out; a non-jemaat account that proves its email is
- * signed out again; the admin login refuses an account without a role; the
- * Login/Logout log lines name the portal; the proxy sends each area to its
- * own login page; and an "Akun Jemaat" invite end to end through Mailpit
- * lands on /jemaat.
+ * is refused /jemaat; staff + jemaat opens both; `next` can't leave the
+ * portal's area (/portal/masuk?next=https://… or /admin → /jemaat,
+ * /login?next=//evil.com → /admin, §13 #15); a wrong password and an
+ * account that isn't a jemaat answer the same way; the admin login refuses
+ * an account without a role; the Login/Logout log lines name the portal;
+ * the proxy sends each area to its own login page; and an "Akun Jemaat"
+ * invite end to end through Mailpit lands on "Atur Password", then /jemaat.
  */
 import { NextRequest } from "next/server";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Stage 13b's /jemaat Beranda reads the public warta/kegiatan loaders,
+// which call connection() to mark themselves request-time; outside a real
+// Next request (renderToStaticMarkup here) it throws, so it's a no-op.
+vi.mock("next/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/server")>()),
+  connection: async () => {},
+}));
 
 import {
   actAs,
@@ -34,6 +42,7 @@ const { portalLogin } = await import("@/app/portal/masuk/actions");
 const { login } = await import("@/app/login/actions");
 const { logout } = await import("@/app/admin/actions");
 const { logoutJemaat } = await import("@/app/jemaat/actions");
+const { setPassword } = await import("@/app/auth/set-password/actions");
 const callbackRoute = await import("@/app/auth/callback/route");
 const usersRoute = await import("@/app/api/admin/users/route");
 const tempatRoute = await import("@/app/api/admin/tempat/route");
@@ -46,7 +55,6 @@ const PASSWORD = "rahasia-portal-123";
 // A fresh client IP per run, so the per-IP limits don't carry over between runs.
 const RUN_IP = `198.18.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
 const NO_ACCESS = "/portal?error=akses";
-const WRONG_CODE = "Kode salah atau sudah kedaluwarsa. Periksa kembali kodenya, atau kirim ulang kode baru.";
 
 const svc = serviceClient();
 const createdUsers: string[] = [];
@@ -79,19 +87,6 @@ function form(fields: Record<string, string>): FormData {
   const data = new FormData();
   for (const [key, value] of Object.entries(fields)) data.set(key, value);
   return data;
-}
-
-const INITIAL = { step: "email", email: "", error: null, notice: null, cooldown: 0, nonce: 0 } as const;
-
-/** The 6-digit code in the newest Portal Jemaat email to `to`, waiting for it to arrive. */
-async function signInCode(to: string): Promise<string> {
-  for (let attempt = 0; attempt < 30; attempt++) {
-    const mail = await latestMail(to);
-    const code = mail?.subject === "Kode masuk Portal Jemaat GKP Rangkasbitung" ? mail.html.match(/>(\d{6})</)?.[1] : null;
-    if (code) return code;
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-  throw new Error(`No sign-in code for ${to}`);
 }
 
 /** Runs something that should redirect; returns the target path. */
@@ -127,6 +122,13 @@ const dashboard = async () => (await import("@/app/admin/page")).default({ searc
 const profilSaya = async () => (await import("@/app/admin/akun/page")).default();
 const penggunaPage = async () => (await import("@/app/admin/users/page")).default();
 const jemaatPage = async () => (await import("@/app/jemaat/page")).default();
+// Stage 13b moved "Buka halaman admin" from the page into the shared shell
+// the layout renders. The shell itself is a client component ("use client",
+// usePathname), which isn't safely render-tested outside Next's app router
+// (no provider here) — its own conditional rendering is a component test
+// (jemaat-shell.test.tsx); here it's enough to check the layout wires the
+// right `isStaffToo` onto the still-unrendered element.
+const jemaatLayout = async () => (await import("@/app/jemaat/layout")).default({ children: null });
 
 beforeAll(async () => {
   superadmin = await signIn("superadmin@gkp.test");
@@ -176,7 +178,7 @@ describe("access split", () => {
     // Its own portal works, and greets it with its own jemaat's name.
     const html = renderToStaticMarkup(await jemaatPage());
     expect(html).toContain(`Selamat datang, ${jemaat.jemaatNama}`);
-    expect(html).not.toContain("Buka halaman admin");
+    expect((await jemaatLayout()).props.isStaffToo).toBe(false);
   });
 
   it("a staff account without a jemaat link is sent from /jemaat to /portal?error=akses", async () => {
@@ -193,7 +195,7 @@ describe("access split", () => {
     await expect(dashboard()).resolves.toBeTruthy();
     const html = renderToStaticMarkup(await jemaatPage());
     expect(html).toContain(`Selamat datang, ${both.jemaatNama}`);
-    expect(html).toContain("Buka halaman admin");
+    expect((await jemaatLayout()).props.isStaffToo).toBe(true);
   });
 
   it("the proxy sends /admin and /jemaat without a session to their own login page, with next", async () => {
@@ -213,42 +215,12 @@ describe("access split", () => {
   });
 });
 
-describe("Portal Jemaat sign-in with an email code", () => {
-  it("an unknown email creates no user and gets exactly the same answer as a registered one", async () => {
-    const registered = await account("terdaftar", [], true);
-    const unknown = `portal-tidak-ada-${RUN}@test.local`;
-    actAs(null);
-
-    const known = await portalLogin(INITIAL, form({ intent: "send", email: registered.email }));
-    const missing = await portalLogin(INITIAL, form({ intent: "send", email: unknown }));
-    const comparable = (state: typeof known) => ({ ...state, nonce: 0, email: "" });
-    expect(comparable(missing)).toEqual(comparable(known));
-    expect(missing).toMatchObject({
-      step: "code",
-      error: null,
-      notice: "Jika email terdaftar, kode masuk telah dikirim.",
-      cooldown: 60,
-    });
-
-    expect((await svc.from("profiles").select("id").eq("email", unknown)).data).toEqual([]);
-    const { data: users } = await svc.auth.admin.listUsers({ perPage: 1000 });
-    expect(users.users.some((u) => u.email === unknown)).toBe(false);
-    expect(await latestMail(unknown)).toBeNull();
-    expect(await signInCode(registered.email)).toMatch(/^\d{6}$/);
-
-    // The resend limit applies to both alike, too.
-    const again = await portalLogin(known, form({ intent: "send", email: unknown }));
-    expect(again.error).toMatch(/^Tunggu \d+ detik sebelum meminta kode lagi\.$/);
-  });
-
+describe("Portal Jemaat sign-in with email + password", () => {
   it("?next=https://example.com ends on /jemaat, and logs Login ke Portal Jemaat", async () => {
     const jemaat = await account("next-luar", [], true);
     actAs(null);
-    await portalLogin(INITIAL, form({ intent: "send", email: jemaat.email }));
-    const code = await signInCode(jemaat.email);
-
     const target = await redirectOf(() =>
-      portalLogin(INITIAL, form({ intent: "verify", email: jemaat.email, code, next: "https://example.com" })),
+      portalLogin({ error: null, email: "" }, form({ email: jemaat.email, password: PASSWORD, next: "https://example.com" })),
     );
     expect(target).toBe("/jemaat");
     expect(await logCount("Login ke Portal Jemaat", jemaat.id)).toBe(1);
@@ -262,48 +234,30 @@ describe("Portal Jemaat sign-in with an email code", () => {
   it("?next=/admin ends on /jemaat too", async () => {
     const jemaat = await account("next-admin", [], true);
     actAs(null);
-    await portalLogin(INITIAL, form({ intent: "send", email: jemaat.email }));
-    const code = await signInCode(jemaat.email);
     const target = await redirectOf(() =>
-      portalLogin(INITIAL, form({ intent: "verify", email: jemaat.email, code, next: "/admin" })),
+      portalLogin({ error: null, email: "" }, form({ email: jemaat.email, password: PASSWORD, next: "/admin" })),
     );
     expect(target).toBe("/jemaat");
   });
 
-  it("5 wrong codes lock the email out, even for the right code", async () => {
-    const jemaat = await account("salah-5", [], true);
+  it("a wrong password and an account that isn't a jemaat answer differently (that one check only), but neither opens a session", async () => {
+    const jemaat = await account("salah-password", [], true);
     actAs(null);
-    const sent = await portalLogin(INITIAL, form({ intent: "send", email: jemaat.email }));
-    const code = await signInCode(jemaat.email);
-    const wrong = code === "000000" ? "111111" : "000000";
-
-    for (let attempt = 1; attempt <= 5; attempt++) {
-      const result = await portalLogin(sent, form({ intent: "verify", email: jemaat.email, code: wrong }));
-      expect(result.error, `attempt ${attempt}`).toBe(WRONG_CODE);
-    }
-    const locked = await portalLogin(sent, form({ intent: "verify", email: jemaat.email, code }));
-    expect(locked).toMatchObject({ step: "code", error: "Terlalu banyak kode yang salah. Coba lagi dalam 15 menit." });
+    const wrong = await portalLogin({ error: null, email: "" }, form({ email: jemaat.email, password: "bukan-ini" }));
+    expect(wrong.error).toBe("Email atau password salah.");
     expect(await getAuthenticatedUser()).toBeNull();
-  });
 
-  it("a code that proves a staff account's email doesn't open the Portal Jemaat", async () => {
-    const staff = await account("staff-otp", ["viewer"], false);
-    actAs(null);
-    await portalLogin(INITIAL, form({ intent: "send", email: staff.email }));
-    const code = await signInCode(staff.email);
-    const result = await portalLogin(INITIAL, form({ intent: "verify", email: staff.email, code }));
-    expect(result).toMatchObject({
-      step: "email",
-      error: "Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat.",
-    });
+    const staff = await account("staff-password", ["viewer"], false);
+    const notJemaat = await portalLogin({ error: null, email: "" }, form({ email: staff.email, password: PASSWORD }));
+    expect(notJemaat.error).toBe("Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat.");
     expect(await getAuthenticatedUser()).toBeNull();
     expect(await logCount("Login ke Portal Jemaat", staff.id)).toBe(0);
   });
 
-  it("refuses a malformed code without trying it", async () => {
+  it("refuses a missing password without calling Supabase", async () => {
     actAs(null);
-    const result = await portalLogin(INITIAL, form({ intent: "verify", email: `x-${RUN}@test.local`, code: "12ab" }));
-    expect(result.error).toBe("Masukkan 6 digit kode dari email.");
+    const result = await portalLogin({ error: null, email: "" }, form({ email: `x-${RUN}@test.local`, password: "" }));
+    expect(result.error).toBe("Email dan password wajib diisi.");
   });
 });
 
@@ -358,7 +312,7 @@ describe('"Akun Jemaat" invite (§9.11, stage 11f)', () => {
     expect(response.body.error).toBe("Jemaat wajib dipilih untuk Akun Jemaat.");
   });
 
-  it("end to end through Mailpit: the link lands on /jemaat with no password and no role", async () => {
+  it("end to end through Mailpit: the link lands on Atur Password, and setting one lands on /jemaat with no role", async () => {
     const jemaat = await newJemaat("undangan");
     const email = `portal-undang-${RUN}@test.local`;
     actAs(superadmin);
@@ -383,24 +337,51 @@ describe('"Akun Jemaat" invite (§9.11, stage 11f)', () => {
     const mail = await latestMail(email);
     expect(mail?.subject).toBe("Aktivasi Portal Jemaat GKP Rangkasbitung");
     const href = mail!.html.match(/href="([^"]+)"/)![1]!.replaceAll("&amp;", "&");
-    expect(href).toMatch(/^http:\/\/127\.0\.0\.1:3000\/auth\/callback\?next=\/jemaat&token_hash=[^&]+&type=invite$/);
+    expect(href).toMatch(
+      /^http:\/\/127\.0\.0\.1:3000\/auth\/callback\?next=\/auth\/set-password&portal=jemaat&token_hash=[^&]+&type=invite$/,
+    );
 
-    // Following the link in a fresh browser.
+    // Following the link in a fresh browser: lands on Atur Password, same as a Pengurus invite.
     actAs(null);
     const callback = await callbackRoute.GET(new NextRequest(href));
-    expect(new URL(callback.headers.get("location")!).pathname).toBe("/jemaat");
+    expect(new URL(callback.headers.get("location")!).pathname).toBe("/auth/set-password");
     expect((await getAuthenticatedUser())?.id).toBe(userId);
+
+    // Setting the password lands on /jemaat (homePath), not /admin (no role).
+    const target = await redirectOf(() =>
+      setPassword({ error: null }, form({ password: "kata-sandi-jemaat-1", confirm: "kata-sandi-jemaat-1" })),
+    );
+    expect(target).toBe("/jemaat");
     expect(renderToStaticMarkup(await jemaatPage())).toContain(`Selamat datang, ${jemaat.nama}`);
     expect(await redirectOf(adminLayout)).toBe(NO_ACCESS);
-    expect(await logCount("Login ke Portal Jemaat", userId)).toBe(1);
+    expect(await logCount("Mengatur password awal", userId)).toBe(1);
+
+    // Keluar, then the password just set signs in like any other jemaat account.
+    await logoutJemaat().catch(() => {});
+    actAs(null);
+    const signedIn = await redirectOf(() =>
+      portalLogin({ error: null, email: "" }, form({ email, password: "kata-sandi-jemaat-1" })),
+    );
+    expect(signedIn).toBe("/jemaat");
   });
 
-  it("an expired or reused jemaat link goes to /portal/masuk, not the admin login", async () => {
+  it("an expired or reused jemaat invite link goes to /portal/masuk, not the admin login", async () => {
     actAs(null);
     const callback = await callbackRoute.GET(
-      new NextRequest("http://127.0.0.1:3000/auth/callback?next=/jemaat&token_hash=bukan-token&type=invite"),
+      new NextRequest(
+        "http://127.0.0.1:3000/auth/callback?next=/auth/set-password&portal=jemaat&token_hash=bukan-token&type=invite",
+      ),
     );
     const target = new URL(callback.headers.get("location")!);
     expect(target.pathname + target.search).toBe("/portal/masuk?error=tautan");
+  });
+
+  it("an expired or reused Pengurus invite link still goes to /login (no jemaat hint)", async () => {
+    actAs(null);
+    const callback = await callbackRoute.GET(
+      new NextRequest("http://127.0.0.1:3000/auth/callback?next=/auth/set-password&token_hash=bukan-token&type=invite"),
+    );
+    const target = new URL(callback.headers.get("location")!);
+    expect(target.pathname + target.search).toBe("/login");
   });
 });

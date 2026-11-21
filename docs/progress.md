@@ -24,6 +24,10 @@
 - [x] 13a. Portal backend: schema portal, fungsi kepemilikan, pengajuan perubahan (§17.1–17.2, §17.4)
 - [x] 13b. Portal UI /jemaat (§17.3)
 - [ ] 13c. Admin: Pengajuan Perubahan + pengaturan portal (§17.2)
+- [x] 14a. Pemilihan: database, rahasia suara, RPC berikan_suara, berikan_suara_dibantu, hasil (§18.1–18.3, §18.5–18.6)
+- [ ] 14d. Akun username Portal Jemaat (§18.7)
+- [ ] 14b. Pemilihan: CMS panitia — kelola, impor, hasil live, bantu memilih, berita acara (§18.4–18.5)
+- [ ] 14c. Pemilihan: surat suara + hasil di Portal Jemaat (§18.3, §18.6)
 
 ## Notes / decisions
 
@@ -1815,3 +1819,133 @@ On request, right after stage 13b. Brief §15 conflicted with this (its stage 11
 - `pnpm test:integration`: 17 files, 213 tests. `portal.test.ts`'s OTP describe block replaced with password-based tests (same `?next=` cases as before, a wrong password vs. a non-jemaat account answering alike, a missing password refused without calling Supabase); the "Akun Jemaat" invite test now follows the link to "Atur Password", calls `setPassword` for real, confirms the `/jemaat` redirect and the `Mengatur password awal` log, then signs out and back in with that same password through `portalLogin` — proving the whole loop, not just the invite step; a second new test confirms a bad Pengurus link (no `portal` hint) still goes to `/login`.
 - Local stack: `supabase stop && start` to pick up the `config.toml` template removal; `pnpm test:db` and `pnpm test:integration` both reconfirmed green afterward (not assumed safe from the config change alone).
 - **Not verified yet**: an actual browser (consistent with every prior note) — the password show/hide toggle and the updated `/portal` card copy, both themes, 360px.
+
+### Stage 14a (Pemilihan backend), 2026-11-21
+
+No UI this stage (14b builds the panitia pages, 14c the ballot in the portal). Done before 13c, on request; 14a doesn't depend on it.
+
+**Before deploying to production**
+
+- Push migration `0038_pemilihan.sql` together with 0018–0037. No new exposed schema (the four new portal functions live in `portal`, already exposed since 13a).
+- Check the Postgres log settings in `docs/deploy-checklist.md` §9 before an election opens, and leave them until the results are announced.
+
+**Decisions approved before starting (plan and questions asked, then answered)**
+
+- **The panitia's tally (`hasil_suara`, `pemilihan_hasil:read`) is live, in any status, whatever `tampilkan_hasil_saat_berjalan` says.** This was asked for explicitly. It conflicted with brief §18.4 ("only while dibuka if the switch is on, otherwise after ditutup") and with one of the stage prompt's own tests ("hasil_suara saat dibuka dengan flag false → kosong"). The risk was explained: diffing live tallies around a known voter reveals that ballot. The user chose live tallies; the brief and `docs/pemilihan-kerahasiaan.md` now record the change and the risk.
+- **`tampilkan_hasil_saat_berjalan` may change at any time** (answered through a follow-up question). It is the only column that may change after draft, and it covers `ditutup` as well as `dibuka`. So the portal shows results when diumumkan, or when dibuka/ditutup with the switch on. Brief §18.6 said dibuka only; updated.
+- **A voter's own portal vote is logged** as `Memberikan suara pada pemilihan "…"` (module `pemilihan`, new label "Pemilihan"). Brief §18.4 said "Never votes" and CLAUDE.md requires a log for every mutation; this was read as "never the choices", which the user confirmed.
+- **`src/lib/pemilihan/` was built in this stage** (like `lib/portal` in 13a): Zod row schemas, loaders, mutations with the log, and error-code mapping. No routes, actions, or pages.
+- **The same person may be chosen for both Penatua and PPJ.** The brief was silent, and inventing a church rule was avoided; the user confirmed.
+- **`pemilihan_aktif_saya` includes `diumumkan`**, plus `hasil_tersedia`, so 14c can link to announced results.
+- **Opening requirements** (no objection to the proposal): a schedule whose ditutup_pada hasn't passed, at least one voter, and candidates ≥ each contest's minimum. After draft the schedule is frozen; no extending the window in an emergency.
+
+**Finding that shaped the schema: foreign keys would have leaked every ballot**
+
+- A foreign-key check locks the referenced row (`FOR KEY SHARE`), and the lock leaves the transaction's id in that row's `xmax`.
+- System columns are selectable over REST by anyone who may read the table. Verified on the local stack before writing anything: `viewer@gkp.test` → `jemaat?select=id,xmin,xmax` returns them, with non-zero `xmax` left over from earlier FK checks.
+- With FKs from suara → jemaat/peserta (candidates) and partisipasi → jemaat/peserta (voter), one vote would stamp the voter's row and each chosen candidate's row with the same id. Anyone with `warta:read` could then read every ballot.
+- So suara and partisipasi reference only `pemilihan` and `pemilihan_kontes`, rows every voter shares. The vote also locks no person row (no `FOR UPDATE` on peserta); a double vote is stopped by the unique key.
+- The one deliberate lock is `FOR SHARE` on the election row, so a close waits for votes in flight and a later vote sees the new status. That row carries no identity.
+- Consequences:
+  - `pemilihan_peserta.jemaat_id` is `on delete restrict`: a jemaat on any election list can't be deleted. Data Jemaat already shows its 23503 message.
+  - `dibantu_oleh` has no FK: deleting a panitia's account neither fails nor rewrites a final row.
+
+**0038 migration**
+
+- Permissions `pemilihan:{create,read,update,delete}`, `pemilihan_hasil:read`, `pemilihan_bantu:create`, granted to `super_admin` and the new role `panitia_pemilihan` only.
+  - The Roles & Permissions editor scope (`set_role_ui_permissions` in 0029, `VISIBLE_RESOURCES`) is unchanged. Widening only the SQL side would make a save from the editor drop these grants, so 14b changes both together.
+  - `Resource` in `lib/auth/permissions.ts` gained the three resources for `can()`.
+- `pemilihan_kontes`:
+  - Columns: kode PK (`penatua`|`ppj`), nama, min_pilih, max_pilih, urutan; CHECK `1 ≤ min ≤ max`.
+  - Seeded "Penatua (Majelis Jemaat)" 10–30 and "PPJ (Pengawas Perbendaharaan Jemaat)" 5–15. The stage prompt wrote "Pembendaharaan"; the brief's "Perbendaharaan" was kept.
+  - Select for any signed-in account (not personal data; the ballot needs the limits); no write privilege for anyone.
+- `pemilihan`:
+  - Columns: §18.1's fields plus `dibuka_oleh/waktu_dibuka`, `ditutup_oleh/waktu_ditutup`, `diumumkan_oleh/waktu_diumumkan` (for 14b's berita acara), `created_by`, timestamps.
+  - CHECK `dibuka_pada < ditutup_pada`.
+  - Guard trigger `private.pemilihan_guard`:
+    - inserts must be draft;
+    - status moves forward one step at a time (`PM011`);
+    - after draft only the switch may change (`PM010`);
+    - the stamps are written only by the trigger (an account deletion may still null them);
+    - opening requirements as above;
+    - only drafts may be deleted.
+  - RLS per `pemilihan:*`.
+- `pemilihan_peserta`:
+  - PK `(pemilihan_id, jemaat_id)`.
+  - Guard trigger: no insert, update, or delete unless the election is draft. It locks the election row `FOR SHARE`, so a peserta change can't race an opening.
+  - RLS: select `pemilihan:read`, writes `pemilihan:update`.
+- `pemilihan_partisipasi`:
+  - PK `(pemilihan_id, jemaat_id)`.
+  - CHECK `mandiri ⇒ no panitia, no form number`; `dibantu ⇒ both`.
+  - Form number trimmed, 1–50 characters, unique per election on `lower(nomor_formulir)`.
+- `pemilihan_suara`: exactly `id` (`gen_random_uuid()`), `pemilihan_id`, `kontes`, `kandidat_jemaat_id`, with no index besides the PK.
+- Both hidden tables:
+  - RLS on, no policy, every privilege revoked from anon, authenticated, **and service_role** (it bypasses RLS);
+  - `pemilihan_final` triggers refuse update, delete, and truncate.
+- `private.pemilihan_catat_suara` is the one implementation of §18.3 for both paths. The order of checks:
+  1. election exists (P0002);
+  2. dibuka and inside the window, start inclusive, end exclusive (PM001);
+  3. a peserta with dapat_memilih (PM002);
+  4. not voted yet (PM003);
+  5. form number unused (PM007);
+  6. per contest: 1-D array, no duplicate (PM006), every id a dapat_dipilih peserta of this election (PM005), count within limits (PM004).
+
+  Then the partisipasi insert (a unique violation → PM003 or PM007 by constraint name), then the suara rows in random order. Messages name the contest and the counts, never a candidate.
+- API functions, all `security definer` with `search_path = ''`, executable by authenticated only (not anon, PUBLIC, or service_role):
+  - `portal.berikan_suara(pemilihan_id, penatua, ppj)` → `waktu`, `pemilihan_nama`;
+  - `public.berikan_suara_dibantu(p_pemilihan_id, p_jemaat_id, p_nomor_formulir, p_penatua, p_ppj)` → `waktu`, `nama_pemilih`. It checks `pemilihan_bantu:create` (42501), own record (PM008), and the form number (PM009) first;
+  - `portal.pemilihan_aktif_saya()`, `portal.kandidat(pemilihan_id)` (sorted by `private.pemilihan_kunci_nama`: lowercase, without a leading Bpk./Bapak/Ibu/Sdr./Sdri./Saudara/Saudari);
+  - `public.hasil_partisipasi(p_pemilihan_id)`, `public.hasil_suara(p_pemilihan_id)`, and `portal.hasil_pemilihan(id)`, which share `private.pemilihan_rekap` (`rank()` per contest, 0 votes included) and `private.pemilihan_hasil_publik(status, switch)`.
+- Error codes `PM001`–`PM011` are listed in the migration header, brief §18.3, and `lib/pemilihan/types.ts`. PostgREST answers them with HTTP 400 (verified); `P0002` is still 500 over REST, mapped by the app as before.
+
+**App code**
+
+- `src/lib/pemilihan/types.ts` (client-safe):
+  - row schemas tied to the generated function types with the same compile-time key check as `lib/portal` (`fnRow`);
+  - status/contest/method vocabularies and `PEMILIHAN_ERROR_CODES` (SQLSTATE → reason);
+  - `isSeri()`;
+  - `suaraInputSchema` / `suaraDibantuInputSchema` (uuids, at most 100 per contest as a payload guard only; the limits stay in the DB).
+- `src/lib/pemilihan/data.ts` (server-only):
+  - loaders `loadKontes`, `loadPemilihanAktifSaya`, `loadKandidat`, `loadHasilPemilihan`, `loadHasilPartisipasi`, `loadHasilSuara`;
+  - `PemilihanError` with a `reason`. An unknown DB error is logged by its code only, because some Postgres messages echo input values.
+- `src/lib/pemilihan/mutations.ts` (server-only): `berikanSuara`, and `berikanSuaraDibantu`, which also checks `can(user, "pemilihan_bantu", "create")` itself. Each follows Zod → RPC → log. Logs: `Memberikan suara pada pemilihan "…"`, `Membantu pemilih memberikan suara: {nama} (formulir {nomor})`. Nothing writes the input to the console.
+- `lib/activity-modules.ts`: `pemilihan: "Pemilihan"` (brief §7 updated). `src/types/database.ts` regenerated (130 lines, additions only).
+- `docs/pemilihan-kerahasiaan.md` (new, Indonesian, for panitia/majelis): how it's stored, what's guaranteed, who sees what, the limits, and recommendations, plus a technical appendix.
+  - The limits section names direct database access (easy matching through `xmin` and storage order, backups/WAL, and the platform roles `postgres`, `supabase_admin`, `supabase_read_only_user`, `supabase_etl_admin`, which hold `pg_read_all_data` and/or BYPASSRLS), live tallies, the portal switch, paper forms, and the voter's device.
+- `docs/deploy-checklist.md` §9: the log settings the secret ballot relies on. Found on the local stack: `auto_explain` logs queries over 10s with full parameters; it never fires for app requests only because `authenticated` has `statement_timeout = 8s`.
+
+**Verification (stage 14a)**
+
+- `tsc`, `eslint .`, and `next build` pass. `pnpm test`: 348 tests, 50 files (unchanged).
+- `pnpm test:db`: 24 files, 927 tests. New `pemilihan.test.sql` (150 tests):
+  - catalog: suara columns, default, no identity/sequence/extra index, FKs only to pemilihan/kontes, nothing references them, only the final triggers, RLS on all five, no policy, no privilege for anon/authenticated/service_role, definer and empty search_path, exactly seven executable functions, no function writes activity_logs;
+  - seeds, kontes CHECK and no third contest, role/permission seeds;
+  - A at the lower bounds (10 + 5, same people in both contests, at the opening instant) then a second vote refused, with exactly 1 partisipasi and 15 suara;
+  - B refused at 9/31 Penatua, 4/16 PPJ, and an empty ballot, with nothing written, then accepted at 30 + 15;
+  - D refused for a non-candidate peserta, another election's candidate, an unknown id, null, a duplicate, and a 2-D array;
+  - a peserta who may not vote, a non-peserta, before the window, at its end (exclusive), ditutup, draft, unknown election, staff without jemaat, anon;
+  - super_admin, panitia, a voter, and service_role can't select or insert suara/partisipasi; update/delete/truncate refused even for the owner; partisipasi CHECKs;
+  - portal lists and candidates (sort without honorific, gates);
+  - assisted: without permission, success for a voter without an account, case-insensitive duplicate form number, own record, blank/long number, already voted, not a voter, limits, closed election, super_admin for D (portal then shows `dibantu` and refuses D's own vote), stored panitia and trimmed number, exact suara count;
+  - results: turnout `6|4|66.7|2|2` and per panitia; the panitia's tally live with the switch off (ranks, ties, sums 62 + 31 = 93 rows); 42501 without permission; portal empty while off, full when on (dibuka and ditutup), empty when off on ditutup, full when diumumkan; any jemaat may read; PT403 for staff;
+  - guards: peserta frozen; name/schedule/stamps frozen; no backwards or skipped status; insert must be draft; schedule required, not ended, and CHECK; too few candidates; the panitia opens E2 and is stamped; no delete after draft; jemaat on a list can't be deleted; a draft deletes with its peserta; RLS for viewer/admin/panitia; kontes read-only;
+  - no activity_logs row from any of it.
+- `portal_data.test.sql`: the "exactly the nine portal functions" assertion now lists thirteen.
+- `pnpm test:integration`: 18 files, 225 tests, 224 pass. New `pemilihan.test.ts` (12 tests, all pass):
+  - REST: super_admin, panitia, viewer, a voter, and the service-role key all get 42501 on GET/POST of both hidden tables;
+  - before/after a real REST vote: `xmin/xmax` of the voter's and the candidates' `jemaat` rows (as viewer), all `pemilihan_peserta` rows (as panitia), and the voter's profile (as super_admin) are unchanged, while the election row's did change (so the method can see a lock);
+  - five simultaneous REST votes from one JWT: exactly one 200, four 400 `PM003` "Anda sudah memberikan suara." Postgres logged them from two different backends, so they really overlapped;
+  - the lib loaders, mutations, log rows (module, sentence, email, IP), and reason mapping;
+  - no activity_logs row and no captured console line contains a candidate name or id.
+  - Cleanup goes through `docker exec … psql` as postgres, since votes can't be removed through the API. No leftovers (checked).
+- **The one failure is not from this stage**: `jemaat-portal-pages.test.ts` › "Pelayanan lists the upcoming row".
+  - Its fixture dates the row `weekContaining().start` (this week's Sunday), but "Akan Datang" starts today. It only passes on a Sunday: 13b ran on Sunday 2026-10-18, today is Saturday 2026-11-21.
+  - Left untouched (another module). The likely fix is to date the fixture `today()`.
+- Mutation checks:
+  - adding `pemilihan_suara.kandidat_jemaat_id → jemaat` as an FK failed the integration `xmax` test (viewer saw `jemaat.xmax` change) and pgTAP catalog test 7;
+  - dropping `and pp.dapat_dipilih` from `pemilihan_catat_suara` failed pgTAP test 39 onward.
+
+  Both were restored and re-checked.
+- Postgres logs on the local stack after the runs: the vote refusals appear as bare messages, PostgREST's `STATEMENT` shows only `$1`, and "Kandidat Integrasi" occurs 0 times.
+- Local stack: Docker was up; `supabase start`, then `migration up --local` (0038 only). `pnpm` is still broken here (corepack), so commands ran from `node_modules/.bin` with a throwaway `pnpm` shim on `PATH` for the integration harness.
+- **Not verified yet**: production (push and the §9 settings check are manual). There is no UI to check in a browser until 14b/14c.

@@ -13,6 +13,7 @@ export const MODULE_LABELS = {
   users: "Pengguna",
   roles: "Roles & Permissions",
   situs: "Konten Situs",
+  pemilihan: "Pemilihan",
 } as const;
 
 export type ActivityModule = keyof typeof MODULE_LABELS;

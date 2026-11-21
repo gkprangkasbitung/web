@@ -66,3 +66,21 @@ Check it after deploying:
 1. With the anon key: `POST {SUPABASE_URL}/rest/v1/rpc/profil_saya` with the headers `apikey: <anon key>` and `Content-Profile: portal` → 401 with `"code":"42501"` ("permission denied for schema portal").
 2. The same call with the access token of a staff account that has no jemaat link (`Authorization: Bearer <token>`) → 403 with `"code":"PT403"` ("Akun ini belum terhubung ke data jemaat.").
 3. The same call with a jemaat account's token → 200 with only that jemaat's own row.
+
+## 9. Pemilihan Majelis Jemaat (stage 14a)
+
+- Push migration `0038_pemilihan.sql` together with the earlier unpushed ones (0018–0037). It adds the role `panitia_pemilihan` and the permissions `pemilihan:*`, `pemilihan_hasil:read`, `pemilihan_bantu:create` (granted to super_admin and panitia_pemilihan only). No new exposed schema: the portal functions live in `portal` (§8).
+- The secret ballot relies on these Postgres settings (Supabase → Project Settings → Database, or `show …` in the SQL Editor). Check them before the election opens and **don't change them until the results are announced**; `docs/pemilihan-kerahasiaan.md` explains why:
+  - `log_statement` is `ddl` or `none` (never `mod` or `all`), and `log_min_duration_statement` is `-1`;
+  - `log_parameter_max_length_on_error` is `0`;
+  - `pgaudit.log` is `none` (no `write`/`function`/`all`);
+  - the `authenticated` role's `statement_timeout` (8s) stays below `auto_explain.log_min_duration` (10s): `auto_explain` logs a slow query **with its parameters**, which for a vote are the choices;
+  - `track_commit_timestamp` stays `off`.
+- Keep the people with access to the Supabase project (dashboard, SQL Editor, backups) to a known few during the election: direct database access can match votes to voters (`docs/pemilihan-kerahasiaan.md`, "Batasan").
+- Don't add `pemilihan_suara` or `pemilihan_partisipasi` to a Realtime publication.
+
+Check it after deploying:
+
+1. With a super_admin's access token: `GET {SUPABASE_URL}/rest/v1/pemilihan_suara?select=*` and `…/pemilihan_partisipasi?select=*` → 403 with `"code":"42501"`. The same with the service-role key → `42501` too.
+2. `GET {SUPABASE_URL}/rest/v1/pemilihan_kontes?select=*&order=urutan` with any signed-in token → Penatua 10–30, PPJ 5–15.
+3. With a viewer's token: `POST {SUPABASE_URL}/rest/v1/rpc/hasil_suara` with `{"p_pemilihan_id": "<any uuid>"}` → 403 with `"code":"42501"`.

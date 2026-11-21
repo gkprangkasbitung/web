@@ -157,9 +157,10 @@ select is(
 select is(
   (select array_agg(proname::text order by proname) from pg_proc
    where pronamespace = 'portal'::regnamespace and has_function_privilege('authenticated', oid, 'execute')),
-  array['ajukan_perubahan', 'batalkan_pengajuan', 'keluarga_saya', 'komisi_saya', 'pelayanan_saya',
-        'pengajuan_saya', 'pengaturan_portal', 'persembahan_saya', 'profil_saya'],
-  'authenticated can execute exactly the nine portal functions'
+  array['ajukan_perubahan', 'batalkan_pengajuan', 'berikan_suara', 'hasil_pemilihan', 'kandidat', 'keluarga_saya',
+        'komisi_saya', 'pelayanan_saya', 'pemilihan_aktif_saya', 'pengajuan_saya', 'pengaturan_portal',
+        'persembahan_saya', 'profil_saya'],
+  'authenticated can execute exactly the thirteen portal functions (nine from 0037, four for pemilihan from 0038)'
 );
 select is(
   (select count(*)::int

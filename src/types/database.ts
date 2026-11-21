@@ -20,6 +20,21 @@ export type Database = {
 "batalkan_pengajuan":
 { Args: { "id": string }; Returns: undefined
                            },
+"berikan_suara":
+{ Args: { "pemilihan_id": string,"penatua": (string)[],"ppj": (string)[] }; Returns: {
+              "pemilihan_nama": string,"waktu": string
+            }[]
+                           },
+"hasil_pemilihan":
+{ Args: { "id": string }; Returns: {
+              "jumlah_suara": number,"kontes": string,"kontes_nama": string,"nama_tampilan": string,"peringkat": number
+            }[]
+                           },
+"kandidat":
+{ Args: { "pemilihan_id": string }; Returns: {
+              "jemaat_id": string,"nama_tampilan": string
+            }[]
+                           },
 "keluarga_saya":
 { Args: Record<PropertyKey, never>; Returns: {
               "hubungan_keluarga": string,"nama": string,"status_keanggotaan": string
@@ -33,6 +48,11 @@ export type Database = {
 "pelayanan_saya":
 { Args: { "dari": string,"sampai": string }; Returns: {
               "jam": string,"kategori_key": string,"kategori_nama": string,"peran": string,"smka_kelompok": string,"tanggal": string,"tempat_nama": string
+            }[]
+                           },
+"pemilihan_aktif_saya":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "dapat_memilih": boolean,"dibuka_pada": string,"ditutup_pada": string,"hasil_tersedia": boolean,"id": string,"metode": string,"nama": string,"periode": string,"status": string,"sudah_memilih": boolean,"waktu_memilih": string
             }[]
                            },
 "pengajuan_saya":
@@ -349,6 +369,101 @@ isOneToOne: false
                   }
                   Relationships: [
                     
+                  ]
+                },"pemilihan": {
+                  Row: {
+                    "created_at": string,"created_by": string | null,"dibuka_oleh": string | null,"dibuka_pada": string | null,"ditutup_oleh": string | null,"ditutup_pada": string | null,"diumumkan_oleh": string | null,"id": string,"nama": string,"periode": string | null,"status": string,"tampilkan_hasil_saat_berjalan": boolean,"updated_at": string,"waktu_dibuka": string | null,"waktu_ditutup": string | null,"waktu_diumumkan": string | null
+                  }
+                  Insert: {
+                    "created_at"?: string,"created_by"?: string | null,"dibuka_oleh"?: string | null,"dibuka_pada"?: string | null,"ditutup_oleh"?: string | null,"ditutup_pada"?: string | null,"diumumkan_oleh"?: string | null,"id"?: string,"nama": string,"periode"?: string | null,"status"?: string,"tampilkan_hasil_saat_berjalan"?: boolean,"updated_at"?: string,"waktu_dibuka"?: string | null,"waktu_ditutup"?: string | null,"waktu_diumumkan"?: string | null
+                  }
+                  Update: {
+                    "created_at"?: string,"created_by"?: string | null,"dibuka_oleh"?: string | null,"dibuka_pada"?: string | null,"ditutup_oleh"?: string | null,"ditutup_pada"?: string | null,"diumumkan_oleh"?: string | null,"id"?: string,"nama"?: string,"periode"?: string | null,"status"?: string,"tampilkan_hasil_saat_berjalan"?: boolean,"updated_at"?: string,"waktu_dibuka"?: string | null,"waktu_ditutup"?: string | null,"waktu_diumumkan"?: string | null
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"pemilihan_kontes": {
+                  Row: {
+                    "kode": string,"max_pilih": number,"min_pilih": number,"nama": string,"urutan": number
+                  }
+                  Insert: {
+                    "kode": string,"max_pilih": number,"min_pilih": number,"nama": string,"urutan": number
+                  }
+                  Update: {
+                    "kode"?: string,"max_pilih"?: number,"min_pilih"?: number,"nama"?: string,"urutan"?: number
+                  }
+                  Relationships: [
+                    
+                  ]
+                },"pemilihan_partisipasi": {
+                  Row: {
+                    "dibantu_oleh": string | null,"jemaat_id": string,"metode": string,"nomor_formulir": string | null,"pemilihan_id": string,"waktu": string
+                  }
+                  Insert: {
+                    "dibantu_oleh"?: string | null,"jemaat_id": string,"metode": string,"nomor_formulir"?: string | null,"pemilihan_id": string,"waktu"?: string
+                  }
+                  Update: {
+                    "dibantu_oleh"?: string | null,"jemaat_id"?: string,"metode"?: string,"nomor_formulir"?: string | null,"pemilihan_id"?: string,"waktu"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pemilihan_partisipasi_pemilihan_id_fkey"
+      columns: ["pemilihan_id"]
+isOneToOne: false
+      referencedRelation: "pemilihan"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"pemilihan_peserta": {
+                  Row: {
+                    "created_at": string,"dapat_dipilih": boolean,"dapat_memilih": boolean,"jemaat_id": string,"nama_tampilan": string,"pemilihan_id": string
+                  }
+                  Insert: {
+                    "created_at"?: string,"dapat_dipilih"?: boolean,"dapat_memilih"?: boolean,"jemaat_id": string,"nama_tampilan": string,"pemilihan_id": string
+                  }
+                  Update: {
+                    "created_at"?: string,"dapat_dipilih"?: boolean,"dapat_memilih"?: boolean,"jemaat_id"?: string,"nama_tampilan"?: string,"pemilihan_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pemilihan_peserta_jemaat_id_fkey"
+      columns: ["jemaat_id"]
+isOneToOne: false
+      referencedRelation: "jemaat"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "pemilihan_peserta_pemilihan_id_fkey"
+      columns: ["pemilihan_id"]
+isOneToOne: false
+      referencedRelation: "pemilihan"
+      referencedColumns: ["id"]
+    }
+                  ]
+                },"pemilihan_suara": {
+                  Row: {
+                    "id": string,"kandidat_jemaat_id": string,"kontes": string,"pemilihan_id": string
+                  }
+                  Insert: {
+                    "id"?: string,"kandidat_jemaat_id": string,"kontes": string,"pemilihan_id": string
+                  }
+                  Update: {
+                    "id"?: string,"kandidat_jemaat_id"?: string,"kontes"?: string,"pemilihan_id"?: string
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pemilihan_suara_kontes_fkey"
+      columns: ["kontes"]
+isOneToOne: false
+      referencedRelation: "pemilihan_kontes"
+      referencedColumns: ["kode"]
+    },{
+      foreignKeyName: "pemilihan_suara_pemilihan_id_fkey"
+      columns: ["pemilihan_id"]
+isOneToOne: false
+      referencedRelation: "pemilihan"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"pendeta": {
                   Row: {
@@ -780,6 +895,11 @@ isOneToOne: false
 "auth_throttle":
 { Args: { "p_buckets": (string)[],"p_record": boolean,"p_subjects": (string)[] }; Returns: number
                            },
+"berikan_suara_dibantu":
+{ Args: { "p_jemaat_id": string,"p_nomor_formulir": string,"p_pemilihan_id": string,"p_penatua": (string)[],"p_ppj": (string)[] }; Returns: {
+              "nama_pemilih": string,"waktu": string
+            }[]
+                           },
 "create_warta":
 { Args: { "p_judul_kebaktian": string,"p_renungan_ayat"?: string,"p_renungan_isi"?: string,"p_renungan_judul"?: string,"p_renungan_kitab"?: string,"p_renungan_sumber"?: string,"p_slug": string,"p_tanggal_kebaktian": string,"p_tema_kebaktian"?: string }; Returns: string
                            },
@@ -798,6 +918,16 @@ isOneToOne: false
                            },
 "has_permission":
 { Args: { "p_action": string,"p_resource": string,"p_user_id": string }; Returns: boolean
+                           },
+"hasil_partisipasi":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "dibantu": number,"dibantu_per_panitia": Json,"mandiri": number,"persen": number,"sudah_memilih": number,"total_pemilih": number
+            }[]
+                           },
+"hasil_suara":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "jemaat_id": string,"jumlah_suara": number,"kontes": string,"kontes_nama": string,"nama_tampilan": string,"peringkat": number
+            }[]
                            },
 "kegiatan_bulan":
 { Args: { "p_bulan": string }; Returns: {

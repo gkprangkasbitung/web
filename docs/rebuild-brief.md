@@ -171,6 +171,7 @@ Every successful mutation in every module writes one `activity_logs` row right a
 - `user_id`, `user_email`, and `ip_address` (the first entry of `x-forwarded-for`, else `x-real-ip`).
 - A logging failure goes to the server console and never breaks the action.
 - Display labels: auth "Autentikasi", akun "Akun Saya", warta "Warta", peribadahan "Peribadahan", litbang "Litbang", sarana_dana "Sarana & Dana", tempat "Tempat", wilayah "Wilayah", jemaat "Jemaat", label_jemaat "Label Jemaat", users "Pengguna", roles "Roles & Permissions".
+- Stage 14a adds module `pemilihan` "Pemilihan" (§18). Its rows never contain a voter's choices.
 
 ## 8. Public website
 
@@ -570,3 +571,105 @@ Signed-in accounts with `profiles.jemaat_id` (isJemaat, §11f) use `/jemaat`. St
 
 ### 17.4 Account deletion
 "Hapus akun login" on `/jemaat/akun`: confirmation, then the server deletes the auth user (service role, server-only). The jemaat record stays; `profiles.jemaat_id` disappears with the profile. Staff accounts cannot be deleted from here.
+
+## 18. Pemilihan Majelis Jemaat
+
+### 18.1 Concepts
+- `pemilihan` (an election): nama, periode, status (`draft` → `dibuka` → `ditutup` → `diumumkan`), dibuka_pada, ditutup_pada (WIB), tampilkan_hasil_saat_berjalan (boolean, default false).
+  - Settled in stage 14a: the window is dibuka_pada (inclusive) to ditutup_pada (exclusive), with dibuka_pada < ditutup_pada. Status only moves forward one step at a time.
+  - After draft, only tampilkan_hasil_saat_berjalan may still change, at any time. Everything else, the schedule included, is frozen.
+  - Each status change records who and when (`dibuka_oleh`/`waktu_dibuka`, `ditutup_oleh`/`waktu_ditutup`, `diumumkan_oleh`/`waktu_diumumkan`), for the berita acara.
+  - Opening needs: a schedule whose ditutup_pada hasn't passed, at least one peserta with dapat_memilih, and at least as many candidates as each contest's minimum.
+  - Only drafts can be deleted.
+- Two contests per election, seeded from a fixed config (table `pemilihan_kontes`: kode, nama, min_pilih, max_pilih, CHECK min ≤ max; readable by any signed-in account, changed only by migrations):
+  - **Penatua (Majelis Jemaat)**: choose min 10, max 30;
+  - **PPJ (Pengawas Perbendaharaan Jemaat)**: choose min 5, max 15.
+  - No gender rule. The same person may be chosen in both contests. Limits live in the DB, not in UI code.
+- `pemilihan_peserta`: one row per jemaat per election: jemaat_id, dapat_memilih, dapat_dipilih, nama_tampilan (with honorific, e.g. "Bpk. …"). Frozen once the election opens (trigger rejects changes when status ≠ draft). A jemaat on any election's list can't be deleted (FK restrict).
+- Candidates for both contests = peserta with dapat_dipilih. Voters = peserta with dapat_memilih who have a Portal Jemaat account (§17).
+
+### 18.2 Secret ballot (hard requirement)
+- `pemilihan_partisipasi` (pemilihan_id, jemaat_id, waktu): unique (pemilihan_id, jemaat_id). It records **that** someone voted, never **what**.
+- `pemilihan_suara` (id uuid v4 random, pemilihan_id, kontes, kandidat_jemaat_id): no voter column, no created_at, no sequential id. Nothing anywhere links a suara row to a voter.
+- Activity log, server logs and error reports never contain a voter's choices.
+- A vote is final: no edit, no delete, and no screen ever shows a voter what they chose.
+- Known limit, documented in docs: someone with direct superuser access to the database could in theory correlate rows through low-level storage details. App-level and RLS access cannot.
+- Settled in stage 14a (`docs/pemilihan-kerahasiaan.md`):
+  - Neither table has any policy, and every privilege is revoked from anon, authenticated, and service_role (service_role bypasses RLS).
+  - Neither table has a foreign key to a row that identifies a person (jemaat, pemilihan_peserta, profiles, auth.users). A foreign-key check locks the referenced row, and the lock leaves the voting transaction's id in its `xmax`, which REST exposes to anyone who may read that table. That would let a viewer match each ballot to its voter.
+  - The only shared rows a vote touches are the election row (locked FOR SHARE, so closing waits for votes in flight) and the two contest rows.
+  - Votes are final through triggers: no update, delete, or truncate.
+  - The "known limit" is not only theoretical: with direct database access (Supabase dashboard/SQL Editor, platform roles, backups), matching is easy. The docs say so plainly.
+
+### 18.3 Casting a vote (portal)
+- One RPC `portal.berikan_suara(pemilihan_id, penatua uuid[], ppj uuid[])`, security definer, voter derived from `auth.uid()`. In one transaction: check status `dibuka` and now() within the window; caller is a peserta with dapat_memilih; arrays have no duplicates, every id is a candidate of this election, counts within each contest's min/max; insert partisipasi (unique constraint stops a second vote); insert one suara row per choice. Any failure → nothing written, clear Indonesian error.
+- Settled in stage 14a:
+  - It returns `waktu` (for the receipt) and `pemilihan_nama`.
+  - The app logs `Memberikan suara pada pemilihan "{nama}"` (module `pemilihan`), never the choices.
+  - Errors carry stable SQLSTATEs, answered by PostgREST with HTTP 400, for the UI to map (`src/lib/pemilihan/types.ts`). Messages never name a choice.
+
+    | Code | Meaning |
+    | --- | --- |
+    | PM001 | outside the window |
+    | PM002 | not a voter |
+    | PM003 | already voted ("Anda sudah memberikan suara."), including the unique-violation race |
+    | PM004 | too few or too many in a contest |
+    | PM005 | not a candidate of this election |
+    | PM006 | duplicate |
+    | PM007 | form number used |
+    | PM008 | panitia assisting their own record |
+    | PM009 | form number missing or too long |
+    | PM010 | frozen (peserta or election after draft, or a vote) |
+    | PM011 | status change refused, or the election can't open yet |
+
+    `PT403`, `42501`, and `P0002` keep their meaning.
+- Portal reads (stage 14a):
+  - `portal.pemilihan_aktif_saya()` returns the caller's elections past draft (dibuka, ditutup, diumumkan), newest first: id, nama, periode, status, dibuka_pada, ditutup_pada, dapat_memilih, sudah_memilih, waktu_memilih, metode, and hasil_tersedia (whether §18.6 lets the portal show the results).
+  - `portal.kandidat(pemilihan_id)` returns jemaat_id and nama_tampilan, sorted by name ignoring a leading Bpk./Ibu/Sdr./Sdri. Only for a voter of that election, while it is dibuka.
+- Ballot UI at `/jemaat/pemilihan/[id]`: Penatua and PPJ as two steps, searchable alphabetical list with checkboxes, sticky counter ("12 dari maks. 30 dipilih"), inline warning below minimum or at maximum (further checkboxes disabled at max), a review step listing all choices, a confirmation dialog stating the vote cannot be changed, then a receipt ("Suara Anda tercatat pada Minggu, 7 Desember 2026, 10.42 WIB"). Choices live only in the browser until submit; no server-side draft.
+
+### 18.4 Panitia (admin)
+- New permission resource `pemilihan` (create, read, update, delete) and `pemilihan_hasil:read`; new seeded role `panitia_pemilihan`. Seeded: super_admin all; panitia_pemilihan all.
+  - Stage 14a seeded these, plus `pemilihan_bantu:create` (§18.5), to those two roles only.
+  - RLS: `pemilihan` select/insert/update/delete with `pemilihan:read`/`create`/`update`/`delete`; `pemilihan_peserta` select with `pemilihan:read` and writes with `pemilihan:update`.
+  - The Roles & Permissions editor (`set_role_ui_permissions`, `VISIBLE_RESOURCES`) doesn't show these resources yet. Both get them together in 14b, because widening only the database side would make a save from the editor drop these grants.
+- `/admin/pemilihan`: create/edit an election (draft only), import the peserta list, open/close with confirmation, announce.
+- Import: CSV or XLSX with columns No, Nama (Bpk./Ibu/Sdr./Sdri), Dapat Memilih, Dapat Dipilih (Ya/Tidak, ✓, 1/0). Each row is matched to a jemaat record; preview shows matched, ambiguous (several jemaat with that name: panitia picks) and unmatched rows. The election cannot open while any row is unresolved. Import replaces the whole list atomically.
+- Live page `/admin/pemilihan/[id]/hasil`: turnout (sudah memilih / total pemilih, %, refreshed every 10 s by polling an aggregate RPC) for `pemilihan:read`; vote tallies per contest, ranked, for `pemilihan_hasil:read`, in real time and in any status. Ties marked "Seri".
+  - Changed in stage 14a, on request. This used to read "only while `dibuka` if tampilkan_hasil_saat_berjalan is true, otherwise only after `ditutup`". tampilkan_hasil_saat_berjalan now governs the Portal Jemaat only (§18.6).
+  - `docs/pemilihan-kerahasiaan.md` records the risk: comparing live tallies before and after a known voter reveals that ballot. So `pemilihan_hasil:read` should stay with few people.
+- RPCs (stage 14a):
+  - `hasil_partisipasi(p_pemilihan_id)` (`pemilihan:read`) returns total_pemilih (every peserta with dapat_memilih, account or not), sudah_memilih, persen (1 decimal), mandiri, dibantu, and dibantu_per_panitia `[{user_id, nama, jumlah}]`.
+  - `hasil_suara(p_pemilihan_id)` (`pemilihan_hasil:read`) returns kontes, kontes_nama, jemaat_id, nama_tampilan, jumlah_suara, and peringkat (`rank()`: equal votes share it). Every candidate is listed, 0 included.
+- After close: export results (CSV) and a printable berita acara (counts per contest, turnout, open/close times, panitia who closed it).
+- Activity log: create, import, open, close, announce. Never the choices. A voter's own portal vote is logged as `Memberikan suara pada pemilihan "{nama}"` (stage 14a), the same fact partisipasi holds.
+### 18.5 Assisted voting (Pemungutan Suara Dibantu)
+- Permission `pemilihan_bantu:create` (seeded to panitia_pemilihan and super_admin).
+- `/admin/pemilihan/[id]/bantu`: panitia searches a voter (dapat_memilih, not yet voted), ticks "Identitas pemilih sudah diverifikasi", enters the paper form number (required, unique per election), then fills the same two-step ballot from the paper form, review, confirmation modal.
+- RPC `berikan_suara_dibantu(pemilihan_id, jemaat_id, nomor_formulir, penatua uuid[], ppj uuid[])`: same validation and transaction as §18.3; partisipasi gets metode = `dibantu`, dibantu_oleh = auth.uid(), nomor_formulir. Suara rows stay unlinked. A panitia cannot assist their own jemaat record (they vote through the portal).
+- Stage 14a details:
+  - The parameters are named `p_…` like every other public RPC.
+  - The form number is trimmed, 1–50 characters, and unique per election case-insensitively.
+  - It returns `waktu` and `nama_pemilih` (the peserta's nama_tampilan) for the log line.
+  - metode, dibantu_oleh, and nomor_formulir exist only on partisipasi. dibantu_oleh has no foreign key, so deleting that panitia's account neither fails nor rewrites the row; the name then shows as missing.
+- Partisipasi rows from the portal get metode = `mandiri`.
+- The voter's portal shows "Suara Anda dicatat oleh panitia pada {waktu}" for an assisted vote.
+- Activity log: "Membantu pemilih memberikan suara: {nama} (formulir {nomor})". Never the choices.
+- Berita acara adds the number of assisted votes per panitia.
+- Assisted voters do not need a portal account.
+
+### 18.6 Portal results
+- `portal.hasil_pemilihan(id)` returns ranked tallies only when (status `dibuka` or `ditutup`, and tampilkan_hasil_saat_berjalan) or status `diumumkan`; otherwise nothing. Shown at `/jemaat/pemilihan/[id]/hasil`.
+  - Stage 14a, on request: the switch may be turned on or off at any time, and it covers `ditutup` too (before, only `dibuka`).
+  - Any account linked to a jemaat may read the results, not only the election's peserta.
+  - Columns: kontes, kontes_nama, nama_tampilan, jumlah_suara, peringkat.
+  - An unknown id answers P0002.
+
+### 18.7 Username accounts (Portal Jemaat)
+- `profiles.username` (citext, unique, `^[a-z0-9]+(\.[a-z0-9]+)*$`, 3–30 chars, reserved words rejected).
+- Auth email for these accounts = `{username}@{PORTAL_LOGIN_DOMAIN}` (env; a subdomain the church controls, with no mailbox). Never shown to jemaat. Accounts are created server-side with the service role (`email_confirm: true`); public sign-up stays disabled.
+- Username generator: strip honorifics and titles (Bpk., Ibu, Sdr., Sdri., Pdt., Pnt., Dkn., St., anything after a comma), NFKD and remove diacritics, lowercase, keep a–z0–9, first word + "." + last word (single word: that word), truncate to 30, on collision append 2, 3, … Admin can edit the suggestion before saving.
+- Temporary password: 12 random characters from an unambiguous alphabet, shown once (printable slip), never stored or logged in plain text. `profiles.wajib_ganti_password = true` forces a change at first login before any portal page.
+- `/portal/masuk` offers both "Username & password" and "Kode lewat email". Username login: generic error "Username atau password salah.", throttled per username and per IP, temporary lockout after repeated failures.
+- Admin/panitia (`users:update`, or `pemilihan:update` for jemaat-only accounts) can reset a password: new temporary password, shown once, logged without the password.
+- Bulk action in Pengguna and in the election peserta summary: "Buat akun username" for selected jemaat who have no account, with a print page of slips (nama, username, temporary password).

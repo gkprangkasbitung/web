@@ -81,6 +81,7 @@ export const PEMILIHAN_ERROR_CODES = {
 export type PemilihanErrorReason =
   | (typeof PEMILIHAN_ERROR_CODES)[keyof typeof PEMILIHAN_ERROR_CODES]
   | "bukan_jemaat"
+  | "wajib_ganti_password"
   | "tidak_ditemukan"
   | "akses"
   | "tidak_valid"

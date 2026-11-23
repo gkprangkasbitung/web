@@ -23,6 +23,8 @@ export type RowAction<TData> = {
   onSelect?: (row: TData) => void;
   /** Needs `warta:update`; hidden in read-only mode. */
   write?: boolean;
+  /** Rows this action doesn't apply to, such as staff accounts for "Reset Password". */
+  hidden?: (row: TData) => boolean;
 };
 
 export type RowActionsConfig<TData> = {
@@ -72,7 +74,7 @@ export function resolveRowActions<TData>(
     });
   }
   (config.extra ?? []).forEach((action, index) => {
-    if (action.write && !canWrite) return;
+    if ((action.write && !canWrite) || action.hidden?.(row)) return;
     items.push({
       key: `extra-${index}`,
       label: typeof action.label === "function" ? action.label(row) : action.label,

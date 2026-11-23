@@ -3,6 +3,7 @@ import "server-only";
 import { z } from "zod";
 
 import { logActivity, quote } from "@/lib/activity-log";
+import { accountLabel } from "@/lib/auth/portal";
 import type { AuthUser } from "@/lib/auth/session";
 import { loadMyJemaat } from "@/lib/jemaat-portal";
 import type { ServerSupabase } from "@/lib/supabase/server";
@@ -21,7 +22,7 @@ import { PENGAJUAN_FIELD_LABELS, pengajuanFields, pengajuanInputSchema } from ".
 
 export type PortalMutationResult<T> = { ok: true; data: T } | { ok: false; reason: PortalError["reason"]; message: string };
 
-type Context = { supabase: ServerSupabase; user: Pick<AuthUser, "id" | "email"> };
+type Context = { supabase: ServerSupabase; user: Pick<AuthUser, "id" | "email"> & { username?: string | null } };
 
 function failure(error: unknown): { ok: false; reason: PortalError["reason"]; message: string } {
   if (error instanceof PortalError) return { ok: false, reason: error.reason, message: error.message };
@@ -29,9 +30,9 @@ function failure(error: unknown): { ok: false; reason: PortalError["reason"]; me
   return { ok: false, reason: "gagal", message: "Terjadi kesalahan di server. Coba lagi." };
 }
 
-/** The jemaat's name for an activity sentence; the email if it can't be read. */
+/** The jemaat's name for an activity sentence; the username or email if it can't be read. */
 async function jemaatLabel({ supabase, user }: Context): Promise<string> {
-  return (await loadMyJemaat(supabase))?.nama ?? user.email;
+  return (await loadMyJemaat(supabase))?.nama ?? accountLabel({ username: user.username ?? null, email: user.email });
 }
 
 /** Submits a change request for the caller's own jemaat. Returns its id. */

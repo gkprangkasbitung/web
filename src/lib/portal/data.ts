@@ -37,7 +37,10 @@ import {
 /** SQLSTATE the portal raises for an account without a jemaat link (0037). */
 export const NOT_JEMAAT_CODE = "PT403";
 
-export type PortalErrorReason = "bukan_jemaat" | "tidak_valid" | "tidak_ditemukan" | "bentrok" | "akses" | "gagal";
+/** SQLSTATE while the account still has a temporary password (0039, §18.7). */
+export const WAJIB_GANTI_PASSWORD_CODE = "PT428";
+
+export type PortalErrorReason = "bukan_jemaat" | "wajib_ganti_password" | "tidak_valid" | "tidak_ditemukan" | "bentrok" | "akses" | "gagal";
 
 /** A portal call that failed; `message` is fit to show (hand-written Indonesian, or the generic text). */
 export class PortalError extends Error {
@@ -61,6 +64,8 @@ export function portalError(error: Pick<PostgrestError, "code" | "message">, fn:
   switch (error.code) {
     case NOT_JEMAAT_CODE:
       return new PortalError("bukan_jemaat", error.message);
+    case WAJIB_GANTI_PASSWORD_CODE:
+      return new PortalError("wajib_ganti_password", error.message);
     case "22023":
       return new PortalError("tidak_valid", error.message);
     case "P0002":

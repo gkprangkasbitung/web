@@ -31,6 +31,18 @@ export function homePath(account: PortalAccount): "/admin" | "/jemaat" | null {
 
 export const LOGIN_PATH: Record<PortalArea, string> = { admin: "/login", jemaat: "/portal/masuk" };
 
+/** Where a jemaat with a temporary password is held until they change it (brief §18.7). */
+export const GANTI_PASSWORD_PATH = "/jemaat/ganti-password";
+
+/**
+ * How an account is named to its owner and in the portal: the username for
+ * a username account (whose auth email is internal and never shown to
+ * jemaat, §18.7), else the email.
+ */
+export function accountLabel(account: { username: string | null; email: string }): string {
+  return account.username ?? account.email;
+}
+
 /** Where a non-staff account opening /admin, or a non-jemaat opening /jemaat, is sent. */
 export const NO_ACCESS_PATH = "/portal?error=akses";
 

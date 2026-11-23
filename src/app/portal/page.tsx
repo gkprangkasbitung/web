@@ -8,7 +8,7 @@ import { PortalBrand } from "@/components/portal/portal-brand";
 import { portalLinkClass } from "@/components/portal/portal-split-layout";
 import { ThemeSwitcher } from "@/components/theme/theme-switcher";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { homePath, isJemaat, isStaff } from "@/lib/auth/portal";
+import { accountLabel, homePath, isJemaat, isStaff } from "@/lib/auth/portal";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 
 import { logoutFromPortal } from "./actions";
@@ -69,8 +69,8 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
           <div className="flex w-full max-w-[984px] flex-col gap-3">
             <PortalAlert tone={refused ? "error" : "info"}>
               {refused
-                ? `Akun ${user.email} tidak memiliki akses ke halaman yang tadi Anda buka.`
-                : `Akun ${user.email} belum memiliki akses ke portal mana pun. Hubungi sekretariat untuk aktivasi.`}
+                ? `Akun ${accountLabel(user)} tidak memiliki akses ke halaman yang tadi Anda buka.`
+                : `Akun ${accountLabel(user)} belum memiliki akses ke portal mana pun. Hubungi sekretariat untuk aktivasi.`}
             </PortalAlert>
             <div className="flex flex-wrap gap-2">
               {isJemaat(user) && (
@@ -111,7 +111,7 @@ export default async function PortalPage({ searchParams }: { searchParams: Promi
             </span>
             <span className="hidden items-center gap-2 text-sm text-brand-muted sm:flex">
               <LockIcon aria-hidden="true" className="size-4" />
-              Masuk dengan email dan password akun Anda
+              Masuk dengan username dan password dari sekretariat
             </span>
             <span className={`${cardButtonClass} bg-brand-foreground text-brand`}>
               Masuk sebagai Jemaat

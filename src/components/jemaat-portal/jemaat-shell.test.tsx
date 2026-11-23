@@ -15,7 +15,7 @@ describe("JemaatShell", () => {
   it("the mobile bottom nav has exactly Beranda, Pelayanan, Profil, Akun, in order", () => {
     pathname = "/jemaat";
     render(
-      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" email="uji@test.local" isStaffToo={false}>
+      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" akun="uji@test.local" isStaffToo={false}>
         <p>Konten</p>
       </JemaatShell>,
     );
@@ -29,7 +29,7 @@ describe("JemaatShell", () => {
   it("every bottom nav link is at least 48px tall and reachable by keyboard", async () => {
     const user = userEvent.setup();
     render(
-      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" email="uji@test.local" isStaffToo={false}>
+      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" akun="uji@test.local" isStaffToo={false}>
         <p>Konten</p>
       </JemaatShell>,
     );
@@ -56,7 +56,7 @@ describe("JemaatShell", () => {
   it("the desktop sidebar lists every page, including Komisi and Persembahan", () => {
     pathname = "/jemaat/komisi";
     render(
-      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" email="uji@test.local" isStaffToo={false}>
+      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" akun="uji@test.local" isStaffToo={false}>
         <p>Konten</p>
       </JemaatShell>,
     );
@@ -70,7 +70,7 @@ describe("JemaatShell", () => {
   it("hides Persembahan everywhere when the setting is off", () => {
     pathname = "/jemaat";
     render(
-      <JemaatShell items={jemaatNav(false)} nama="Uji Jemaat" email="uji@test.local" isStaffToo={false}>
+      <JemaatShell items={jemaatNav(false)} nama="Uji Jemaat" akun="uji@test.local" isStaffToo={false}>
         <p>Konten</p>
       </JemaatShell>,
     );
@@ -80,14 +80,14 @@ describe("JemaatShell", () => {
   it(`shows "Buka halaman admin" only for a staff account that is also a jemaat`, () => {
     pathname = "/jemaat";
     const { rerender } = render(
-      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" email="uji@test.local" isStaffToo={false}>
+      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" akun="uji@test.local" isStaffToo={false}>
         <p>Konten</p>
       </JemaatShell>,
     );
     expect(screen.queryByRole("link", { name: "Buka halaman admin" })).toBeNull();
 
     rerender(
-      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" email="uji@test.local" isStaffToo={true}>
+      <JemaatShell items={jemaatNav(true)} nama="Uji Jemaat" akun="uji@test.local" isStaffToo={true}>
         <p>Konten</p>
       </JemaatShell>,
     );

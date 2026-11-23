@@ -5,6 +5,7 @@ import { logoutJemaat } from "@/app/jemaat/actions";
 import { jemaatButtonClass } from "@/components/jemaat-portal/control-classes";
 import { HapusAkunButton } from "@/components/jemaat-portal/hapus-akun-button";
 import { Button } from "@/components/ui/button";
+import { accountLabel } from "@/lib/auth/portal";
 import { requireJemaat } from "@/lib/auth/session";
 import { jemaatNav } from "@/lib/jemaat-portal-nav";
 import { loadPengaturanPortal } from "@/lib/portal/data";
@@ -13,7 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Akun Saya" };
 
 /**
- * Akun Saya (brief §17.3, §17.4): email, Keluar, "Hapus akun login", and a
+ * Akun Saya (brief §17.3, §17.4): username (or email), Keluar, "Hapus akun login", and a
  * "Lainnya" list for the pages that don't fit the mobile bottom nav's 4
  * slots (Komisi, and Persembahan while its setting is on) — the one place
  * a phone can still reach them in two taps.
@@ -39,8 +40,8 @@ export default async function AkunPage() {
         </h2>
         <div className="flex flex-col gap-4 rounded-xl border border-border bg-card p-5">
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm text-muted-foreground">Email</span>
-            <span className="text-base font-medium">{user.email}</span>
+            <span className="text-sm text-muted-foreground">{user.username ? "Username" : "Email"}</span>
+            <span className="text-base font-medium">{accountLabel(user)}</span>
           </div>
           <form action={logoutJemaat}>
             <Button type="submit" variant="outline" className={`${jemaatButtonClass} w-fit`}>
@@ -78,7 +79,7 @@ export default async function AkunPage() {
           Menghapus akun login tidak menghapus data Anda sebagai jemaat di gereja — hanya akun untuk masuk ke Portal
           Jemaat ini.
         </p>
-        <HapusAkunButton email={user.email} />
+        <HapusAkunButton akun={accountLabel(user)} />
       </section>
     </div>
   );

@@ -30,9 +30,14 @@ export function accountKind(account: { roleIds: readonly string[]; jemaatId: str
 
 export type UserRow = {
   id: string;
+  /** The auth email; for a username account it is internal (§18.7), so the table shows "—". */
   email: string;
+  /** Portal Jemaat username (stage 14d), or null for an email account. */
+  username: string | null;
+  /** A temporary password hasn't been changed yet. */
+  wajibGantiPassword: boolean;
   fullName: string | null;
-  /** Display name: full name, else email. */
+  /** Display name: full name, else username, else email. */
   nama: string;
   roleIds: string[];
   /** Role names joined, or null for "Tanpa role"; the Role facet's value. */
@@ -47,7 +52,7 @@ export type UserPersonOption = {
   id: string;
   nama: string;
   labels: string[];
-  /** Email of the account this jemaat is already linked to, if any. */
+  /** Username or email of the account this jemaat is already linked to, if any. */
   linkedEmail: string | null;
   linkedUserId: string | null;
 };
@@ -63,7 +68,7 @@ export async function loadUsersOverview(
   supabase: ServerSupabase,
 ): Promise<{ data: UsersOverview | null; error: string | null }> {
   const [profilesRes, userRolesRes, rolesRes, people] = await Promise.all([
-    supabase.from("profiles").select("id, email, full_name, jemaat_id").order("email"),
+    supabase.from("profiles").select("id, email, full_name, jemaat_id, username, wajib_ganti_password").order("email"),
     supabase.from("user_roles").select("user_id, role_id"),
     supabase.from("roles").select("id, name").order("name"),
     listPeopleForPicker(supabase),
@@ -82,7 +87,9 @@ export async function loadUsersOverview(
   }
   const jemaatNames = new Map(people.map((p) => [p.id, p.nama]));
   const linkedBy = new Map(
-    profilesRes.data.filter((p) => p.jemaat_id).map((p) => [p.jemaat_id!, { id: p.id, email: p.email ?? "" }]),
+    profilesRes.data
+      .filter((p) => p.jemaat_id)
+      .map((p) => [p.jemaat_id!, { id: p.id, email: p.username ?? p.email ?? "" }]),
   );
 
   const users = profilesRes.data.map((p): UserRow => {
@@ -92,11 +99,14 @@ export async function loadUsersOverview(
     const names = roleIds.map((id) => roleNames.get(id)).filter((name): name is string => Boolean(name));
     const fullName = p.full_name?.trim() || null;
     const email = p.email ?? "";
+    const username = p.username ?? null;
     return {
       id: p.id,
       email,
+      username,
+      wajibGantiPassword: p.wajib_ganti_password,
       fullName,
-      nama: fullName ?? email,
+      nama: fullName ?? username ?? email,
       roleIds,
       roleNames: names.length > 0 ? names.join(", ") : null,
       jemaatId: p.jemaat_id,
@@ -275,7 +285,7 @@ export const updateUserAccess = mutation({
   notFound: NOT_FOUND,
   async run({ input, params, supabase }) {
     const [profileRes, rolesRes] = await Promise.all([
-      supabase.from("profiles").select("email, jemaat_id").eq("id", params.id).maybeSingle(),
+      supabase.from("profiles").select("email, username, jemaat_id").eq("id", params.id).maybeSingle(),
       supabase.from("user_roles").select("role_id").eq("user_id", params.id),
     ]);
     if (profileRes.error) throw dbError(profileRes.error, { notFound: NOT_FOUND });
@@ -299,7 +309,7 @@ export const updateUserAccess = mutation({
       !(before.length === (input.roleId ? 1 : 0) && (!input.roleId || before[0] === input.roleId));
     const jemaatChanged = profileRes.data.jemaat_id !== input.jemaatId;
 
-    const email = quote(profileRes.data.email ?? "");
+    const email = quote(profileRes.data.username ?? profileRes.data.email ?? "");
     const roleText = input.roleId ? quote((await roleName(supabase, input.roleId)) ?? "") : '"Tidak ada"';
     const jemaatText = input.jemaatId ? quote((await jemaatName(supabase, input.jemaatId)) ?? "") : '"Tidak ada"';
 
@@ -329,7 +339,7 @@ export const deleteUserRoute = mutation({
     // brief §9.11, §13 #12: refused on the server, not only hidden in the UI.
     if (params.id === user.id) throw new ApiError(403, "Tidak bisa menghapus akun sendiri.");
 
-    const profile = await supabase.from("profiles").select("email").eq("id", params.id).maybeSingle();
+    const profile = await supabase.from("profiles").select("email, username").eq("id", params.id).maybeSingle();
     if (profile.error) throw dbError(profile.error, { notFound: NOT_FOUND });
     if (!profile.data) throw new ApiError(404, NOT_FOUND);
 
@@ -351,7 +361,7 @@ export const deleteUserRoute = mutation({
 
     return {
       data: { id: params.id },
-      log: { module: "users", activity: `Menghapus pengguna ${quote(profile.data.email ?? "")}` },
+      log: { module: "users", activity: `Menghapus pengguna ${quote(profile.data.username ?? profile.data.email ?? "")}` },
       revalidate: ["/admin/users"],
     };
   },

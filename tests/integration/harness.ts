@@ -34,6 +34,8 @@ process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = env.anonKey;
 process.env.SUPABASE_SERVICE_ROLE_KEY = env.serviceKey;
 // Matches site_url in supabase/config.toml.
 process.env.SITE_URL = "http://127.0.0.1:3000";
+// Internal auth email domain of username accounts (stage 14d).
+process.env.PORTAL_LOGIN_DOMAIN = "masuk.gkp.test";
 
 type Jar = Map<string, string>;
 let currentJar: Jar = new Map();

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-import { LOGIN_PATH, type PortalArea } from "@/lib/auth/portal";
+import { GANTI_PASSWORD_PATH, LOGIN_PATH, type PortalArea } from "@/lib/auth/portal";
 import type { Database } from "@/types/database";
 
 import { supabaseEnv } from "./env";
@@ -16,8 +16,12 @@ function protectedArea(pathname: string): PortalArea | null {
  * Refreshes the Supabase session cookie on every request and sends a
  * request without a session to its area's login page with ?next={path}:
  * /admin → /login (brief §6), /jemaat → /portal/masuk (stage 11f).
- * Pages still verify the user and their access themselves; this is not the
- * security boundary.
+ * A signed-in account with a temporary password (profiles.
+ * wajib_ganti_password, §18.7) is sent from every other /jemaat path to
+ * /jemaat/ganti-password.
+ * Pages still verify the user and their access themselves (requireJemaat
+ * checks the flag again, and the portal functions refuse with PT428); this
+ * is not the security boundary.
  */
 export async function updateSession(request: NextRequest): Promise<NextResponse> {
   const { url, anonKey } = supabaseEnv();
@@ -48,10 +52,31 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
     loginUrl.search = "";
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
 
-    const redirect = NextResponse.redirect(loginUrl);
-    for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
-    return redirect;
+    return redirectKeepingCookies(loginUrl, response);
+  }
+
+  if (signedIn && area === "jemaat" && request.nextUrl.pathname !== GANTI_PASSWORD_PATH) {
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("wajib_ganti_password")
+      .eq("id", String(data?.claims.sub))
+      .maybeSingle();
+    // On a read error, let the page decide (requireJemaat fails closed).
+    if (error) console.error("[proxy] wajib_ganti_password check failed:", error.message);
+    if (profile?.wajib_ganti_password) {
+      const changeUrl = request.nextUrl.clone();
+      changeUrl.pathname = GANTI_PASSWORD_PATH;
+      changeUrl.search = "";
+      return redirectKeepingCookies(changeUrl, response);
+    }
   }
 
   return response;
+}
+
+/** A redirect that carries any refreshed session cookies along. */
+function redirectKeepingCookies(url: URL, response: NextResponse): NextResponse {
+  const redirect = NextResponse.redirect(url);
+  for (const cookie of response.cookies.getAll()) redirect.cookies.set(cookie);
+  return redirect;
 }

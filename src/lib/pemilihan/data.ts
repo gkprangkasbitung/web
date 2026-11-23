@@ -61,6 +61,8 @@ export function pemilihanError(error: Pick<PostgrestError, "code" | "message">, 
   switch (error.code) {
     case "PT403":
       return new PemilihanError("bukan_jemaat", error.message);
+    case "PT428":
+      return new PemilihanError("wajib_ganti_password", error.message);
     case "P0002":
       return new PemilihanError("tidak_ditemukan", error.message);
     case "42501":

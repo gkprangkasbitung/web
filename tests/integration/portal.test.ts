@@ -39,6 +39,7 @@ import {
 } from "./harness";
 
 const { portalLogin } = await import("@/app/portal/masuk/actions");
+type PortalLoginState = Awaited<ReturnType<typeof portalLogin>>;
 const { login } = await import("@/app/login/actions");
 const { logout } = await import("@/app/admin/actions");
 const { logoutJemaat } = await import("@/app/jemaat/actions");
@@ -121,14 +122,14 @@ const adminLayout = async () => (await import("@/app/admin/layout")).default({ c
 const dashboard = async () => (await import("@/app/admin/page")).default({ searchParams: Promise.resolve({}) });
 const profilSaya = async () => (await import("@/app/admin/akun/page")).default();
 const penggunaPage = async () => (await import("@/app/admin/users/page")).default();
-const jemaatPage = async () => (await import("@/app/jemaat/page")).default();
+const jemaatPage = async () => (await import("@/app/jemaat/(portal)/page")).default();
 // Stage 13b moved "Buka halaman admin" from the page into the shared shell
 // the layout renders. The shell itself is a client component ("use client",
 // usePathname), which isn't safely render-tested outside Next's app router
 // (no provider here) — its own conditional rendering is a component test
 // (jemaat-shell.test.tsx); here it's enough to check the layout wires the
 // right `isStaffToo` onto the still-unrendered element.
-const jemaatLayout = async () => (await import("@/app/jemaat/layout")).default({ children: null });
+const jemaatLayout = async () => (await import("@/app/jemaat/(portal)/layout")).default({ children: null });
 
 beforeAll(async () => {
   superadmin = await signIn("superadmin@gkp.test");
@@ -215,12 +216,15 @@ describe("access split", () => {
   });
 });
 
+/** The email tab's initial state (stage 14d made username the default tab). */
+const EMAIL_TAB = { error: null, cara: "email", username: "", email: "" } as const satisfies PortalLoginState;
+
 describe("Portal Jemaat sign-in with email + password", () => {
   it("?next=https://example.com ends on /jemaat, and logs Login ke Portal Jemaat", async () => {
     const jemaat = await account("next-luar", [], true);
     actAs(null);
     const target = await redirectOf(() =>
-      portalLogin({ error: null, email: "" }, form({ email: jemaat.email, password: PASSWORD, next: "https://example.com" })),
+      portalLogin(EMAIL_TAB, form({ cara: "email", email: jemaat.email, password: PASSWORD, next: "https://example.com" })),
     );
     expect(target).toBe("/jemaat");
     expect(await logCount("Login ke Portal Jemaat", jemaat.id)).toBe(1);
@@ -235,7 +239,7 @@ describe("Portal Jemaat sign-in with email + password", () => {
     const jemaat = await account("next-admin", [], true);
     actAs(null);
     const target = await redirectOf(() =>
-      portalLogin({ error: null, email: "" }, form({ email: jemaat.email, password: PASSWORD, next: "/admin" })),
+      portalLogin(EMAIL_TAB, form({ cara: "email", email: jemaat.email, password: PASSWORD, next: "/admin" })),
     );
     expect(target).toBe("/jemaat");
   });
@@ -243,12 +247,12 @@ describe("Portal Jemaat sign-in with email + password", () => {
   it("a wrong password and an account that isn't a jemaat answer differently (that one check only), but neither opens a session", async () => {
     const jemaat = await account("salah-password", [], true);
     actAs(null);
-    const wrong = await portalLogin({ error: null, email: "" }, form({ email: jemaat.email, password: "bukan-ini" }));
+    const wrong = await portalLogin(EMAIL_TAB, form({ cara: "email", email: jemaat.email, password: "bukan-ini" }));
     expect(wrong.error).toBe("Email atau password salah.");
     expect(await getAuthenticatedUser()).toBeNull();
 
     const staff = await account("staff-password", ["viewer"], false);
-    const notJemaat = await portalLogin({ error: null, email: "" }, form({ email: staff.email, password: PASSWORD }));
+    const notJemaat = await portalLogin(EMAIL_TAB, form({ cara: "email", email: staff.email, password: PASSWORD }));
     expect(notJemaat.error).toBe("Akun ini belum terhubung ke data jemaat. Hubungi sekretariat untuk aktivasi Portal Jemaat.");
     expect(await getAuthenticatedUser()).toBeNull();
     expect(await logCount("Login ke Portal Jemaat", staff.id)).toBe(0);
@@ -256,7 +260,7 @@ describe("Portal Jemaat sign-in with email + password", () => {
 
   it("refuses a missing password without calling Supabase", async () => {
     actAs(null);
-    const result = await portalLogin({ error: null, email: "" }, form({ email: `x-${RUN}@test.local`, password: "" }));
+    const result = await portalLogin(EMAIL_TAB, form({ cara: "email", email: `x-${RUN}@test.local`, password: "" }));
     expect(result.error).toBe("Email dan password wajib diisi.");
   });
 });
@@ -360,7 +364,7 @@ describe('"Akun Jemaat" invite (§9.11, stage 11f)', () => {
     await logoutJemaat().catch(() => {});
     actAs(null);
     const signedIn = await redirectOf(() =>
-      portalLogin({ error: null, email: "" }, form({ email, password: "kata-sandi-jemaat-1" })),
+      portalLogin(EMAIL_TAB, form({ cara: "email", email, password: "kata-sandi-jemaat-1" })),
     );
     expect(signedIn).toBe("/jemaat");
   });

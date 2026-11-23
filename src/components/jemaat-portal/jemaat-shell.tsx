@@ -79,13 +79,14 @@ function NavLink({ item, pathname, variant }: { item: JemaatNavItem; pathname: s
 export function JemaatShell({
   items,
   nama,
-  email,
+  akun,
   isStaffToo,
   children,
 }: {
   items: JemaatNavItem[];
   nama: string;
-  email: string;
+  /** Username, or the email of an email account; never the internal email (§18.7). */
+  akun: string;
   isStaffToo: boolean;
   children: React.ReactNode;
 }) {
@@ -112,7 +113,7 @@ export function JemaatShell({
         </nav>
         <div className="shrink-0 border-t border-border p-4">
           <p className="truncate text-sm font-medium">{nama}</p>
-          <p className="truncate text-sm text-muted-foreground">{email}</p>
+          <p className="truncate text-sm text-muted-foreground">{akun}</p>
           {isStaffToo && (
             <Link
               href="/admin"

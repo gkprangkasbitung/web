@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const submitPengajuanAction = vi.fn();
 const batalkanPengajuanAction = vi.fn();
-vi.mock("@/app/jemaat/profil/actions", () => ({ submitPengajuanAction, batalkanPengajuanAction }));
+vi.mock("@/app/jemaat/(portal)/profil/actions", () => ({ submitPengajuanAction, batalkanPengajuanAction }));
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();

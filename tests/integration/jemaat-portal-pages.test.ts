@@ -82,13 +82,13 @@ async function notFoundOf(run: () => Promise<unknown>): Promise<void> {
   throw new Error("Expected notFound()");
 }
 
-const beranda = async () => (await import("@/app/jemaat/page")).default();
-const profil = async () => (await import("@/app/jemaat/profil/page")).default();
-const pelayanan = async () => (await import("@/app/jemaat/pelayanan/page")).default();
-const komisi = async () => (await import("@/app/jemaat/komisi/page")).default();
-const akun = async () => (await import("@/app/jemaat/akun/page")).default();
+const beranda = async () => (await import("@/app/jemaat/(portal)/page")).default();
+const profil = async () => (await import("@/app/jemaat/(portal)/profil/page")).default();
+const pelayanan = async () => (await import("@/app/jemaat/(portal)/pelayanan/page")).default();
+const komisi = async () => (await import("@/app/jemaat/(portal)/komisi/page")).default();
+const akun = async () => (await import("@/app/jemaat/(portal)/akun/page")).default();
 const persembahan = async (tahun?: string) =>
-  (await import("@/app/jemaat/persembahan/page")).default({ searchParams: Promise.resolve(tahun ? { tahun } : {}) });
+  (await import("@/app/jemaat/(portal)/persembahan/page")).default({ searchParams: Promise.resolve(tahun ? { tahun } : {}) });
 
 let kaya: Account;
 let kosong: Account;

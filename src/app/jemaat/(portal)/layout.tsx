@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { JemaatShell } from "@/components/jemaat-portal/jemaat-shell";
-import { isStaff } from "@/lib/auth/portal";
+import { accountLabel, isStaff } from "@/lib/auth/portal";
 import { displayName, requireJemaat } from "@/lib/auth/session";
 import { jemaatNav } from "@/lib/jemaat-portal-nav";
 import { loadMyJemaat } from "@/lib/jemaat-portal";
@@ -36,7 +36,7 @@ export default async function JemaatLayout({ children }: { children: React.React
     <JemaatShell
       items={jemaatNav(tampilkanPersembahan)}
       nama={jemaat?.nama ?? displayName(user)}
-      email={user.email}
+      akun={accountLabel(user)}
       isStaffToo={isStaff(user)}
     >
       {children}

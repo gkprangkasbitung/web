@@ -644,13 +644,13 @@ isOneToOne: false
                   ]
                 },"profiles": {
                   Row: {
-                    "avatar_url": string | null,"created_at": string,"email": string | null,"full_name": string | null,"id": string,"jemaat_id": string | null
+                    "avatar_url": string | null,"created_at": string,"email": string | null,"full_name": string | null,"id": string,"jemaat_id": string | null,"username": string | null,"wajib_ganti_password": boolean
                   }
                   Insert: {
-                    "avatar_url"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string | null,"id": string,"jemaat_id"?: string | null
+                    "avatar_url"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string | null,"id": string,"jemaat_id"?: string | null,"username"?: string | null,"wajib_ganti_password"?: boolean
                   }
                   Update: {
-                    "avatar_url"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string | null,"id"?: string,"jemaat_id"?: string | null
+                    "avatar_url"?: string | null,"created_at"?: string,"email"?: string | null,"full_name"?: string | null,"id"?: string,"jemaat_id"?: string | null,"username"?: string | null,"wajib_ganti_password"?: boolean
                   }
                   Relationships: [
                     {
@@ -1034,6 +1034,9 @@ isOneToOne: false
               "id": string
             }[]
                            },
+"selesai_ganti_password_sementara":
+{ Args: Record<PropertyKey, never>; Returns: undefined
+                           },
 "set_jemaat_keluarga":
 { Args: { "p_hubungan_keluarga"?: string,"p_jemaat_id": string,"p_keluarga_id"?: string }; Returns: undefined
                            },
@@ -1051,6 +1054,11 @@ isOneToOne: false
                            },
 "setujui_pengajuan":
 { Args: { "p_id": string }; Returns: string
+                           },
+"siapkan_reset_password":
+{ Args: { "p_user_id": string }; Returns: {
+              "email": string,"nama": string,"username": string
+            }[]
                            },
 "situs_referenced_photo_paths":
 { Args: Record<PropertyKey, never>; Returns: string[]

@@ -1,4 +1,4 @@
-# Deploy checklist: Portal Jemaat and auth settings (stages 11f, 13a; jemaat login switched to email + password, follow-up)
+# Deploy checklist: Portal Jemaat and auth settings (stages 11f, 13a, 14a, 14d; jemaat login switched to email + password, follow-up)
 
 These are settings in the Supabase Dashboard and the hosting environment. The app never changes them from code. Do them before deploying stage 11f, in this order, on the **production** project.
 
@@ -42,7 +42,9 @@ For the first super_admin and the basic invite setup, see `docs/bootstrap-super-
 
 ## 6. Rate limits
 
-Supabase's own sign-in and password-recovery rate limits (Authentication → Rate Limits) are enough; the app adds no limits of its own on top (same as the admin's `/login`, which this now matches). On Vercel the visitor IP comes from `x-forwarded-for`, which Vercel sets itself. Before moving to other hosting, read "Client IP (brief §7) and hosting" in `docs/progress.md` (stage 10).
+Since stage 14d, `/portal/masuk` (both tabs) has its own wrong-password limits, in the database (`auth_throttle`, buckets `login_fail_akun` and `login_fail_ip`, migration 0039): 5 wrong passwords per account per 15 minutes locks that account for up to 15 minutes, and 30 per IP per 15 minutes. The admin's `/login` still has none of its own.
+
+Supabase sees every sign-in as coming from the app server's IP (Server Actions), so its own per-IP limit counts the whole congregation as one visitor. In Authentication → Rate Limits, raise **sign-ins and sign-ups** (default 30 per 5 minutes per IP) and **token refreshes** (default 150 per 5 minutes per IP, refreshed by the app server too) well above their defaults before the first username accounts are handed out, for example to 300 and 1500; the app's per-account and per-IP limits are the real protection against guessing. On Vercel the visitor IP comes from `x-forwarded-for`, which Vercel sets itself. Before moving to other hosting, read "Client IP (brief §7) and hosting" in `docs/progress.md` (stage 10).
 
 ## 7. Check it after deploying
 
@@ -84,3 +86,19 @@ Check it after deploying:
 1. With a super_admin's access token: `GET {SUPABASE_URL}/rest/v1/pemilihan_suara?select=*` and `…/pemilihan_partisipasi?select=*` → 403 with `"code":"42501"`. The same with the service-role key → `42501` too.
 2. `GET {SUPABASE_URL}/rest/v1/pemilihan_kontes?select=*&order=urutan` with any signed-in token → Penatua 10–30, PPJ 5–15.
 3. With a viewer's token: `POST {SUPABASE_URL}/rest/v1/rpc/hasil_suara` with `{"p_pemilihan_id": "<any uuid>"}` → 403 with `"code":"42501"`.
+
+## 10. Portal Jemaat username accounts (stage 14d)
+
+- Push migration `0039_portal_username.sql` together with the earlier unpushed ones (0018–0038). It enables the `citext` extension (schema `extensions`), adds `profiles.username` and `profiles.wajib_ganti_password`, a second `auth.users` trigger (`on_auth_user_created_portal`), and the RPCs `siapkan_reset_password` and `selesai_ganti_password_sementara`.
+- **Set `PORTAL_LOGIN_DOMAIN`** (server-only) in the hosting environment, for production and every preview: a subdomain the church controls that has **no mailbox**, for example `masuk.gkprangkasbitung.org`. Username accounts get the auth email `{username}@{PORTAL_LOGIN_DOMAIN}`. The server refuses to start without a valid value (every page then answers 500, and the log names the variable).
+  - Don't change it once accounts exist: the stored auth emails keep the old domain, and username login would stop finding them.
+  - Make sure no mail server accepts mail for it (no MX record), so nothing is ever delivered there. Supabase doesn't send mail to these accounts (they are created already confirmed), and there is no "forgot password" for jemaat.
+- Rate limits: see §6.
+
+Check it after deploying:
+
+1. Pengguna → **Buat Akun Username**: pick one test jemaat, keep the suggested username, create. The password table shows once; **Cetak Slip** prints only the slip.
+2. Keluar, then `/portal/masuk` (the "Username & password" tab is selected): the username and the slip's password land on "Buat Password Baru". Any `/jemaat/...` address you type brings you back there. After a new password: `/jemaat`, and Akun Saya shows the username, never the `@{PORTAL_LOGIN_DOMAIN}` address.
+3. `/portal/masuk` with that username and a wrong password, and with a username that doesn't exist: both say "Username atau password salah.". Five wrong passwords in a row, then the right one: "Terlalu banyak percobaan masuk. Coba lagi dalam 15 menit."
+4. Pengguna → the test account → **Reset Password**: a new temporary password shows once; the old one no longer works, and the next login asks for a new password again.
+5. Log Aktivitas shows "Membuat akun username …", "Login ke Portal Jemaat", "Mengganti password sementara", "Mereset password akun …", and no password anywhere. Delete the test account afterwards.

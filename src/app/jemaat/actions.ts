@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { logActivity, quote } from "@/lib/activity-log";
-import { isJemaat, isStaff } from "@/lib/auth/portal";
+import { accountLabel, isJemaat, isStaff } from "@/lib/auth/portal";
 import { getAuthenticatedUser } from "@/lib/auth/session";
 import { signOutToPortal } from "@/lib/auth/sign-out";
 import { loadMyJemaat } from "@/lib/jemaat-portal";
@@ -29,9 +29,10 @@ export async function hapusAkunLogin(): Promise<HapusAkunResult> {
     return { error: "Akun pengurus tidak bisa dihapus dari Portal Jemaat. Hubungi super admin." };
   }
   if (!isJemaat(user)) return { error: "Akun ini belum terhubung ke data jemaat." };
+  if (user.wajibGantiPassword) return { error: "Ganti password sementara terlebih dahulu." };
 
   const supabase = await createClient();
-  const nama = (await loadMyJemaat(supabase))?.nama ?? user.email;
+  const nama = (await loadMyJemaat(supabase))?.nama ?? accountLabel(user);
 
   // Logged before the delete: afterwards, RLS (user_id = auth.uid()), the
   // user_id foreign key, and 0028's email trigger can no longer accept a row

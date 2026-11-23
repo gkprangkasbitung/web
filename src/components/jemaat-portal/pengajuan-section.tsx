@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { batalkanPengajuanAction, submitPengajuanAction } from "@/app/jemaat/profil/actions";
+import { batalkanPengajuanAction, submitPengajuanAction } from "@/app/jemaat/(portal)/profil/actions";
 import { jemaatButtonClass, jemaatFieldClass } from "@/components/jemaat-portal/control-classes";
 import { FormError } from "@/components/auth/form-error";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";

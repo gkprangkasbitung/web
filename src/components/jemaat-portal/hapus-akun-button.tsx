@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
  * "Keluar" already uses for its own redirecting action — the navigation is
  * driven by the router before the rejected promise ever reaches this catch).
  */
-export function HapusAkunButton({ email }: { email: string }) {
+export function HapusAkunButton({ akun }: { akun: string }) {
   const [open, setOpen] = useState(false);
 
   async function handleConfirm() {
@@ -34,7 +34,7 @@ export function HapusAkunButton({ email }: { email: string }) {
       <ConfirmDialog
         open={open}
         onOpenChange={setOpen}
-        title={`Hapus akun login ${email}?`}
+        title={`Hapus akun login ${akun}?`}
         description="Data Anda sebagai jemaat di gereja (profil, keluarga, riwayat pelayanan) tetap ada. Hanya akun untuk masuk ke Portal Jemaat ini yang dihapus, dan Anda akan keluar."
         confirmLabel="Hapus akun login"
         onConfirm={handleConfirm}

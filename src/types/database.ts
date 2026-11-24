@@ -383,6 +383,31 @@ isOneToOne: false
                   Relationships: [
                     
                   ]
+                },"pemilihan_impor_baris": {
+                  Row: {
+                    "baris": number,"beres": boolean | null,"calon_jemaat_ids": (string)[],"catatan": (string)[],"dapat_dipilih": boolean | null,"dapat_memilih": boolean | null,"dikeluarkan": boolean,"domisili": string | null,"id": string,"jemaat_id": string | null,"kategori": string,"kelompok_wilayah": string,"keterangan": string | null,"nama": string,"nomor": string | null,"pemilihan_id": string,"perlu_konfirmasi_memilih": boolean,"sumber": string,"tanda_dipilih": string,"tanda_memilih": string,"tanda_tidak_dipilih": string,"urutan": number,"usia": string | null
+                  }
+                  Insert: {
+                    "baris": number,"beres"?: never,"calon_jemaat_ids"?: (string)[],"catatan"?: (string)[],"dapat_dipilih"?: boolean | null,"dapat_memilih"?: boolean | null,"dikeluarkan"?: boolean,"domisili"?: string | null,"id"?: string,"jemaat_id"?: string | null,"kategori": string,"kelompok_wilayah": string,"keterangan"?: string | null,"nama": string,"nomor"?: string | null,"pemilihan_id": string,"perlu_konfirmasi_memilih"?: boolean,"sumber": string,"tanda_dipilih": string,"tanda_memilih": string,"tanda_tidak_dipilih": string,"urutan": number,"usia"?: string | null
+                  }
+                  Update: {
+                    "baris"?: number,"beres"?: never,"calon_jemaat_ids"?: (string)[],"catatan"?: (string)[],"dapat_dipilih"?: boolean | null,"dapat_memilih"?: boolean | null,"dikeluarkan"?: boolean,"domisili"?: string | null,"id"?: string,"jemaat_id"?: string | null,"kategori"?: string,"kelompok_wilayah"?: string,"keterangan"?: string | null,"nama"?: string,"nomor"?: string | null,"pemilihan_id"?: string,"perlu_konfirmasi_memilih"?: boolean,"sumber"?: string,"tanda_dipilih"?: string,"tanda_memilih"?: string,"tanda_tidak_dipilih"?: string,"urutan"?: number,"usia"?: string | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "pemilihan_impor_baris_jemaat_id_fkey"
+      columns: ["jemaat_id"]
+isOneToOne: false
+      referencedRelation: "jemaat"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "pemilihan_impor_baris_pemilihan_id_fkey"
+      columns: ["pemilihan_id"]
+isOneToOne: false
+      referencedRelation: "pemilihan"
+      referencedColumns: ["id"]
+    }
+                  ]
                 },"pemilihan_kontes": {
                   Row: {
                     "kode": string,"max_pilih": number,"min_pilih": number,"nama": string,"urutan": number
@@ -417,13 +442,13 @@ isOneToOne: false
                   ]
                 },"pemilihan_peserta": {
                   Row: {
-                    "created_at": string,"dapat_dipilih": boolean,"dapat_memilih": boolean,"jemaat_id": string,"nama_tampilan": string,"pemilihan_id": string
+                    "alasan_tidak_dapat_dipilih": string | null,"created_at": string,"dapat_dipilih": boolean,"dapat_memilih": boolean,"jemaat_id": string,"kelompok_wilayah": string | null,"keterangan": string | null,"nama_tampilan": string,"pemilihan_id": string
                   }
                   Insert: {
-                    "created_at"?: string,"dapat_dipilih"?: boolean,"dapat_memilih"?: boolean,"jemaat_id": string,"nama_tampilan": string,"pemilihan_id": string
+                    "alasan_tidak_dapat_dipilih"?: string | null,"created_at"?: string,"dapat_dipilih"?: boolean,"dapat_memilih"?: boolean,"jemaat_id": string,"kelompok_wilayah"?: string | null,"keterangan"?: string | null,"nama_tampilan": string,"pemilihan_id": string
                   }
                   Update: {
-                    "created_at"?: string,"dapat_dipilih"?: boolean,"dapat_memilih"?: boolean,"jemaat_id"?: string,"nama_tampilan"?: string,"pemilihan_id"?: string
+                    "alasan_tidak_dapat_dipilih"?: string | null,"created_at"?: string,"dapat_dipilih"?: boolean,"dapat_memilih"?: boolean,"jemaat_id"?: string,"kelompok_wilayah"?: string | null,"keterangan"?: string | null,"nama_tampilan"?: string,"pemilihan_id"?: string
                   }
                   Relationships: [
                     {
@@ -929,6 +954,11 @@ isOneToOne: false
               "jemaat_id": string,"jumlah_suara": number,"kontes": string,"kontes_nama": string,"nama_tampilan": string,"peringkat": number
             }[]
                            },
+"impor_peserta_pemilihan":
+{ Args: { "p_baris": Json,"p_pemilihan_id": string }; Returns: {
+              "jumlah_baris": number,"jumlah_beres": number,"jumlah_peserta": number
+            }[]
+                           },
 "kegiatan_bulan":
 { Args: { "p_bulan": string }; Returns: {
               "id": string,"judul": string,"kategori_id": string,"kategori_nama": string,"kategori_warna": string,"slug": string,"tanggal_mulai": string,"tanggal_selesai": string,"tempat": string,"waktu_mulai": string,"waktu_selesai": string
@@ -945,6 +975,78 @@ isOneToOne: false
 "link_user_jemaat":
 { Args: { "p_jemaat_id"?: string,"p_user_id": string }; Returns: undefined
                            },
+"pemilihan_belum_memilih":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "jemaat_id": string,"kelompok_wilayah": string,"nama_tampilan": string
+            }[]
+                           },
+"pemilihan_daftar_jemaat":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "alamat": string,"id": string,"nama": string,"wilayah": string
+            }[]
+                           },
+"pemilihan_jemaat_akun":
+{ Args: { "p_jemaat_ids": (string)[] }; Returns: {
+              "jemaat_id": string,"nama": string,"pemilih": boolean,"punya_akun": boolean
+            }[]
+                           },
+"pemilihan_kandidat_admin":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "jemaat_id": string,"nama_tampilan": string
+            }[]
+                           },
+"pemilihan_pencatat":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "dibuat_oleh": string,"dibuka_oleh": string,"ditutup_oleh": string,"diumumkan_oleh": string
+            }[]
+                           },
+"pemilihan_peserta_akun":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "akun_jemaat_id": string,"jemaat_id": string,"punya_akun": boolean,"username": string
+            }[]
+                           },
+"pemilihan_ringkasan":
+{ Args: Record<PropertyKey, never>; Returns: {
+              "baris_belum_beres": number,"pemilihan_id": string,"persen": number,"sudah_memilih": number,"total_pemilih": number
+            }[]
+                           },
+"pemilihan_untuk_bantu":
+{ Args: { "p_pemilihan_id": string }; Returns: {
+              "dibuka_pada": string,"ditutup_pada": string,"id": string,"nama": string,"periode": string,"status": string
+            }[]
+                           },
+"perbarui_baris_impor":
+{ Args: { "p_baris_id": string,"p_dapat_dipilih"?: boolean,"p_dapat_memilih"?: boolean,"p_dikeluarkan"?: boolean,"p_jemaat_id"?: string }; Returns: {
+              "baris": number,
+"beres": boolean | null,
+"calon_jemaat_ids": (string)[],
+"catatan": (string)[],
+"dapat_dipilih": boolean | null,
+"dapat_memilih": boolean | null,
+"dikeluarkan": boolean,
+"domisili": string | null,
+"id": string,
+"jemaat_id": string | null,
+"kategori": string,
+"kelompok_wilayah": string,
+"keterangan": string | null,
+"nama": string,
+"nomor": string | null,
+"pemilihan_id": string,
+"perlu_konfirmasi_memilih": boolean,
+"sumber": string,
+"tanda_dipilih": string,
+"tanda_memilih": string,
+"tanda_tidak_dipilih": string,
+"urutan": number,
+"usia": string | null
+            }[]
+                          SetofOptions: {
+        from: "*"
+        to: "pemilihan_impor_baris"
+        isOneToOne: false
+        isSetofReturn: true
+      } },
 "public_jadwal_mendatang":
 { Args: Record<PropertyKey, never>; Returns: {
               "bahan_alkitab": string,"category_key": string,"category_name": string,"dpa": string,"id": string,"jam": string,"liturgos_nama": string,"pelayan_firman_nama": string,"pemusik_nama": string,"sort_order": number,"tanggal": string,"tema": string,"tempat_nama": string,"wilayah_nama": string

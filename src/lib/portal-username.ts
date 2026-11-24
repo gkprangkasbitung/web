@@ -7,6 +7,8 @@
  */
 import { z } from "zod";
 
+import { asciiWord, kataNama } from "@/lib/nama-jemaat";
+
 export const USERNAME_MIN = 3;
 export const USERNAME_MAX = 30;
 
@@ -83,42 +85,6 @@ export const usernameSchema = z
     if (message) ctx.addIssue({ code: "custom", message });
   });
 
-/**
- * Honorifics and titles stripped from the front of a name (§18.7: Bpk., Ibu,
- * Sdr., Sdri., Pdt., Pnt., Dkn., St.; plus their long forms and the common
- * academic prefixes), compared without their dot and case.
- */
-const HONORIFICS = new Set([
-  "bpk",
-  "bapak",
-  "bp",
-  "ibu",
-  "ib",
-  "sdr",
-  "sdri",
-  "saudara",
-  "saudari",
-  "pdt",
-  "pnt",
-  "dkn",
-  "st",
-  "em",
-  "dr",
-  "drs",
-  "dra",
-  "ir",
-  "prof",
-]);
-
-/** Lowercase a–z0–9 only, after removing diacritics (é → e, ñ → n). */
-function asciiWord(word: string): string {
-  return word
-    .normalize("NFKD")
-    .replace(/\p{M}+/gu, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
-}
-
 /** Cuts to `max` characters without leaving a dot at either end. */
 function cut(value: string, max: number): string {
   return value.slice(0, max).replace(/^\.+|\.+$/g, "");
@@ -135,20 +101,8 @@ function cut(value: string, max: number): string {
  *   "Ibu Sri"                          → "sri"
  */
 export function usernameDasar(nama: string): string | null {
-  const beforeComma = nama.split(",")[0] ?? "";
-  const tokens = beforeComma.split(/\s+/).filter(Boolean);
-
-  // Repeatedly, so "Pdt. Em. Yohanes" loses both. A title written without
-  // a space before the name ("Bpk.Yohanes") is split at its dot first.
-  const words: string[] = [];
-  let leading = true;
-  for (const token of tokens.flatMap((t) => t.split(/(?<=\.)(?=\S)/))) {
-    const bare = token.replace(/\.+$/, "").toLowerCase();
-    if (leading && HONORIFICS.has(bare)) continue;
-    leading = false;
-    const word = asciiWord(token);
-    if (word) words.push(word);
-  }
+  // The same honorific/degree rules as the Pemilihan import (lib/nama-jemaat.ts).
+  const words = kataNama(nama).map(asciiWord).filter(Boolean);
   if (words.length === 0) return null;
 
   const joined = words.length === 1 ? words[0]! : `${words[0]}.${words[words.length - 1]}`;

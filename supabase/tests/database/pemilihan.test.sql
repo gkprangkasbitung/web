@@ -243,12 +243,16 @@ select is(
    where (p.pronamespace = 'portal'::regnamespace or p.pronamespace = 'public'::regnamespace or p.pronamespace = 'private'::regnamespace)
      and (p.proname ~ 'pemilihan|suara|kandidat|partisipasi')
      and has_function_privilege('authenticated', p.oid, 'execute')),
+  -- Stage 14b (0040) added the panitia's functions; pemilihan_panitia.test.sql covers them.
   array[
     'berikan_suara_dibantu(uuid,uuid,text,uuid[],uuid[])', 'hasil_partisipasi(uuid)', 'hasil_suara(uuid)',
+    'impor_peserta_pemilihan(uuid,jsonb)', 'pemilihan_belum_memilih(uuid)', 'pemilihan_daftar_jemaat()',
+    'pemilihan_jemaat_akun(uuid[])', 'pemilihan_kandidat_admin(uuid)', 'pemilihan_pencatat(uuid)',
+    'pemilihan_peserta_akun(uuid)', 'pemilihan_ringkasan()', 'pemilihan_untuk_bantu(uuid)',
     'portal.berikan_suara(uuid,uuid[],uuid[])', 'portal.hasil_pemilihan(uuid)', 'portal.kandidat(uuid)',
     'portal.pemilihan_aktif_saya()'
   ],
-  'authenticated can execute exactly the seven pemilihan API functions, none of the private helpers'
+  'authenticated can execute exactly the pemilihan API functions (seven from 14a, nine from 14b), none of the private helpers'
 );
 select is(
   (select count(*)::int from pg_proc p

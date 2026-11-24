@@ -26,7 +26,7 @@
 - [ ] 13c. Admin: Pengajuan Perubahan + pengaturan portal (§17.2)
 - [x] 14a. Pemilihan: database, rahasia suara, RPC berikan_suara, berikan_suara_dibantu, hasil (§18.1–18.3, §18.5–18.6)
 - [x] 14d. Akun username Portal Jemaat (§18.7)
-- [ ] 14b. Pemilihan: CMS panitia — kelola, impor, hasil live, bantu memilih, berita acara (§18.4–18.5)
+- [x] 14b. Pemilihan: CMS panitia — kelola, impor, hasil live, bantu memilih, berita acara (§18.4–18.5)
 - [ ] 14c. Pemilihan: surat suara + hasil di Portal Jemaat (§18.3, §18.6)
 
 ## Notes / decisions
@@ -2005,4 +2005,64 @@ No UI this stage (14b builds the panitia pages, 14c the ballot in the portal). D
 - Local stack: 0039 applied with `migration up --local`. Its two later fixes (the trigger timing, the grant) were applied to the local database by hand with psql, exactly as written in the file, instead of `migration down`, which would have wiped local data. A fresh `supabase start` on another machine applies the file as it stands. `pnpm` is still broken here (corepack); commands ran from `node_modules/.bin` with a throwaway `pnpm` shim on `PATH` for the integration harness.
 - **Not verified yet**: an actual browser (no browser tool in this session) — the printed slips on paper/PDF (two per row on A4, black on white in dark mode), the tabs and the change page at 360px and in both themes, the dialogs' focus and the close confirmation by keyboard, and iOS/Android autofill on the username field. Production (push, env, rate limits) is manual.
 - **Noticed, not changed (outside this stage)**: `authenticated` holds `TRUNCATE` on 33 `public` tables (Supabase's default grants), and TRUNCATE ignores RLS. PostgREST has no TRUNCATE, so it isn't reachable over the API, only by a role that can run SQL; worth revoking in a later security migration.
+
+### Stage 14b (Pemilihan: CMS panitia), 2026-11-23
+
+**Before deploying to production**
+
+- Push migration `0040_pemilihan_panitia.sql` together with 0018–0039. No new exposed schema.
+- New dependency `fast-xml-parser` 5.11.2 (pinned, older than two weeks), installed with pnpm 11.28.4 (the version in `node_modules/.modules.yaml`).
+
+**Decisions approved before starting (plan, then answers to seven questions)**
+
+- **Reader**: our own XLSX reader on `pizzip` (already a dependency) + `fast-xml-parser`, not SheetJS (the npm release is outdated with known CVEs) or `exceljs`.
+- **XLSX only**, no CSV. Brief §18.4 said "CSV or XLSX"; the brief now says XLSX only.
+- **The import is kept in the database** (`pemilihan_impor_baris`), so resolving hundreds of rows survives a closed tab and another panitia can continue; "Buka" is refused by the database while a row is unresolved.
+- **Error rows can be corrected in the app** (Dapat/Tidak Dapat Dipilih, Dapat Memilih, or leave the row out), logged; re-uploading still works while draft.
+- **Keterangan is kept on every peserta row**; `alasan_tidak_dapat_dipilih` (Usia + Keterangan) only on rows that may not be chosen (CHECK).
+- **The panitia may create username accounts** (`pemilihan:update`), only for voters of an election in draft or dibuka. Brief §18.7 updated.
+- **`nama_tampilan` is the name as written in the file** (spaces tidied), brief §18.1's "as printed on the list".
+
+**Findings that shaped the code**
+
+- The panitia role holds no `warta:read`, so it can't read `jemaat`, `wilayah`, or `profiles`. Everything the pages need from those (matching, the picker, account status, names of who opened/closed) comes from 0040's definer functions, each checking its own permission; the service role is not used.
+- `fast-xml-parser` leaves numeric character references (`&#8730;`, how the fixture stores "√") undecoded unless `htmlEntities` is on. A part with a DOCTYPE is refused before parsing (no custom entities).
+- `format('%s', boolean)` is `t`/`f` in Postgres (pgTAP expectations).
+- 0038's catalog test lists every executable pemilihan function by name; it now lists 0040's nine as well.
+
+**0040 migration**
+
+- `pemilihan_peserta`: `kelompok_wilayah`, `keterangan`, `alasan_tidak_dapat_dipilih` (CHECK: only when `not dapat_dipilih`).
+- `pemilihan_impor_baris`: source (file › sheet, row, No), the cells as read (ticks as `ya`/`tidak`/`kosong`/`tidak_dikenal`), usia, keterangan, `kategori`, `calon_jemaat_ids` (best Domisili match first), `catatan`, `jemaat_id` (FK, `on delete set null`), `dapat_memilih`/`dapat_dipilih`/`perlu_konfirmasi_memilih`/`dikeluarkan`, and generated `beres`. Unique `(pemilihan_id, jemaat_id)` for rows not left out. The 0038 peserta guard trigger (draft only, election row FOR SHARE) is reused. RLS select with `pemilihan:read`; no write privilege for any API role (also revoked from service_role).
+- `impor_peserta_pemilihan(p_pemilihan_id, p_baris jsonb)`: `pemilihan:update`, election locked FOR UPDATE, draft only (PM010), 1–5000 rows; deletes the peserta and import rows, inserts the rows deriving dapat_memilih/dapat_dipilih from the ticks (exactly one of Dapat/Tidak Dapat Dipilih; blank Dapat Memilih = no + confirmation), refuses a jemaat on two rows (23505, friendly), unknown jemaat / malformed rows (22023), a "match" outside its own candidates; then inserts the resolved rows as peserta. Returns counts.
+- `perbarui_baris_impor(p_baris_id, p_jemaat_id, p_dapat_memilih, p_dapat_dipilih, p_dikeluarkan)`: null = unchanged; removes and re-adds the row's peserta in the same transaction; friendly 23505 for a jemaat already used.
+- `private.pemilihan_guard` redefined (as 0038) plus: opening refused while any import row isn't `beres` (`PM011`, "Masih ada N baris impor peserta yang belum beres…").
+- Reads: `pemilihan_ringkasan()` (`pemilihan:read`: voters, voted, %, unresolved rows per election), `pemilihan_pencatat(id)` (names of who created/opened/closed/announced), `pemilihan_daftar_jemaat()` (`pemilihan:update`: id, nama, alamat, wilayah), `pemilihan_peserta_akun(id)` (`pemilihan:read`: has an account; the account id and username only for jemaat-only accounts, never an email), `pemilihan_jemaat_akun(ids)` (`pemilihan:update`: for the username route), `pemilihan_kandidat_admin(id)` (`pemilihan:read` or `pemilihan_bantu:create`), `pemilihan_untuk_bantu(id)` and `pemilihan_belum_memilih(id)` (`pemilihan_bantu:create`; the latter only while dibuka, without the caller's own jemaat). All definer, empty search_path, executable by authenticated only.
+- `set_role_ui_permissions` scope gains `pemilihan`, `pemilihan_hasil`, `pemilihan_bantu`, with `VISIBLE_RESOURCES` in the same change (0038's note).
+
+**App code**
+
+- `lib/nama-jemaat.ts`: `kataNama` (honorifics/degrees, from 14d), `asciiWord`, `kunciNama` (the import's match key). `lib/portal-username.ts` now uses it; 14d's tests unchanged and green.
+- `lib/pemilihan/xlsx.ts` (server-only): visible sheets, cell values only (stored value of a formula, never `<f>`; shared/inline/rich strings without phonetic runs; booleans as TRUE/FALSE; error cells empty), merged ranges; guards: ≤500 zip entries, 15 MB per entry and 25 MB total uncompressed, DOCTYPE refused, ≤10 000 rows, columns A–AX.
+- `lib/pemilihan/impor.ts` (pure): `bacaTanda`, `turunkan` (mirrors the SQL), header detection (`cariJudul`: first row with No + Nama in the first 40 rows, merged header cells filled across, a second row with `<25`/`>65` joins the header), `bacaLembar`, `cocokkan`, `susunPratinjau`. A sheet without the header or a required column is listed as skipped with the reason.
+- `lib/pemilihan/admin-types.ts` (client-safe types and Zod inputs), `admin-data.ts` (loaders), `tampilan.ts` (wording, status consequences, `alasanBelumBisaDibuka`), `ekspor.ts` (results CSV via `lib/csv.ts`).
+- `lib/pemilihan-routes.ts`: `mutation()` routes for create/edit/delete, status (`buka`/`tutup`/`umumkan`, applied only from the expected status), the switch, saving an import, resolving a row; plain handlers for the preview (multipart, several `file` fields, 1 MB each, 10 files, 4 MB total; nothing written or logged), the live results (`GET …/hasil`, no-store; tally only with `pemilihan_hasil:read`), and assisted voting (`berikanSuaraDibantu` from 14a, which logs).
+- `lib/username-accounts-routes.ts`: `users:create` as before, or `pemilihan:update` through `pemilihan_jemaat_akun` (voters only).
+- `lib/dates.ts`: `formatTimeWibSeconds`, `formatTimestampLong`, `jakartaDateTime`, `jakartaDateTimeParts`, `TIME_PATTERN`.
+- Pages: `/admin/pemilihan` (DataTable: Nama, Periode, Status facet, Jadwal, Partisipasi; row menu Detail/Ubah/Hasil/Bantu/Buka/Tutup/Umumkan/Hapus), `/admin/pemilihan/[id]` (status card, import card with preview per sheet and total, saved import as a DataTable with Kelompok/Hasil cocok/Status facets, opened on "Belum beres", "Selesaikan" dialog with candidates + Domisili hint + PersonPicker; Ringkasan Peserta with counts, reasons, "Buat akun username" (14d dialog, slips) and "Reset Password" for jemaat-only accounts), `/hasil` (turnout, rankings, switch, CSV, berita acara link; polling 10 s while draft/dibuka and the tab is visible), `/bantu`, `/berita-acara` (printed through `components/shared/dokumen-cetak.tsx`, the same body-portal approach as 14d's slips; globals.css prints `.dokumen-cetak` only, black on white).
+- `components/pemilihan/surat-suara.tsx`: the shared ballot for 14c (steps per contest from `pemilihan_kontes`, search, sticky counter, warnings, max disables the rest, review, confirmation). State only; nothing in storage.
+- Sidebar: "Pemilihan" (`pemilihan:read`) after the Konten Situs group, before Pengguna (brief §9.1 updated).
+- The ranking tables (live page, berita acara) are plain tables, not the DataTable: a fixed printable ranking with nothing to filter, like stage 5's "Anggota Keluarga".
+- The berita acara's signature block says only "Panitia Pemilihan" with a blank line (no invented titles).
+
+**Verification (stage 14b)**
+
+- `tsc`, `eslint .`, and `next build` pass (build with `PORTAL_LOGIN_DOMAIN` inline; the five pages and nine routes are in the build's list).
+- `pnpm test`: 59 files, 445 tests. New: `lib/pemilihan/impor.test.ts` (53: every accepted and refused tick format, `turunkan`, `kunciNama` cases, the fixture's sheets/header/rows/validation, formulas never evaluated, shared strings/numbers/booleans, hidden sheets and hyperlinks ignored, columns by text in shuffled order, skipped sheets, group names, matching: Cocok / Ambigu with Domisili order / same name in two sheets / Tidak ditemukan / errors keep the match), `lib/pemilihan/ekspor.test.ts` (rows, Seri, CSV injection), `components/pemilihan/hasil-live.test.tsx` (turnout, rankings with the switch off and Seri, no tally without the permission, polling stops while hidden and resumes at once, no polling once closed, failure keeps the figures), `surat-suara.test.tsx` (limits from props, max disables, search, review, confirmation), `bantu-memilih.test.tsx` (no send without voter/verification/number, friendly duplicate keeps the ballot, success resets, no `localStorage`, only the given voters), `berita-acara.test.tsx` (every figure as given).
+- `pnpm test:db`: 26 files, 1077 tests. New `pemilihan_panitia.test.sql` (85): catalog and privileges, refused importers, the 17-row import and its derived values, reasons, refused imports leave the list unchanged, opening refused with 4 unresolved, resolving (Ambigu pick, used jemaat refused, moving a pick, leaving out and taking back, error fixed, blank Dapat Memilih confirmed), opening, frozen after (re-import, row change, even as owner), assisted reads (own record hidden, voted voter gone, draft refused, bantu-only role), the other reads and their permissions, a draft deletion takes the import, the role editor saves and clears pemilihan permissions. `pemilihan.test.sql`'s function list updated.
+- `pnpm test:integration`: 20 files, 250 tests, 249 pass. New `pemilihan-panitia.test.ts` (13): the fixture through the routes (preview permissions, Ambigu/Tidak ditemukan/error, nothing written by the preview, non-xlsx refused, save with the database's values equal to `turunkan`, log line, Buka refused with 7 unresolved, resolving with the friendly duplicate, log line); a generated file (formula-free ticks Ya/1/TRUE, a default "Sheet1" grouped by file name) opened through the route, no re-import/preview/edit after; assisted voting (blank number, success + log, `f-001` vs `F-001` friendly duplicate, own record refused, list shrinks); `pemilihan:read` alone gets turnout and `suara: null` (and 42501 on hasil_suara), viewer 403, the tally live with the switch off (24 rows, 15 votes); the switch logged both ways; the panitia creates an account for a voter, not for a non-voter; close/announce order; CSV lines equal `hasil_suara`; the berita acara loaders equal `hasil_partisipasi`; no log line or console output names a choice. Cleanup leaves no rows (checked). `portal-username.test.ts`: the panitia now gets 400 (not 403) for a non-voter, nothing created.
+- **The one failure is not from this stage**: `jemaat-portal-pages.test.ts` › "Pelayanan lists the upcoming row" (passes only on a Sunday; today is Monday). Left untouched, as in 14a/14d.
+- Local stack: 0040 applied with `migration up --local`; one later change to `pemilihan_peserta_akun` (two more columns) applied by hand with psql exactly as written in the file (drop + create, since the return type changed). `pnpm` is still broken here; commands ran from `node_modules/.bin`, the dependency was added with `npx pnpm@11.28.4`, and the integration harness used a throwaway `pnpm` shim.
+- **Not verified yet**: an actual browser (no browser tool in this session): the pages at 360px and in both themes, keyboard use of the "Selesaikan" dialog and the ballot, the sticky counter while scrolling a long candidate list, and the printed berita acara on paper/PDF. Production (push) is manual.
+- Untouched: `src/components/users/users-manager.tsx` had an uncommitted change before this stage started; it is not part of 14b.
 

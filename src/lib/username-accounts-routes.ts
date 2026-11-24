@@ -6,10 +6,11 @@ import { z } from "zod";
 import { logActivity, quote } from "@/lib/activity-log";
 import { fail, ok, parseBody, partial } from "@/lib/api";
 import { can } from "@/lib/auth/permissions";
-import { requirePermissionApi, requireStaffApi } from "@/lib/auth/session";
+import { requireStaffApi } from "@/lib/auth/session";
 import { portalAuthEmail, portalLoginDomain } from "@/lib/portal-login-domain";
 import { usernameSchema, withSuffix } from "@/lib/portal-username";
 import { createUsernameAccount, setUserPassword } from "@/lib/supabase/admin";
+import type { ServerSupabase } from "@/lib/supabase/server";
 import { generateTempPassword } from "@/lib/temp-password";
 
 /**
@@ -74,17 +75,54 @@ export type FailedAccount = { jemaatId: string; nama: string; username: string; 
 
 export type CreateAccountsResult = { created: CreatedAccount[]; failed: FailedAccount[] };
 
+/** Names of the batch's jemaat, and which already have an account; null on a database error. */
+async function preCheck(
+  supabase: ServerSupabase,
+  ids: string[],
+  asPanitia: boolean,
+): Promise<{ names: Map<string, string>; linked: string[]; notVoters: string[] } | null> {
+  if (asPanitia) {
+    // The panitia can't read jemaat or profiles; pemilihan_jemaat_akun (0040)
+    // returns exactly what this check needs.
+    const { data, error } = await supabase.rpc("pemilihan_jemaat_akun", { p_jemaat_ids: ids });
+    if (error) {
+      console.error("[username-accounts] pemilihan_jemaat_akun failed:", error.code);
+      return null;
+    }
+    return {
+      names: new Map(data.map((row) => [row.jemaat_id, row.nama])),
+      linked: data.filter((row) => row.punya_akun).map((row) => row.nama),
+      notVoters: data.filter((row) => !row.pemilih).map((row) => row.nama),
+    };
+  }
+  const [jemaatRes, linkedRes] = await Promise.all([
+    supabase.from("jemaat").select("id, nama").in("id", ids),
+    supabase.from("profiles").select("jemaat_id").in("jemaat_id", ids),
+  ]);
+  if (jemaatRes.error || linkedRes.error) {
+    console.error("[username-accounts] pre-check failed:", (jemaatRes.error ?? linkedRes.error)?.code);
+    return null;
+  }
+  const names = new Map(jemaatRes.data.map((row) => [row.id, row.nama]));
+  return { names, linked: linkedRes.data.map((row) => names.get(row.jemaat_id!)!).filter(Boolean), notVoters: [] };
+}
+
 /**
- * POST /api/admin/users/username (`users:create`): one or more username
- * accounts. Predictable refusals (unknown jemaat, a jemaat that already has
- * an account) are checked for the whole batch first, so nothing is created
- * and the answer is a 400. Then each account is created on its own, in
- * order: 201 when all succeed, 207 with the failed ones listed otherwise.
+ * POST /api/admin/users/username (`users:create`, or `pemilihan:update` for
+ * voters of an election in draft or dibuka, stage 14b): one or more
+ * username accounts. They are always jemaat-only (no role). Predictable
+ * refusals (unknown jemaat, a jemaat that already has an account, for the
+ * panitia a jemaat that isn't a voter) are checked for the whole batch
+ * first, so nothing is created and the answer is a 400. Then each account is
+ * created on its own, in order: 201 when all succeed, 207 with the failed
+ * ones listed otherwise.
  */
 export async function createUsernameAccountsRoute(request: Request): Promise<NextResponse> {
-  const auth = await requirePermissionApi("users", "create");
+  const auth = await requireStaffApi();
   if (!auth.ok) return auth.response;
   const { user, supabase } = auth;
+  const asPanitia = !can(user, "users", "create");
+  if (asPanitia && !can(user, "pemilihan", "update")) return fail("Kamu tidak punya akses untuk tindakan ini.", 403);
 
   const body = await parseBody(request, createSchema);
   if (!body.ok) return body.response;
@@ -98,19 +136,15 @@ export async function createUsernameAccountsRoute(request: Request): Promise<Nex
   }
 
   const ids = items.map((item) => item.jemaatId);
-  const [jemaatRes, linkedRes] = await Promise.all([
-    supabase.from("jemaat").select("id, nama").in("id", ids),
-    supabase.from("profiles").select("jemaat_id").in("jemaat_id", ids),
-  ]);
-  if (jemaatRes.error || linkedRes.error) {
-    console.error("[username-accounts] pre-check failed:", (jemaatRes.error ?? linkedRes.error)?.code);
-    return fail(GENERIC_ERROR, 500);
-  }
-  const names = new Map(jemaatRes.data.map((row) => [row.id, row.nama]));
+  const checked = await preCheck(supabase, ids, asPanitia);
+  if (!checked) return fail(GENERIC_ERROR, 500);
+  const { names, linked, notVoters } = checked;
   if (names.size !== ids.length) return fail("Jemaat tidak ditemukan.", 400);
-  const linked = linkedRes.data.map((row) => names.get(row.jemaat_id!)!).filter(Boolean);
   if (linked.length > 0) {
     return fail(`Jemaat ini sudah punya akun: ${linked.join(", ")}. Satu jemaat hanya bisa punya satu akun.`, 400);
+  }
+  if (notVoters.length > 0) {
+    return fail(`Panitia hanya bisa membuat akun untuk pemilih pada pemilihan yang belum ditutup: ${notVoters.join(", ")}.`, 400);
   }
 
   const result: CreateAccountsResult = { created: [], failed: [] };
@@ -132,8 +166,8 @@ export async function createUsernameAccountsRoute(request: Request): Promise<Nex
       } else if (created.reason !== "taken") {
         // GoTrue hides the Postgres error. The likely one is a jemaat linked
         // in the meantime (0039's trigger); anything else is unexpected.
-        const now = await supabase.from("profiles").select("id").eq("jemaat_id", item.jemaatId).maybeSingle();
-        if (now.data) outcome = { error: JEMAAT_TAKEN };
+        const now = await preCheck(supabase, [item.jemaatId], asPanitia);
+        if (now && now.linked.length > 0) outcome = { error: JEMAAT_TAKEN };
         else {
           console.error(`[username-accounts] createUser failed for jemaat ${item.jemaatId}: ${created.message}`);
           outcome = { error: "Akun gagal dibuat. Coba lagi." };

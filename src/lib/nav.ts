@@ -23,7 +23,8 @@ export type NavIcon =
   | "majelis"
   | "kegiatan"
   | "pendeta"
-  | "komisi";
+  | "komisi"
+  | "pemilihan";
 
 export type NavLink = { label: string; href: string };
 /** `group`: consecutive entries with the same group render under one heading. */
@@ -103,6 +104,8 @@ const ENTRIES: Entry[] = [
     group: "Konten Situs",
     permission: ["situs", "read"],
   },
+  // Brief §18.4 (stage 14b): after the Konten Situs group, before Pengguna.
+  { label: "Pemilihan", href: "/admin/pemilihan", icon: "pemilihan", permission: ["pemilihan", "read"] },
   { label: "Pengguna", href: "/admin/users", icon: "users", permission: ["users", "read"] },
   { label: "Roles & Permissions", href: "/admin/roles", icon: "roles", permission: ["roles", "read"] },
   { label: "Log Aktivitas", href: "/admin/log-aktivitas", icon: "log", permission: ["activity_log", "read"] },

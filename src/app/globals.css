@@ -322,6 +322,18 @@
   body > .slip-cetak {
     display: block !important;
   }
+  /* Printable documents (Pemilihan berita acara, stage 14b): the same rule. */
+  body:has(> .dokumen-cetak) > :not(.dokumen-cetak) {
+    display: none !important;
+  }
+  body > .dokumen-cetak {
+    display: block !important;
+  }
+  body > .dokumen-cetak * {
+    color: #000 !important;
+    border-color: #000 !important;
+    background: transparent !important;
+  }
   @page {
     size: A4;
     margin: 12mm;

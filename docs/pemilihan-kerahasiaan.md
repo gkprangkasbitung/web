@@ -42,6 +42,7 @@ Bayangkan pemungutan suara di gedung gereja. Ada **daftar hadir** dan ada **kota
    - `Memberikan suara pada pemilihan "…"` untuk pemilih lewat portal;
    - `Membantu pemilih memberikan suara: {nama} (formulir {nomor})` untuk pemungutan yang dibantu;
    - pembuatan, impor peserta, pembukaan, penutupan, dan pengumuman pemilihan.
+   - (sejak tahap 14b) perubahan dan penghapusan pemilihan draft, setiap baris impor yang diselesaikan panitia, serta menyalakan/mematikan "tampilkan hasil sementara di Portal Jemaat".
 6. **Pesan kesalahan dan log server tidak memuat pilihan.**
    - Pesan seperti "Pilih minimal 10 calon Penatua" hanya menyebut jumlah, tidak menyebut nama calon.
    - Server aplikasi tidak menulis isi surat suara ke log.
@@ -60,9 +61,9 @@ Bayangkan pemungutan suara di gedung gereja. Ada **daftar hadir** dan ada **kota
 |---|---|
 | Pemilih (Portal Jemaat) | Daftar calon saat pemungutan dibuka. Apakah dan kapan ia sudah memilih. Hasil hanya kalau sudah diumumkan, atau kalau panitia menyalakan "tampilkan hasil saat berjalan". |
 | Jemaat lain yang punya akun portal | Hasil, dengan aturan yang sama. |
-| Panitia dengan izin `pemilihan:read` | Jumlah pemilih, yang sudah memilih, persentase, mandiri/dibantu, bantuan per panitia. |
+| Panitia dengan izin `pemilihan:read` | Jumlah pemilih, yang sudah memilih, persentase, mandiri/dibantu, bantuan per panitia. Daftar peserta beserta alasan tidak dapat dipilih dan keterangan dari file impor (alasan dan keterangan tidak pernah tampil di Portal Jemaat). |
 | Pemegang izin `pemilihan_hasil:read` | Jumlah suara per calon, **langsung dan kapan saja**, juga selama pemungutan berjalan. |
-| Panitia di halaman "bantu memilih" | Siapa yang belum memilih (untuk mencari pemilih yang akan dibantu). |
+| Panitia di halaman "bantu memilih" (izin `pemilihan_bantu:create`) | Siapa yang belum memilih (untuk mencari pemilih yang akan dibantu), tanpa data jemaatnya sendiri. Halaman ini tidak menampilkan siapa sudah memilih apa, juga tidak menyimpan pilihan di peramban. |
 | Super admin (Log Aktivitas) | Siapa memilih dan kapan, tetapi tidak apa yang dipilih. |
 
 Mengetahui *siapa sudah memilih* sama dengan daftar hadir di tempat pemungutan suara: memang bukan rahasia. Yang rahasia adalah *apa yang dipilih*.
@@ -131,6 +132,8 @@ Satu fitur, `auto_explain`, mencatat permintaan yang berjalan lebih dari 10 deti
 
   Satu-satunya baris lain yang dikunci saat memilih adalah baris `pemilihan` (`FOR SHARE`), supaya penutupan menunggu suara yang sedang masuk.
 - **Fungsi:** `portal.berikan_suara`, `public.berikan_suara_dibantu`, `portal.pemilihan_aktif_saya`, `portal.kandidat`, `portal.hasil_pemilihan`, `public.hasil_partisipasi`, `public.hasil_suara`.
+  - Tahap 14b (`supabase/migrations/0040_pemilihan_panitia.sql`) menambah fungsi untuk halaman panitia: `impor_peserta_pemilihan`, `perbarui_baris_impor`, `pemilihan_ringkasan`, `pemilihan_pencatat`, `pemilihan_daftar_jemaat`, `pemilihan_peserta_akun`, `pemilihan_jemaat_akun`, `pemilihan_kandidat_admin`, `pemilihan_untuk_bantu`, `pemilihan_belum_memilih`. Yang membaca daftar hadir hanya `pemilihan_ringkasan` (jumlah) dan `pemilihan_belum_memilih` (nama yang belum memilih, khusus `pemilihan_bantu:create`, hanya saat dibuka). Tidak ada yang membaca kotak suara selain `hasil_suara` yang sudah ada.
+  - Tabel baru `pemilihan_impor_baris` (hasil impor peserta) tidak terhubung ke daftar hadir maupun kotak suara, dan tidak bisa diubah setelah pemilihan dibuka.
   - Semuanya `security definer` dengan `search_path` kosong.
   - Semua penulisan lewat `private.pemilihan_catat_suara`.
   - Kode error stabil `PM001`–`PM011` didaftar di kepala migration dan di `src/lib/pemilihan/types.ts`.
@@ -144,5 +147,6 @@ Satu fitur, `auto_explain`, mencatat permintaan yang berjalan lebih dari 10 deti
   Satu hal yang perlu diwaspadai: Postgres menulis isi baris di `DETAIL` kalau sebuah constraint dilanggar. Karena itu `private.pemilihan_catat_suara` memeriksa semuanya sebelum menulis, sehingga insert ke `pemilihan_suara` tidak bisa gagal karena constraint.
 - **Test:**
   - `supabase/tests/database/pemilihan.test.sql`: bentuk tabel, hak akses, aturan, hasil, dan log.
+  - `supabase/tests/database/pemilihan_panitia.test.sql` dan `tests/integration/pemilihan-panitia.test.ts` (tahap 14b): impor, pembukaan, bantu memilih, hak akses fungsi panitia, dan log tanpa pilihan.
   - `tests/integration/pemilihan.test.ts`: lewat REST sungguhan, mencakup penolakan akses langsung untuk semua akun, `xmin`/`xmax` yang tidak berubah setelah memilih, lima panggilan serentak, serta log dan console tanpa pilihan.
   - Uji mutasi: menambah foreign key `pemilihan_suara.kandidat_jemaat_id → jemaat` langsung menggagalkan test `xmax` dan test katalog.

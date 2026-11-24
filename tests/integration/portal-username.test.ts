@@ -257,10 +257,15 @@ describe("Buat akun username (users:create)", () => {
     expect(dup.status).toBe(400);
     expect(dup.body.error).toMatch(/dipakai dua kali/);
 
-    for (const session of [viewer, editor, admin, panitia]) {
+    for (const session of [viewer, editor, admin]) {
       const result = await createAccounts([{ jemaatId: jemaat.id, username: `tolak.${RUN}` }], session);
       expect(result.status).toBe(403);
     }
+    // Stage 14b: the panitia (pemilihan:update) may create accounts, but only
+    // for voters of an election still draft or dibuka; this jemaat isn't one.
+    const byPanitia = await createAccounts([{ jemaatId: jemaat.id, username: `tolak.${RUN}` }], panitia);
+    expect(byPanitia.status).toBe(400);
+    expect(byPanitia.body.error).toMatch(/^Panitia hanya bisa membuat akun untuk pemilih/);
     expect(await profileOf(`tolak.${RUN}`)).toBeNull();
   });
 });

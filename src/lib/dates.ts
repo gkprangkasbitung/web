@@ -182,6 +182,50 @@ export function formatTimestamp(value: string | Date): string {
   return `${day} ${MONTH_SHORT[month - 1]} ${year}, ${pad(hour)}.${pad(minute)} WIB`;
 }
 
+const jakartaSeconds = new Intl.DateTimeFormat("en-US", {
+  timeZone: TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+/** The clock time of an instant in WIB with seconds: "10.42.07" (Pemilihan's "Diperbarui pukul …"). */
+export function formatTimeWibSeconds(value: string | Date): string {
+  const instant = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(instant.getTime())) throw new RangeError(`Invalid timestamp: ${String(value)}`);
+  const parts: Record<string, string> = {};
+  for (const part of jakartaSeconds.formatToParts(instant)) parts[part.type] = part.value;
+  return `${parts.hour}.${parts.minute}.${parts.second}`;
+}
+
+/** "Minggu, 7 Desember 2026, 10.42 WIB": an instant with its WIB day name. */
+export function formatTimestampLong(value: string | Date): string {
+  const instant = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(instant.getTime())) throw new RangeError(`Invalid timestamp: ${String(value)}`);
+  const { year, month, day, hour, minute } = jakartaComponents(instant);
+  const date = `${year}-${pad(month)}-${pad(day)}`;
+  return `${formatDateLong(date)}, ${pad(hour)}.${pad(minute)} WIB`;
+}
+
+/** "HH:mm", 00:00–23:59. */
+export const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** A WIB calendar date and clock time as an ISO instant: ("2026-12-07", "08:00") → "2026-12-07T08:00:00+07:00". */
+export function jakartaDateTime(date: IsoDate, time: string): string {
+  parse(date);
+  if (!TIME_PATTERN.test(time)) throw new RangeError(`Invalid time: ${time}`);
+  return `${date}T${time}:00+07:00`;
+}
+
+/** The WIB date and "HH:mm" of an instant, for a date + time form. */
+export function jakartaDateTimeParts(value: string | Date): { date: IsoDate; time: string } {
+  const instant = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(instant.getTime())) throw new RangeError(`Invalid timestamp: ${String(value)}`);
+  const { year, month, day, hour, minute } = jakartaComponents(instant);
+  return { date: `${year}-${pad(month)}-${pad(day)}`, time: `${pad(hour)}:${pad(minute)}` };
+}
+
 /** The instant 00:00 WIB starts `date`, as an ISO timestamp: "2025-09-14T00:00:00+07:00". */
 export function jakartaDayStart(date: IsoDate): string {
   parse(date);

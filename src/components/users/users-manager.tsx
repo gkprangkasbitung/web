@@ -278,7 +278,7 @@ export function UsersManager({
       />
 
       <CreateUsernameAccountsDialog
-        key={createKey}
+        key={`create-${createKey}`}
         open={createOpen}
         onOpenChange={setCreateOpen}
         people={eligible}
@@ -298,7 +298,7 @@ export function UsersManager({
       <ResetPasswordResultDialog account={resetResult} onClose={() => setResetResult(null)} />
 
       <InviteUserDialog
-        key={inviteKey}
+        key={`invite-${inviteKey}`}
         open={inviteOpen}
         onOpenChange={setInviteOpen}
         roles={overview.roles}

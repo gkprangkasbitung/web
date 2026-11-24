@@ -19,6 +19,7 @@ import {
   UserRoundIcon,
   UsersIcon,
   UsersRoundIcon,
+  VoteIcon,
   WalletIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -49,6 +50,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   kegiatan: CalendarIcon,
   pendeta: UserRoundIcon,
   komisi: ClipboardListIcon,
+  pemilihan: VoteIcon,
 };
 
 function matches(pathname: string, href: string): boolean {
